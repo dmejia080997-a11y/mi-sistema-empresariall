@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('tracking.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page" style="<% if (companyBrand) { %>--accent:<%= companyBrand.primary_color || '#d97757' %>; --accent-2:<%= companyBrand.secondary_color || '#3d7b6f' %>;<% } %>">
+<header class="topbar">
+<div class="brand tracking-brand">
+<% if (companyBrand && companyBrand.logo) { %>
+<img src="<%= companyBrand.logo %>" alt="Logo" class="brand-logo" />
+<% } %>
+<span>
+<%= companyBrand && companyBrand.name ? companyBrand.name : t('common.brand') %>
+</span>
+</div>
+<nav class="nav">
+<a href="/login">
+<%= t('tracking.admin_login') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<section class="panel tracking-hero">
+<h1>
+<%= t('tracking.heading') %>
+</h1>
+<p class="muted">
+<%= t('tracking.subtitle') %>
+</p>
+<form method="GET" action="/tracking" class="form tracking-form">
+<label>
+<%= t('tracking.input_label') %>
+<input type="text" name="q" value="<%= query || '' %>" placeholder="<%= t('tracking.input_placeholder') %>" required />
+</label>
+<button type="submit" class="btn primary">
+<%= t('tracking.search') %>
+</button>
+</form>
+</section>
+<% if (error === 'rate_limit') { %>
+<div class="panel">
+<div class="alert">
+<%= t('tracking.rate_limited') %>
+</div>
+</div>
+<% } %>
+<% if (notFound) { %>
+<div class="panel">
+<div class="alert">
+<%= t('tracking.not_found') %>
+</div>
+</div>
+<% } %>
+<% if (emptyState) { %>
+<div class="panel empty-state">
+<h2>
+<%= t('tracking.empty_title') %>
+</h2>
+<p class="muted">
+<%= t('tracking.empty_text') %>
+</p>
+</div>
+<% } %>
+<% if (pkg) { %>
+<section class="panel">
+<h2>
+<%= t('tracking.result_title') %>
+</h2>
+<div class="tracking-status">
+<span class="status-badge <%= (pkg.status || '').replace(/\\s+/g,'-').toLowerCase() %>">
+<%= pkg.status %>
+</span>
+<div class="progress">
+<div class="progress-bar" style="width: <%= progressPercent %>%;">
+</div>
+</div>
+<div class="muted">
+<%= t('tracking.progress_label', { percent: progressPercent }) %>
+</div>
+</div>
+<div class="detail-grid">
+<div>
+<span class="muted">
+<%= t('packages.internal_code') %>
+</span>
+<div>
+<%= pkg.internal_code || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.tracking') %>
+</span>
+<div>
+<%= pkg.tracking_number || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.customer') %>
+</span>
+<div>
+<%= pkg.customer_code ? `${pkg.customer_code} - ` : '' %><%= pkg.customer_name || t('common.unassigned') %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.description') %>
+</span>
+<div>
+<%= pkg.description || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.weight_lbs') %>
+</span>
+<div>
+<%= pkg.weight_lbs ? Number(pkg.weight_lbs).toFixed(2) + ' lbs' : '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.carrier') %>
+</span>
+<div>
+<%= pkg.carrier || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.status') %>
+</span>
+<div>
+<span class="pill">
+<%= pkg.status %>
+</span>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.received_at') %>
+</span>
+<div>
+<%= pkg.received_at || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.shipping_type') %>
+</span>
+<div>
+<%= pkg.shipping_type === 'air'                ? t('packages.shipping_air')                : pkg.shipping_type === 'sea'                ? t('packages.shipping_sea')                : pkg.shipping_type === 'land'                ? t('packages.shipping_land')                : '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.invoice_status') %>
+</span>
+<div>
+<%= pkg.invoice_status === 'uploaded' ? t('packages.invoice_uploaded') : t('packages.invoice_pending') %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.payment_status') %>
+</span>
+<div>
+<%= pkg.payment_status === 'paid' ? t('packages.payment_paid') : t('packages.payment_pending') %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.branch_destination') %>
+</span>
+<div>
+<%= pkg.branch_destination || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.delivery_type') %>
+</span>
+<div>
+<%= pkg.delivery_type === 'pickup'                ? t('packages.delivery_pickup')                : pkg.delivery_type === 'delivery'                ? t('packages.delivery_delivery')                : '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('tracking.latest_status_date') %>
+</span>
+<div>
+<%= latestStatusDate || '-' %>
+</div>
+</div>
+</div>
+</section>
+<section class="panel">
+<h2>
+<%= t('tracking.timeline_title') %>
+</h2>
+<div class="timeline">
+<% timeline.forEach(item => { %>
+<div class="timeline-item visual <%= item.completed ? 'completed' : '' %>
+<%= item.current ? 'current' : '' %>">
+<div class="timeline-status">
+<%= item.status %>
+</div>
+<div class="timeline-meta">
+<span class="muted">
+<%= item.date ? t('tracking.completed_on', { date: item.date }) : t('tracking.pending') %>
+</span>
+</div>
+</div>
+<% }) %>
+</div>
+</section>
+<% if (photos && photos.length > 0) { %>
+<section class="panel">
+<h2>
+<%= t('tracking.photos') %>
+</h2>
+<div class="photo-grid">
+<% photos.forEach(photo => { %>
+<div class="photo-card">
+<img src="<%= photo.file_path %>" alt="Foto de paquete" />
+</div>
+<% }) %>
+</div>
+</section>
+<% } %>
+<% } %>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

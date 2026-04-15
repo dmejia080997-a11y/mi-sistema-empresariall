@@ -1,0 +1,97 @@
+<% var currentPackagesNav = typeof packagesNav !== 'undefined' ? packagesNav : 'dashboard'; %>
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('packages_dashboard.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container packages-module">
+<div class="page-header">
+<div>
+<h1>
+<%= t('packages_dashboard.title') %>
+</h1>
+<p class="muted">
+<%= t('packages_dashboard.subtitle') %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/packages/home">
+<%= t('packages.module.home') %>
+</a>
+<a class="btn" href="/packages/new">
+<%= t('packages.module.new') %>
+</a>
+<a class="btn" href="/packages">
+<%= t('packages_dashboard.back_list') %>
+</a>
+</div>
+</div>
+<div class="module-nav">
+<a href="/packages/dashboard" class="<%= currentPackagesNav === 'dashboard' ? 'active' : '' %>">
+<%= t('packages.module.dashboard') %>
+</a>
+<a href="/packages" class="<%= currentPackagesNav === 'list' ? 'active' : '' %>">
+<%= t('packages.module.list') %>
+</a>
+<a href="/packages/pending-invoice" class="<%= currentPackagesNav === 'pending_invoice' ? 'active' : '' %>">
+<%= t('packages.module.pending_invoice') %>
+</a>
+<a href="/packages/new" class="<%= currentPackagesNav === 'new' ? 'active' : '' %>">
+<%= t('packages.module.new') %>
+</a>
+<a href="/packages/statuses" class="<%= currentPackagesNav === 'statuses' ? 'active' : '' %>">
+<%= t('packages.module.statuses') %>
+</a>
+<a href="/packages/tracking" class="<%= currentPackagesNav === 'tracking' ? 'active' : '' %>">
+<%= t('packages.module.tracking') %>
+</a>
+</div>
+<section class="grid">
+<div class="stat">
+<div class="stat-label">
+<%= t('packages_dashboard.total') %>
+</div>
+<div class="stat-value">
+<%= stats.total %>
+</div>
+</div>
+<div class="stat">
+<div class="stat-label">
+<%= t('packages_dashboard.pending_invoice') %>
+</div>
+<div class="stat-value">
+<%= stats.pendingInvoice %>
+</div>
+</div>
+<div class="stat">
+<div class="stat-label">
+<%= t('packages_dashboard.delivered') %>
+</div>
+<div class="stat-value">
+<%= stats.delivered %>
+</div>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

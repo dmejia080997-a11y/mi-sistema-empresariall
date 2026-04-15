@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('package_receipt.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+<style>    @media print {      .no-print { display: none; }      body.page { background: #fff; }    }    .receipt {      max-width: 720px;      margin: 0 auto;      background: #fff;      border: 1px dashed #d7cdbf;      border-radius: 12px;      padding: 24px;    }    .receipt h1 { margin-bottom: 6px; }    .receipt-grid {      display: grid;      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));      gap: 12px;      margin-top: 16px;    }    .receipt-label { color: var(--muted); font-size: 0.85rem; }    .receipt-value { font-weight: 600; }  </style>
+</head>
+<body class="page">
+<main class="container">
+<div class="receipt">
+<div class="page-header">
+<div>
+<h1>
+<%= t('package_receipt.title') %>
+</h1>
+<div class="muted">
+<%= pkg.internal_code || '-' %> · <%= pkg.tracking_number || '-' %>
+</div>
+</div>
+<div class="actions no-print">
+<button class="btn" onclick="window.print()">
+<%= t('package_receipt.print') %>
+</button>
+<a class="btn" href="/packages/<%= pkg.id %>">
+<%= t('package_receipt.back') %>
+</a>
+</div>
+</div>
+<div class="receipt-grid">
+<div>
+<div class="receipt-label">
+<%= t('packages.customer') %>
+</div>
+<div class="receipt-value">
+<%= pkg.customer_code ? `${pkg.customer_code} - ` : '' %><%= pkg.customer_name || t('common.unassigned') %>
+</div>
+</div>
+<div>
+<div class="receipt-label">
+<%= t('packages.customer_phone') %>
+</div>
+<div class="receipt-value">
+<%= pkg.customer_phone || '-' %>
+</div>
+</div>
+<div>
+<div class="receipt-label">
+<%= t('packages.customer_email') %>
+</div>
+<div class="receipt-value">
+<%= pkg.customer_email || '-' %>
+</div>
+</div>
+<div>
+<div class="receipt-label">
+<%= t('packages.received_at') %>
+</div>
+<div class="receipt-value">
+<%= pkg.received_at || '-' %>
+</div>
+</div>
+<div>
+<div class="receipt-label">
+<%= t('packages.carrier') %>
+</div>
+<div class="receipt-value">
+<%= pkg.carrier || '-' %>
+</div>
+</div>
+<div>
+<div class="receipt-label">
+<%= t('packages.weight_lbs') %>
+</div>
+<div class="receipt-value">
+<%= pkg.weight_lbs ? Number(pkg.weight_lbs).toFixed(2) + ' lbs' : '-' %>
+</div>
+</div>
+<div>
+<div class="receipt-label">
+<%= t('packages.dimensions_cm') %>
+</div>
+<div class="receipt-value">
+<%= pkg.length_cm || '-' %> x <%= pkg.width_cm || '-' %> x <%= pkg.height_cm || '-' %>
+</div>
+</div>
+<div>
+<div class="receipt-label">
+<%= t('packages.status') %>
+</div>
+<div class="receipt-value">
+<%= pkg.status %>
+</div>
+</div>
+<div>
+<div class="receipt-label">
+<%= t('packages.notes') %>
+</div>
+<div class="receipt-value">
+<%= pkg.notes || '-' %>
+</div>
+</div>
+</div>
+</div>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

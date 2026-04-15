@@ -1,0 +1,1061 @@
+﻿﻿<%
+  var labelsContext = typeof labelsContext !== 'undefined' ? labelsContext : 'packages';
+  var showPackagesNav = labelsContext === 'packages';
+  var currentPackagesNav = typeof packagesNav !== 'undefined' ? packagesNav : 'list';
+  var headerTitle = labelsContext === 'settings' ? t('settings.labels_packages_title') : t('packages.module.labels');
+  var headerSubtitle = labelsContext === 'settings' ? t('settings.labels_packages_subtitle') : t('packages.module.labels_desc');
+  var backHref = labelsContext === 'settings' ? '/settings/labels' : '/packages/home';
+  var backLabel = labelsContext === 'settings' ? t('settings.back_settings') : t('packages.module.home');
+  var secondaryHref = labelsContext === 'settings' ? null : '/packages';
+  var secondaryLabel = labelsContext === 'settings' ? null : t('packages.module.list');
+%>
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= headerTitle %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container packages-module">
+<div class="page-header">
+<div>
+<h1>
+<%= headerTitle %>
+</h1>
+<p class="muted">
+<%= headerSubtitle %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="<%= backHref %>">
+<%= backLabel %>
+</a>
+<% if (secondaryHref) { %>
+<a class="btn" href="<%= secondaryHref %>">
+<%= secondaryLabel %>
+</a>
+<% } %>
+</div>
+</div>
+<% if (showPackagesNav) { %>
+<div class="module-nav">
+<a href="/packages/dashboard" class="<%= currentPackagesNav === 'dashboard' ? 'active' : '' %>">
+<%= t('packages.module.dashboard') %>
+</a>
+<a href="/packages" class="<%= currentPackagesNav === 'list' ? 'active' : '' %>">
+<%= t('packages.module.list') %>
+</a>
+<a href="/packages/pending-invoice" class="<%= currentPackagesNav === 'pending_invoice' ? 'active' : '' %>">
+<%= t('packages.module.pending_invoice') %>
+</a>
+<a href="/packages/new" class="<%= currentPackagesNav === 'new' ? 'active' : '' %>">
+<%= t('packages.module.new') %>
+</a>
+<a href="/packages/statuses" class="<%= currentPackagesNav === 'statuses' ? 'active' : '' %>">
+<%= t('packages.module.statuses') %>
+</a>
+<a href="/packages/tracking" class="<%= currentPackagesNav === 'tracking' ? 'active' : '' %>">
+<%= t('packages.module.tracking') %>
+</a>
+</div>
+<% } %>
+<section class="panel">
+<h2>
+<%= headerTitle %>
+</h2>
+<p class="muted">
+<%= t('packages.module.labels_hint') %>
+</p>
+<div class="actions">
+<a class="btn" href="/packages">
+<%= t('packages.print_labels') %>
+</a>
+</div>
+</section>
+<section class="panel label-editor-panel">
+<div class="label-editor-grid">
+<div class="label-editor-preview">
+<div class="label-canvas label-card" id="label-canvas" aria-label="Etiqueta de paquete editable"></div>
+<p class="muted label-editor-hint">
+Consejo: mueve los elementos dentro de la etiqueta para ajustar su posición. Usa los tiradores para cambiar su tamaño.
+</p>
+</div>
+<div class="label-editor-config">
+<div class="label-editor-config-header">
+<h2 class="label-editor-title">
+Etiqueta de paquete
+</h2>
+<p class="muted">
+Arrastra los campos desde la lista y colocalos en la etiqueta.
+</p>
+</div>
+<div class="label-editor-config-grid">
+<div class="label-editor-controls">
+<label class="label-editor-label" for="label-size-select">Medida</label>
+<select id="label-size-select" class="label-editor-input">
+<option value="standard">Estándar (560x320)</option>
+<option value="compact">Compacta (480x280)</option>
+<option value="square">Cuadrada (360x360)</option>
+<option value="large">Grande (720x420)</option>
+</select>
+<label class="label-editor-label" for="label-logo-input">Logo (PNG)</label>
+<input id="label-logo-input" class="label-editor-input" type="file" accept="image/png,image/*" />
+<label class="label-editor-label" for="label-name-input">Nombre</label>
+<input id="label-name-input" class="label-editor-input" type="text" placeholder="Nombre" />
+<label class="label-editor-label" for="label-address-input">Dirección</label>
+<textarea id="label-address-input" class="label-editor-input" rows="3" placeholder="Dirección"></textarea>
+<div class="label-editor-shapes">
+<div class="label-editor-label">Figuras</div>
+<div class="label-editor-shape-controls">
+<label class="label-editor-label" for="shape-color-input">Color</label>
+<input id="shape-color-input" class="label-editor-input" type="color" value="#111827" />
+<label class="label-editor-label" for="shape-thickness-input">Grosor</label>
+<input id="shape-thickness-input" class="label-editor-input" type="number" min="1" max="12" step="1" value="2" />
+<label class="label-editor-label" for="shape-line-style-input">Estilo de línea</label>
+<select id="shape-line-style-input" class="label-editor-input">
+<option value="solid">Lisa</option>
+<option value="dotted">Punteada</option>
+</select>
+<p class="muted label-editor-hint">Selecciona una figura para aplicar color o grosor.</p>
+</div>
+</div>
+<div class="label-editor-shapes">
+<div class="label-editor-label">Tamaño</div>
+<div class="label-editor-shape-controls">
+<label class="label-editor-label" for="item-width-input">Ancho (px)</label>
+<input id="item-width-input" class="label-editor-input" type="number" min="18" max="1000" step="1" placeholder="Auto" />
+<label class="label-editor-label" for="item-height-input">Alto (px)</label>
+<input id="item-height-input" class="label-editor-input" type="number" min="18" max="1000" step="1" placeholder="Auto" />
+<label class="label-editor-label" for="item-fontsize-input">Tamaño de letra (px)</label>
+<input id="item-fontsize-input" class="label-editor-input" type="number" min="8" max="72" step="0.5" placeholder="Auto" />
+<label class="label-editor-label" for="item-text-input">Texto libre</label>
+<textarea id="item-text-input" class="label-editor-input" rows="2" placeholder="Escribe aqui" disabled></textarea>
+<button type="button" class="btn small" id="item-size-reset">Restaurar tamaño</button>
+<p class="muted label-editor-hint">Selecciona un elemento para ajustar su tamaño.</p>
+</div>
+</div>
+<div class="label-editor-actions">
+<button type="button" class="btn" id="label-save-btn">Guardar</button>
+<button type="button" class="btn" id="label-preview-btn">Vista previa</button>
+<span class="muted label-save-status" id="label-save-status"></span>
+</div>
+</div>
+<div class="label-editor-fields" id="label-field-palette">
+<button type="button" class="label-field-item" draggable="true" data-field="logo">Logo</button>
+<button type="button" class="label-field-item" draggable="true" data-field="name">Nombre</button>
+<button type="button" class="label-field-item" draggable="true" data-field="address">Dirección</button>
+<button type="button" class="label-field-item" draggable="true" data-field="tracking">Tracking</button>
+<button type="button" class="label-field-item" draggable="true" data-field="tienda">Tienda</button>
+<button type="button" class="label-field-item" draggable="true" data-field="descripcion">Descripción</button>
+<button type="button" class="label-field-item" draggable="true" data-field="consignatario">Consignatario</button>
+<button type="button" class="label-field-item" draggable="true" data-field="municipio">Municipio</button>
+<button type="button" class="label-field-item" draggable="true" data-field="departamento">Departamento</button>
+<button type="button" class="label-field-item" draggable="true" data-field="telefono">Teléfono</button>
+<button type="button" class="label-field-item" draggable="true" data-field="peso">Peso</button>
+<button type="button" class="label-field-item" draggable="true" data-field="dimensiones">Dimensiones</button>
+<button type="button" class="label-field-item" draggable="true" data-field="carrier">Carrier</button>
+<button type="button" class="label-field-item" draggable="true" data-field="status">Estado</button>
+<button type="button" class="label-field-item" draggable="true" data-field="recibido">Recibido</button>
+<button type="button" class="label-field-item" draggable="true" data-field="internal">Código interno</button>
+<button type="button" class="label-field-item" draggable="true" data-field="free-text">Texto libre</button>
+<button type="button" class="label-field-item" draggable="true" data-field="barcode">Código de barras</button>
+<button type="button" class="label-field-item" draggable="true" data-field="qr">QR</button>
+<button type="button" class="label-field-item" draggable="true" data-field="shape-line">Línea horizontal</button>
+<button type="button" class="label-field-item" draggable="true" data-field="shape-line-vertical">Línea vertical</button>
+<button type="button" class="label-field-item" draggable="true" data-field="shape-rect">Rectángulo</button>
+<button type="button" class="label-field-item" draggable="true" data-field="shape-circle">Círculo</button>
+</div>
+</div>
+</section>
+</main>
+<div class="label-preview-modal hidden" id="label-preview-modal" role="dialog" aria-modal="true" aria-labelledby="label-preview-title">
+<div class="label-preview-card">
+<div class="label-preview-header">
+<h3 id="label-preview-title">Vista previa de etiqueta</h3>
+<button type="button" class="btn small" id="label-preview-close">Cerrar</button>
+</div>
+<div class="label-preview-body">
+<div class="label-preview-canvas label-print-canvas" id="label-preview-canvas" aria-label="Vista previa de etiqueta"></div>
+</div>
+</div>
+</div>
+<script>
+  (function () {
+    const canvas = document.getElementById('label-canvas');
+    const palette = document.getElementById('label-field-palette');
+    if (!canvas || !palette) return;
+
+    const nameInput = document.getElementById('label-name-input');
+    const addressInput = document.getElementById('label-address-input');
+    const logoInput = document.getElementById('label-logo-input');
+    const sizeSelect = document.getElementById('label-size-select');
+    const saveButton = document.getElementById('label-save-btn');
+    const previewButton = document.getElementById('label-preview-btn');
+    const previewModal = document.getElementById('label-preview-modal');
+    const previewCanvas = document.getElementById('label-preview-canvas');
+    const previewClose = document.getElementById('label-preview-close');
+    const saveStatus = document.getElementById('label-save-status');
+    const shapeColorInput = document.getElementById('shape-color-input');
+    const shapeThicknessInput = document.getElementById('shape-thickness-input');
+    const shapeLineStyleInput = document.getElementById('shape-line-style-input');
+    const itemWidthInput = document.getElementById('item-width-input');
+    const itemHeightInput = document.getElementById('item-height-input');
+    const itemFontSizeInput = document.getElementById('item-fontsize-input');
+    const itemTextInput = document.getElementById('item-text-input');
+    const itemSizeReset = document.getElementById('item-size-reset');
+    const csrfToken = '<%= csrfToken %>';
+    const serverLayout = <%- JSON.stringify(labelLayout || null) %>;
+    let logoDataUrl = '';
+    let saveTimer = null;
+    let activeItem = null;
+    let activeResize = null;
+    const resizeHandles = ['e', 's', 'se'];
+    const minItemSize = 18;
+
+    const sizeOptions = {
+      standard: { width: 560, height: 320 },
+      compact: { width: 480, height: 280 },
+      square: { width: 360, height: 360 },
+      large: { width: 720, height: 420 }
+    };
+
+    const shapeDefs = {
+      'shape-line': { type: 'shape', label: 'Línea horizontal', width: 180, height: 2, className: 'label-shape-line', thickness: 2, color: '#111827', lineStyle: 'solid' },
+      'shape-line-vertical': { type: 'shape', label: 'Línea vertical', width: 2, height: 110, className: 'label-shape-line-vertical', thickness: 2, color: '#111827', lineStyle: 'solid' },
+      'shape-rect': { type: 'shape', label: 'Rectángulo', width: 160, height: 90, className: 'label-shape-rect', thickness: 2, color: '#111827' },
+      'shape-circle': { type: 'shape', label: 'Círculo', width: 70, height: 70, className: 'label-shape-circle', thickness: 2, color: '#111827' }
+    };
+
+    const fieldDefs = {
+      logo: { type: 'logo', label: 'Logo' },
+      name: { type: 'text', label: 'Nombre' },
+      address: { type: 'text', label: 'Dirección' },
+      tracking: { type: 'text', label: 'Tracking', sample: 'TRK-0001' },
+      tienda: { type: 'text', label: 'Tienda', sample: 'Tienda XYZ' },
+  descripcion: { type: 'text', label: 'Descripción', sample: 'Descripción' },
+      consignatario: { type: 'text', label: 'Consignatario', sample: 'Cliente' },
+      municipio: { type: 'text', label: 'Municipio', sample: 'Municipio' },
+      departamento: { type: 'text', label: 'Departamento', sample: 'Departamento' },
+      telefono: { type: 'text', label: 'Teléfono', sample: '5555-0000' },
+      peso: { type: 'text', label: 'Peso', sample: '2.50 lbs' },
+      dimensiones: { type: 'text', label: 'Dimensiones', sample: '30 x 20 x 10 cm' },
+      carrier: { type: 'text', label: 'Carrier', sample: 'Carrier' },
+      status: { type: 'text', label: 'Estado', sample: 'En proceso' },
+      recibido: { type: 'text', label: 'Recibido', sample: '2026-04-06' },
+      internal: { type: 'text', label: 'Código interno', sample: 'PKG-1001' },
+      'free-text': { type: 'free-text', label: 'Texto libre', sample: 'Texto libre', allowMultiple: true },
+      barcode: { type: 'barcode', label: 'Código de barras' },
+      qr: { type: 'qr', label: 'QR' },
+      ...shapeDefs
+    };
+
+    function getTextValue(fieldKey) {
+      if (fieldKey === 'name') return (nameInput && nameInput.value) || 'Nombre';
+      if (fieldKey === 'address') return (addressInput && addressInput.value) || 'Dirección';
+      const def = fieldDefs[fieldKey];
+      return def && def.sample ? def.sample : def.label;
+    }
+
+    function createFieldContent(fieldKey, meta = {}) {
+      const def = fieldDefs[fieldKey];
+      if (!def) return document.createTextNode(fieldKey);
+      if (def.type === 'shape') {
+        const shape = document.createElement('div');
+        shape.className = `label-item-shape ${def.className || ''}`.trim();
+        shape.style.width = `${def.width || 80}px`;
+        shape.style.height = `${def.height || 20}px`;
+        return shape;
+      }
+      if (def.type === 'logo') {
+        if (logoDataUrl) {
+          const img = document.createElement('img');
+          img.src = logoDataUrl;
+          img.alt = 'Logo';
+          img.className = 'label-item-logo';
+          return img;
+        }
+        const placeholder = document.createElement('div');
+        placeholder.className = 'label-item-logo label-item-logo-placeholder';
+        placeholder.textContent = 'Logo';
+        return placeholder;
+      }
+      if (def.type === 'qr') {
+        const qr = document.createElement('div');
+        qr.className = 'label-item-qr';
+        qr.textContent = 'QR';
+        return qr;
+      }
+      if (def.type === 'barcode') {
+        const barcode = document.createElement('div');
+        barcode.className = 'label-item-barcode';
+        barcode.textContent = 'BARCODE';
+        return barcode;
+      }
+      const text = document.createElement('div');
+      text.className = 'label-item-text';
+      if (def.type === 'free-text') {
+        text.textContent = typeof meta.text === 'string' ? meta.text : (def.sample || def.label);
+      } else {
+        text.textContent = getTextValue(fieldKey);
+      }
+      return text;
+    }
+
+    function addResizeHandles(item) {
+      resizeHandles.forEach((handle) => {
+        const node = document.createElement('span');
+        node.className = `label-resize-handle handle-${handle}`;
+        node.dataset.handle = handle;
+        item.appendChild(node);
+      });
+    }
+
+    function getContentNode(item) {
+      return item.querySelector('.label-item-text, .label-item-logo, .label-item-qr, .label-item-barcode, .label-item-shape, .label-item-logo-placeholder');
+    }
+
+    function syncContentSize(item) {
+      const content = getContentNode(item);
+      if (!content) return;
+      const width = item.style.width;
+      const height = item.style.height;
+      if (width) {
+        content.style.width = '100%';
+      } else {
+        content.style.removeProperty('width');
+      }
+      if (height) {
+        content.style.height = '100%';
+      } else {
+        content.style.removeProperty('height');
+      }
+    }
+
+    function applyShapeStyles(item, options = {}) {
+      const def = fieldDefs[item.dataset.field];
+      if (!def || def.type !== 'shape') return;
+      const color = options.color || item.dataset.color || def.color || '#111827';
+      const thickness = Number(options.thickness || item.dataset.thickness || def.thickness || 2);
+      const lineStyle = options.lineStyle || item.dataset.lineStyle || def.lineStyle || 'solid';
+      item.dataset.color = color;
+      item.dataset.thickness = String(thickness);
+      item.dataset.lineStyle = lineStyle;
+      const shape = item.querySelector('.label-item-shape');
+      if (!shape) return;
+      if (def.className === 'label-shape-line') {
+        if (lineStyle === 'dotted') {
+          const dotSize = Math.max(1, Math.round(thickness));
+          const gap = dotSize * 2;
+          const total = dotSize + gap;
+          shape.style.background = 'transparent';
+          shape.style.backgroundImage = `repeating-linear-gradient(90deg, ${color}, ${color} ${dotSize}px, transparent ${dotSize}px, transparent ${total}px)`;
+          shape.style.backgroundSize = `${total}px ${thickness}px`;
+        } else {
+          shape.style.backgroundImage = 'none';
+          shape.style.background = color;
+        }
+        shape.style.height = `${thickness}px`;
+      } else if (def.className === 'label-shape-line-vertical') {
+        if (lineStyle === 'dotted') {
+          const dotSize = Math.max(1, Math.round(thickness));
+          const gap = dotSize * 2;
+          const total = dotSize + gap;
+          shape.style.background = 'transparent';
+          shape.style.backgroundImage = `repeating-linear-gradient(180deg, ${color}, ${color} ${dotSize}px, transparent ${dotSize}px, transparent ${total}px)`;
+          shape.style.backgroundSize = `${thickness}px ${total}px`;
+        } else {
+          shape.style.backgroundImage = 'none';
+          shape.style.background = color;
+        }
+        shape.style.width = `${thickness}px`;
+      } else {
+        shape.style.borderColor = color;
+        shape.style.borderWidth = `${thickness}px`;
+      }
+    }
+
+    function createItem(fieldKey, left, top, meta = {}) {
+      const def = fieldDefs[fieldKey];
+      const existing = canvas.querySelector(`[data-field="${fieldKey}"]`);
+      const allowMultiple = def && (def.type === 'shape' || def.allowMultiple);
+      if (existing && !allowMultiple) existing.remove();
+      const item = document.createElement('div');
+      item.className = def && def.type === 'shape'
+        ? 'label-item label-item-shape-wrap'
+        : 'label-item';
+      item.dataset.field = fieldKey;
+      item.style.left = `${left}px`;
+      item.style.top = `${top}px`;
+      item.appendChild(createFieldContent(fieldKey, meta));
+      addResizeHandles(item);
+      canvas.appendChild(item);
+      if (meta.color) item.dataset.color = meta.color;
+      if (meta.thickness) item.dataset.thickness = String(meta.thickness);
+      if (meta.lineStyle) item.dataset.lineStyle = String(meta.lineStyle);
+      if (meta.width) item.style.width = `${meta.width}px`;
+      if (meta.height) item.style.height = `${meta.height}px`;
+      if (meta.fontSize) {
+        item.dataset.fontSize = String(meta.fontSize);
+        item.style.fontSize = `${meta.fontSize}px`;
+      } else if (def && (def.type === 'text' || def.type === 'free-text')) {
+        const computed = window.getComputedStyle(item);
+        const size = parseFloat(computed.fontSize);
+        if (Number.isFinite(size)) {
+          item.dataset.fontSize = String(size);
+        }
+      }
+      if (def && def.type === 'free-text') {
+        const customText = typeof meta.text === 'string' ? meta.text : (def.sample || def.label);
+        item.dataset.customText = customText;
+        const textNode = item.querySelector('.label-item-text');
+        if (textNode) textNode.textContent = customText;
+      }
+      if (def && def.type === 'shape') applyShapeStyles(item, meta);
+      syncContentSize(item);
+      return item;
+    }
+
+    function updateItem(fieldKey, meta = {}) {
+      if (fieldDefs[fieldKey] && fieldDefs[fieldKey].type === 'shape') return;
+      const item = canvas.querySelector(`[data-field="${fieldKey}"]`);
+      if (!item) return;
+      const handles = Array.from(item.querySelectorAll('.label-resize-handle'));
+      item.innerHTML = '';
+      item.appendChild(createFieldContent(fieldKey, meta));
+      handles.forEach((handle) => item.appendChild(handle));
+      syncContentSize(item);
+    }
+
+    function getCurrentSizeKey() {
+      const value = sizeSelect ? sizeSelect.value : 'standard';
+      return sizeOptions[value] ? value : 'standard';
+    }
+
+    function applyCanvasSize() {
+      const sizeKey = getCurrentSizeKey();
+      const size = sizeOptions[sizeKey];
+      if (!size) return;
+      canvas.style.width = `${size.width}px`;
+      canvas.style.height = `${size.height}px`;
+    }
+
+    function buildPayload() {
+      const items = Array.from(canvas.querySelectorAll('.label-item')).map((item) => ({
+        field: item.dataset.field,
+        left: parseFloat(item.style.left) || 0,
+        top: parseFloat(item.style.top) || 0,
+        color: item.dataset.color || '',
+        thickness: item.dataset.thickness || '',
+        lineStyle: item.dataset.lineStyle || '',
+        width: item.style.width ? parseFloat(item.style.width) : '',
+        height: item.style.height ? parseFloat(item.style.height) : '',
+        fontSize: item.dataset.fontSize ? parseFloat(item.dataset.fontSize) : '',
+        text: item.dataset.customText || ''
+      }));
+      return {
+        items,
+        size: getCurrentSizeKey(),
+        name: (nameInput && nameInput.value) || '',
+        address: (addressInput && addressInput.value) || '',
+        logo: logoDataUrl || ''
+      };
+    }
+
+    function persistLayout() {
+      if (saveStatus) saveStatus.textContent = 'Guardando...';
+      const payload = buildPayload();
+      fetch('/packages/labels/layout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken
+        },
+        body: JSON.stringify(payload)
+      }).then(() => {
+        if (saveStatus) saveStatus.textContent = 'Guardado';
+      }).catch(() => {
+        if (saveStatus) saveStatus.textContent = 'No se pudo guardar';
+      });
+    }
+
+    function saveLayout() {
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        persistLayout();
+      }, 400);
+    }
+
+    function loadLayout() {
+      if (!serverLayout) return false;
+      try {
+        const payload = serverLayout;
+        if (payload.size && sizeSelect) {
+          sizeSelect.value = sizeOptions[payload.size] ? payload.size : 'standard';
+        }
+        applyCanvasSize();
+        if (payload.name && nameInput) nameInput.value = payload.name;
+        if (payload.address && addressInput) addressInput.value = payload.address;
+        if (payload.logo) logoDataUrl = payload.logo;
+        if (Array.isArray(payload.items)) {
+          payload.items.forEach((item) => {
+            if (!item.field) return;
+            createItem(item.field, item.left || 16, item.top || 16, {
+              color: item.color || '',
+              thickness: item.thickness || '',
+              width: item.width || '',
+              height: item.height || '',
+              fontSize: item.fontSize || '',
+              lineStyle: item.lineStyle || '',
+              text: typeof item.text === 'string' ? item.text : ''
+            });
+          });
+        }
+        return true;
+      } catch (err) {
+        return false;
+      }
+    }
+
+    function loadDefaults() {
+      if (sizeSelect) sizeSelect.value = 'standard';
+      applyCanvasSize();
+      createItem('logo', 16, 14);
+      createItem('name', 72, 18);
+      createItem('tracking', 300, 18);
+      createItem('consignatario', 16, 70);
+      createItem('address', 16, 105);
+      createItem('barcode', 300, 90);
+      createItem('qr', 300, 150);
+      saveLayout();
+    }
+
+    function getPreviewSamples() {
+      const names = ['Logistica Atlas', 'Cargo Express', 'Distribuciones Maya', 'Transporte Solaris'];
+      const contacts = ['Ana Morales', 'Carlos Perez', 'Luis Santos', 'Marta Lopez'];
+      const municipios = ['Mixco', 'Villa Nueva', 'Escuintla', 'Quetzaltenango'];
+      const departamentos = ['Guatemala', 'Sacatepequez', 'Escuintla', 'Quetzaltenango'];
+      const streets = ['3a Avenida 10-22 Zona 4', 'Calz. Roosevelt 5-61', 'Ruta al Atlantico Km 12', '7a Calle 14-20 Zona 1'];
+      const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
+      const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+      return {
+        name: rand(names),
+        address: rand(streets),
+        tracking: `TRK-${randomInt(1000, 9999)}`,
+        consignatario: rand(contacts),
+        municipio: rand(municipios),
+        departamento: rand(departamentos),
+        telefono: `5${randomInt(100, 999)}-${randomInt(1000, 9999)}`,
+        peso: `${(Math.random() * 5 + 0.5).toFixed(2)} lbs`,
+        dimensiones: `${randomInt(20, 60)} x ${randomInt(15, 50)} x ${randomInt(10, 40)} cm`,
+        carrier: 'DHL',
+        status: 'En ruta',
+        recibido: '2026-04-06',
+        internal: `PKG-${randomInt(1000, 9999)}`
+      };
+    }
+
+    function buildPreviewContent(fieldKey, samples, item) {
+      const def = fieldDefs[fieldKey];
+      if (!def) return document.createTextNode(fieldKey);
+      if (def.type === 'shape') {
+        const shape = document.createElement('div');
+        shape.className = `label-print-shape ${def.className || ''}`.trim();
+        shape.style.width = `${def.width || 80}px`;
+        shape.style.height = `${def.height || 20}px`;
+        return shape;
+      }
+      if (def.type === 'logo') {
+        if (logoDataUrl) {
+          const img = document.createElement('img');
+          img.src = logoDataUrl;
+          img.alt = 'Logo';
+          img.className = 'label-print-logo';
+          return img;
+        }
+        const placeholder = document.createElement('div');
+        placeholder.className = 'label-print-placeholder';
+        placeholder.textContent = 'Logo';
+        return placeholder;
+      }
+      if (def.type === 'qr') {
+        const qr = document.createElement('div');
+        qr.className = 'label-print-placeholder';
+        qr.textContent = 'QR';
+        return qr;
+      }
+      if (def.type === 'barcode') {
+        const barcode = document.createElement('div');
+        barcode.className = 'label-print-placeholder';
+        barcode.textContent = 'BARCODE';
+        return barcode;
+      }
+      const text = document.createElement('div');
+      text.className = 'label-print-text';
+      const value = def.type === 'free-text'
+        ? (item && typeof item.text === 'string' ? item.text : '')
+        : (samples[fieldKey] || getTextValue(fieldKey));
+      text.textContent = value;
+      return text;
+    }
+
+    function applyPreviewSizing(element, content, item) {
+      if (item.width) element.style.width = `${item.width}px`;
+      if (item.height) element.style.height = `${item.height}px`;
+      if (item.fontSize) element.style.fontSize = `${item.fontSize}px`;
+      if (content && (item.width || item.height)) {
+        if (item.width) content.style.width = '100%';
+        if (item.height) content.style.height = '100%';
+      }
+    }
+
+    function renderPreview() {
+      if (!previewCanvas) return;
+      const payload = buildPayload();
+      const size = sizeOptions[payload.size] || sizeOptions.standard;
+      previewCanvas.style.width = `${size.width}px`;
+      previewCanvas.style.height = `${size.height}px`;
+      previewCanvas.innerHTML = '';
+      const samples = getPreviewSamples();
+      payload.items.forEach((item) => {
+        const element = document.createElement('div');
+        element.className = 'label-print-item';
+        element.style.left = `${item.left || 0}px`;
+        element.style.top = `${item.top || 0}px`;
+        const content = buildPreviewContent(item.field, samples, item);
+        applyPreviewSizing(element, content, item);
+        if (fieldDefs[item.field] && fieldDefs[item.field].type === 'shape') {
+          const def = fieldDefs[item.field];
+          const color = item.color || def.color || '#111827';
+          const thickness = Number(item.thickness || def.thickness || 2);
+          const lineStyle = item.lineStyle || def.lineStyle || 'solid';
+          if (def.className === 'label-shape-line') {
+            if (lineStyle === 'dotted') {
+              const dotSize = Math.max(1, Math.round(thickness));
+              const gap = dotSize * 2;
+              const total = dotSize + gap;
+              content.style.background = 'transparent';
+              content.style.backgroundImage = `repeating-linear-gradient(90deg, ${color}, ${color} ${dotSize}px, transparent ${dotSize}px, transparent ${total}px)`;
+              content.style.backgroundSize = `${total}px ${thickness}px`;
+            } else {
+              content.style.backgroundImage = 'none';
+              content.style.background = color;
+            }
+            content.style.height = `${thickness}px`;
+          } else if (def.className === 'label-shape-line-vertical') {
+            if (lineStyle === 'dotted') {
+              const dotSize = Math.max(1, Math.round(thickness));
+              const gap = dotSize * 2;
+              const total = dotSize + gap;
+              content.style.background = 'transparent';
+              content.style.backgroundImage = `repeating-linear-gradient(180deg, ${color}, ${color} ${dotSize}px, transparent ${dotSize}px, transparent ${total}px)`;
+              content.style.backgroundSize = `${thickness}px ${total}px`;
+            } else {
+              content.style.backgroundImage = 'none';
+              content.style.background = color;
+            }
+            content.style.width = `${thickness}px`;
+          } else {
+            content.style.borderColor = color;
+            content.style.borderWidth = `${thickness}px`;
+          }
+        }
+        element.appendChild(content);
+        previewCanvas.appendChild(element);
+      });
+    }
+
+    palette.addEventListener('dragstart', (event) => {
+      const field = event.target.closest('.label-field-item');
+      if (!field) return;
+      event.dataTransfer.setData('text/plain', field.dataset.field || '');
+    });
+
+    canvas.addEventListener('dragover', (event) => {
+      event.preventDefault();
+    });
+
+    canvas.addEventListener('drop', (event) => {
+      event.preventDefault();
+      const fieldKey = event.dataTransfer.getData('text/plain');
+      if (!fieldKey) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.max(0, event.clientX - rect.left - 20);
+      const y = Math.max(0, event.clientY - rect.top - 12);
+      const def = fieldDefs[fieldKey];
+      const meta = {};
+      if (def && def.type === 'shape') {
+        if (shapeColorInput) meta.color = shapeColorInput.value;
+        if (shapeThicknessInput) meta.thickness = shapeThicknessInput.value;
+        if (shapeLineStyleInput) meta.lineStyle = shapeLineStyleInput.value;
+      }
+      createItem(fieldKey, x, y, meta);
+      saveLayout();
+    });
+
+    let activeDrag = null;
+
+    function onPointerMove(event) {
+      if (!activeDrag) return;
+      const rect = canvas.getBoundingClientRect();
+      const item = activeDrag.item;
+      const maxLeft = rect.width - item.offsetWidth;
+      const maxTop = rect.height - item.offsetHeight;
+      const left = Math.min(Math.max(0, event.clientX - rect.left - activeDrag.offsetX), maxLeft);
+      const top = Math.min(Math.max(0, event.clientY - rect.top - activeDrag.offsetY), maxTop);
+      item.style.left = `${left}px`;
+      item.style.top = `${top}px`;
+    }
+
+    function onPointerUp() {
+      if (!activeDrag) return;
+      activeDrag.item.classList.remove('dragging');
+      activeDrag = null;
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+      saveLayout();
+    }
+
+    function onResizeMove(event) {
+      if (!activeResize) return;
+      const { item, handle, startX, startY, startWidth, startHeight, startFontSize } = activeResize;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      let nextWidth = startWidth;
+      let nextHeight = startHeight;
+      if (handle === 'e' || handle === 'se') {
+        nextWidth = Math.max(minItemSize, startWidth + dx);
+        item.style.width = `${nextWidth}px`;
+      }
+      if (handle === 's' || handle === 'se') {
+        nextHeight = Math.max(minItemSize, startHeight + dy);
+        item.style.height = `${nextHeight}px`;
+        const def = fieldDefs[item.dataset.field];
+        if (def && def.type === 'text' && startFontSize) {
+          const scale = nextHeight / startHeight;
+          const newFontSize = Math.max(8, Math.min(72, startFontSize * scale));
+          item.dataset.fontSize = String(Math.round(newFontSize * 10) / 10);
+          item.style.fontSize = `${item.dataset.fontSize}px`;
+        }
+      }
+      syncContentSize(item);
+    }
+
+    function onResizeUp() {
+      if (!activeResize) return;
+      activeResize = null;
+      document.removeEventListener('pointermove', onResizeMove);
+      document.removeEventListener('pointerup', onResizeUp);
+      saveLayout();
+    }
+
+    function isEditableTarget(target) {
+      if (!target) return false;
+      const tag = target.tagName ? target.tagName.toLowerCase() : '';
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+      return Boolean(target.isContentEditable);
+    }
+
+    function removeActiveItem() {
+      if (!activeItem) return;
+      activeItem.remove();
+      activeItem = null;
+      if (itemWidthInput) itemWidthInput.value = '';
+      if (itemHeightInput) itemHeightInput.value = '';
+      if (itemFontSizeInput) itemFontSizeInput.value = '';
+      if (itemTextInput) {
+        itemTextInput.value = '';
+        itemTextInput.disabled = true;
+      }
+      saveLayout();
+    }
+
+    canvas.addEventListener('pointerdown', (event) => {
+      const handle = event.target.closest('.label-resize-handle');
+      if (handle) {
+        const item = handle.closest('.label-item');
+        if (!item) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const def = fieldDefs[item.dataset.field];
+        const fontSize = parseFloat(item.dataset.fontSize || window.getComputedStyle(item).fontSize);
+        activeResize = {
+          item,
+          handle: handle.dataset.handle,
+          startX: event.clientX,
+          startY: event.clientY,
+          startWidth: item.offsetWidth,
+          startHeight: item.offsetHeight,
+          startFontSize: def && def.type === 'text' ? fontSize : null
+        };
+        document.addEventListener('pointermove', onResizeMove);
+        document.addEventListener('pointerup', onResizeUp);
+        return;
+      }
+      const item = event.target.closest('.label-item');
+      if (!item) {
+        if (activeItem) activeItem.classList.remove('is-selected');
+        activeItem = null;
+        if (itemWidthInput) itemWidthInput.value = '';
+        if (itemHeightInput) itemHeightInput.value = '';
+        if (itemFontSizeInput) itemFontSizeInput.value = '';
+        if (itemTextInput) {
+          itemTextInput.value = '';
+          itemTextInput.disabled = true;
+        }
+        if (shapeLineStyleInput) {
+          shapeLineStyleInput.disabled = true;
+          shapeLineStyleInput.value = 'solid';
+        }
+        return;
+      }
+      if (activeItem && activeItem !== item) activeItem.classList.remove('is-selected');
+      activeItem = item;
+      activeItem.classList.add('is-selected');
+      const def = fieldDefs[item.dataset.field];
+      if (def && def.type === 'shape') {
+        if (shapeColorInput) shapeColorInput.value = item.dataset.color || def.color || '#111827';
+        if (shapeThicknessInput) shapeThicknessInput.value = item.dataset.thickness || def.thickness || 2;
+        if (shapeLineStyleInput) {
+          const isLine = def.className === 'label-shape-line' || def.className === 'label-shape-line-vertical';
+          shapeLineStyleInput.disabled = !isLine;
+          shapeLineStyleInput.value = isLine
+            ? (item.dataset.lineStyle || def.lineStyle || 'solid')
+            : 'solid';
+        }
+      } else if (shapeLineStyleInput) {
+        shapeLineStyleInput.disabled = true;
+        shapeLineStyleInput.value = 'solid';
+      }
+      if (itemWidthInput) {
+        itemWidthInput.value = activeItem.style.width ? String(parseFloat(activeItem.style.width) || '') : '';
+      }
+      if (itemHeightInput) {
+        itemHeightInput.value = activeItem.style.height ? String(parseFloat(activeItem.style.height) || '') : '';
+      }
+      if (itemFontSizeInput) {
+        itemFontSizeInput.value = activeItem.style.fontSize ? String(parseFloat(activeItem.style.fontSize) || '') : '';
+      }
+      if (itemTextInput) {
+        if (def && def.type === 'free-text') {
+          itemTextInput.disabled = false;
+          itemTextInput.value = activeItem.dataset.customText || '';
+        } else {
+          itemTextInput.value = '';
+          itemTextInput.disabled = true;
+        }
+      }
+      if (!item) return;
+      event.preventDefault();
+      const rect = item.getBoundingClientRect();
+      activeDrag = {
+        item,
+        offsetX: event.clientX - rect.left,
+        offsetY: event.clientY - rect.top
+      };
+      item.classList.add('dragging');
+      document.addEventListener('pointermove', onPointerMove);
+      document.addEventListener('pointerup', onPointerUp);
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (!activeItem) return;
+      if (isEditableTarget(event.target)) return;
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+      event.preventDefault();
+      removeActiveItem();
+    });
+
+    if (nameInput) {
+      nameInput.addEventListener('input', () => {
+        updateItem('name');
+        saveLayout();
+      });
+    }
+
+    if (addressInput) {
+      addressInput.addEventListener('input', () => {
+        updateItem('address');
+        saveLayout();
+      });
+    }
+
+    if (logoInput) {
+      logoInput.addEventListener('change', () => {
+        const file = logoInput.files && logoInput.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          logoDataUrl = String(reader.result || '');
+          updateItem('logo');
+          saveLayout();
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    if (sizeSelect) {
+      sizeSelect.addEventListener('change', () => {
+        applyCanvasSize();
+        saveLayout();
+      });
+    }
+
+    if (shapeColorInput) {
+      shapeColorInput.addEventListener('input', () => {
+        if (!activeItem) return;
+        const def = fieldDefs[activeItem.dataset.field];
+        if (!def || def.type !== 'shape') return;
+        applyShapeStyles(activeItem, { color: shapeColorInput.value });
+        saveLayout();
+      });
+    }
+
+    if (shapeThicknessInput) {
+      shapeThicknessInput.addEventListener('input', () => {
+        if (!activeItem) return;
+        const def = fieldDefs[activeItem.dataset.field];
+        if (!def || def.type !== 'shape') return;
+        applyShapeStyles(activeItem, { thickness: shapeThicknessInput.value });
+        saveLayout();
+      });
+    }
+
+    if (shapeLineStyleInput) {
+      shapeLineStyleInput.addEventListener('change', () => {
+        if (!activeItem) return;
+        const def = fieldDefs[activeItem.dataset.field];
+        if (!def || def.type !== 'shape') return;
+        const isLine = def.className === 'label-shape-line' || def.className === 'label-shape-line-vertical';
+        if (!isLine) return;
+        applyShapeStyles(activeItem, { lineStyle: shapeLineStyleInput.value });
+        saveLayout();
+      });
+    }
+
+    function applyManualSize() {
+      if (!activeItem) return;
+      const nextWidth = itemWidthInput && itemWidthInput.value ? Number(itemWidthInput.value) : 0;
+      const nextHeight = itemHeightInput && itemHeightInput.value ? Number(itemHeightInput.value) : 0;
+      const nextFontSize = itemFontSizeInput && itemFontSizeInput.value ? Number(itemFontSizeInput.value) : 0;
+      if (nextWidth && Number.isFinite(nextWidth)) {
+        activeItem.style.width = `${Math.max(minItemSize, nextWidth)}px`;
+      } else {
+        activeItem.style.removeProperty('width');
+      }
+      if (nextHeight && Number.isFinite(nextHeight)) {
+        activeItem.style.height = `${Math.max(minItemSize, nextHeight)}px`;
+      } else {
+        activeItem.style.removeProperty('height');
+      }
+      if (nextFontSize && Number.isFinite(nextFontSize)) {
+        const clamp = Math.max(8, Math.min(72, nextFontSize));
+        activeItem.dataset.fontSize = String(clamp);
+        activeItem.style.fontSize = `${clamp}px`;
+      } else {
+        activeItem.dataset.fontSize = '';
+        activeItem.style.removeProperty('font-size');
+      }
+      syncContentSize(activeItem);
+      saveLayout();
+    }
+
+    if (itemWidthInput) {
+      itemWidthInput.addEventListener('input', () => {
+        if (!activeItem) return;
+        applyManualSize();
+      });
+    }
+
+    if (itemHeightInput) {
+      itemHeightInput.addEventListener('input', () => {
+        if (!activeItem) return;
+        applyManualSize();
+      });
+    }
+
+    if (itemFontSizeInput) {
+      itemFontSizeInput.addEventListener('input', () => {
+        if (!activeItem) return;
+        applyManualSize();
+      });
+    }
+
+    if (itemTextInput) {
+      itemTextInput.addEventListener('input', () => {
+        if (!activeItem) return;
+        const def = fieldDefs[activeItem.dataset.field];
+        if (!def || def.type !== 'free-text') return;
+        const value = itemTextInput.value || '';
+        activeItem.dataset.customText = value;
+        const textNode = activeItem.querySelector('.label-item-text');
+        if (textNode) textNode.textContent = value;
+        saveLayout();
+      });
+    }
+
+    if (itemSizeReset) {
+      itemSizeReset.addEventListener('click', () => {
+        if (!activeItem) return;
+        activeItem.style.removeProperty('width');
+        activeItem.style.removeProperty('height');
+        activeItem.style.removeProperty('font-size');
+        activeItem.dataset.fontSize = '';
+        if (itemWidthInput) itemWidthInput.value = '';
+        if (itemHeightInput) itemHeightInput.value = '';
+        if (itemFontSizeInput) itemFontSizeInput.value = '';
+        syncContentSize(activeItem);
+        saveLayout();
+      });
+    }
+
+    if (saveButton) {
+      saveButton.addEventListener('click', () => {
+        persistLayout();
+      });
+    }
+
+    if (previewButton && previewModal) {
+      previewButton.addEventListener('click', () => {
+        renderPreview();
+        previewModal.classList.remove('hidden');
+      });
+    }
+
+    if (previewClose && previewModal) {
+      previewClose.addEventListener('click', () => {
+        previewModal.classList.add('hidden');
+      });
+    }
+
+    if (previewModal) {
+      previewModal.addEventListener('click', (event) => {
+        if (event.target === previewModal) previewModal.classList.add('hidden');
+      });
+    }
+
+    const loaded = loadLayout();
+    if (!loaded) loadDefaults();
+  })();
+</script>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+
+

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('users.created_title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container users-module">
+<div class="page-header">
+<div>
+<div class="eyebrow">
+<%= t('users.eyebrow') %>
+</div>
+<h1>
+<%= t('users.created_title') %>
+</h1>
+<p class="muted">
+<%= t('users.created_subtitle') %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/users">
+<%= t('users.back_to_list') %>
+</a>
+<a class="btn primary" href="/users#nuevo-usuario">
+<%= t('users.create_another') %>
+</a>
+</div>
+</div>
+<section class="panel card-elevated access-card">
+<div class="alert success">
+<strong>
+<%= t('users.created_success_title') %>
+</strong>
+<div class="muted">
+<%= t('users.created_success_sub') %>
+</div>
+</div>
+<div class="access-block">
+<h2>
+<%= t('users.access_title') %>
+</h2>
+<ul class="access-list">
+<li>
+<span class="access-label">
+<%= t('users.company_user') %>
+</span>
+<span class="access-value">
+<%= companyLabel %>
+</span>
+</li>
+<li>
+<span class="access-label">
+<%= t('users.username') %>
+</span>
+<span class="access-value">
+<%= createdUser.username %>
+</span>
+</li>
+<li>
+<span class="access-label">
+<%= t('users.temp_password') %>
+</span>
+<span class="access-value">
+<%= createdUser.password %>
+</span>
+</li>
+</ul>
+<div class="note-box">
+<%= t('users.access_note') %>
+</div>
+</div>
+<div class="actions">
+<a class="btn" href="/users">
+<%= t('users.back_to_list') %>
+</a>
+<a class="btn primary" href="/users#nuevo-usuario">
+<%= t('users.create_another') %>
+</a>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

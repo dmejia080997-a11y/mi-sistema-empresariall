@@ -1,0 +1,103 @@
+﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Estados financieros</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand"><%= t('common.brand') %></div>
+<nav class="nav">
+<a href="/dashboard">Dashboard</a>
+<a href="/accounting/reports">Reportes</a>
+<a href="/logout"><%= t('nav.logout') %></a>
+</nav>
+</header>
+<main class="container">
+<h1>Estados financieros</h1>
+<nav class="subnav">
+<a href="/accounting/accounts">Catálogo</a>
+<a href="/accounting/categories">Categorías</a>
+<a href="/accounting/categories/rules">Reglas</a>
+<a href="/accounting/journal">Pólizas</a>
+<a href="/accounting/reports" class="<%= active === 'reports' ? 'active' : '' %>">Reportes</a>
+<a href="/accounting/settings">Configuración</a>
+</nav>
+
+<section class="panel">
+<form class="form" method="get" action="/accounting/financials">
+<label>
+Desde
+<input type="date" name="start" value="<%= startDate || '' %>" />
+</label>
+<label>
+Hasta
+<input type="date" name="end" value="<%= endDate || '' %>" />
+</label>
+<button class="btn primary" type="submit">Filtrar</button>
+</form>
+<div class="actions">
+<a class="btn" href="/accounting/financials/export?format=xlsx&start=<%= startDate || '' %>&end=<%= endDate || '' %>">Exportar Excel</a>
+<a class="btn" href="/accounting/financials/export?format=pdf&start=<%= startDate || '' %>&end=<%= endDate || '' %>">Exportar PDF</a>
+</div>
+</section>
+
+<section class="panel">
+<h2>Balance general</h2>
+<div class="detail-grid">
+<div><strong>Activos:</strong> <%= baseCurrency %> <%= Number(totals.activos || 0).toFixed(2) %></div>
+<div><strong>Pasivos:</strong> <%= baseCurrency %> <%= Number(totals.pasivos || 0).toFixed(2) %></div>
+<div><strong>Capital:</strong> <%= baseCurrency %> <%= Number(totals.capital || 0).toFixed(2) %></div>
+<div><strong>Utilidad neta:</strong> <%= baseCurrency %> <%= Number(totals.utilidad_neta || 0).toFixed(2) %></div>
+<div><strong>Cuadre:</strong> <%= baseCurrency %> <%= Number(totals.balance_cuadre || 0).toFixed(2) %></div>
+</div>
+<div class="helper">El cuadre ideal es 0.00.</div>
+</section>
+
+<section class="panel">
+<h2>Estado de resultados</h2>
+<div class="detail-grid">
+<div><strong>Ingresos:</strong> <%= baseCurrency %> <%= Number(totals.ingresos || 0).toFixed(2) %></div>
+<div><strong>Gastos:</strong> <%= baseCurrency %> <%= Number(totals.gastos || 0).toFixed(2) %></div>
+<div><strong>Utilidad neta:</strong> <%= baseCurrency %> <%= Number(totals.utilidad_neta || 0).toFixed(2) %></div>
+</div>
+</section>
+
+<section class="panel">
+<h2>Flujo de efectivo (opcional)</h2>
+<div class="detail-grid">
+<div><strong>Variación en efectivo:</strong> <%= baseCurrency %> <%= Number(flujoEfectivo || 0).toFixed(2) %></div>
+</div>
+<div class="helper">Se calcula con cuentas de subtipo EFECTIVO o BANCOS.</div>
+</section>
+<section class="panel">
+<h2>Totales por categoría</h2>
+<div class="actions">
+<a class="btn" href="/accounting/reports/categories/export?format=xlsx&start=<%= startDate || '' %>&end=<%= endDate || '' %>">Exportar Excel</a>
+<a class="btn" href="/accounting/reports/categories/export?format=pdf&start=<%= startDate || '' %>&end=<%= endDate || '' %>">Exportar PDF</a>
+</div>
+<div class="table">
+<div class="table-row header accounting-category-totals">
+<div>Categoría</div>
+<div>Tipo</div>
+<div>Total</div>
+</div>
+<% if (!categoryTotals || !categoryTotals.length) { %>
+<div class="table-row empty">No hay categorías con movimientos.</div>
+<% } %>
+<% (categoryTotals || []).forEach(cat => { %>
+<div class="table-row accounting-category-totals">
+<div><%= cat.code %> - <%= cat.name %></div>
+<div><%= cat.type %></div>
+<div><%= baseCurrency %> <%= Number(cat.total || 0).toFixed(2) %></div>
+</div>
+<% }) %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('reception.detail_title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container reception-module">
+<div class="page-header">
+<div>
+<h1>
+<%= t('reception.detail_title') %>
+</h1>
+<p class="muted">
+<%= t('reception.detail_subtitle') %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/carrier-reception/list">
+<%= t('reception.actions.back') %>
+</a>
+<% if (reception.status === 'pending' && can('packages', 'create')) { %>
+<% const recDate = reception.received_at ? new Date(reception.received_at).toISOString().slice(0, 10) : ''; %>
+<a class="btn primary" href="/packages/new?tracking=<%= encodeURIComponent(reception.tracking_number) %>&carrier=<%= encodeURIComponent(reception.carrier) %>&reception_id=<%= reception.id %>&received_at=<%= encodeURIComponent(recDate) %>">
+<%= t('reception.actions.record') %>
+</a>
+<% } %>
+</div>
+</div>
+<section class="panel">
+<h2>
+<%= t('reception.detail_info') %>
+</h2>
+<div class="detail-grid">
+<div class="cell">
+<div class="cell-label">
+<%= t('reception.table.tracking') %>
+</div>
+<div>
+<%= reception.tracking_number %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('reception.table.carrier') %>
+</div>
+<div>
+<%= reception.carrier %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('reception.table.received_at') %>
+</div>
+<div>
+<%= reception.received_at ? new Date(reception.received_at).toLocaleString() : '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('reception.form.received_by') %>
+</div>
+<div>
+<%= reception.received_by || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('reception.table.status') %>
+</div>
+<div>
+<span class="status-badge status-<%= reception.status %>">
+<%= t('reception.status.' + reception.status) %>
+</span>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('reception.detail.package_link') %>
+</div>
+<% if (reception.package_id) { %>
+<a class="btn small" href="/packages/<%= reception.package_id %>">
+<%= t('reception.detail.view_package') %>
+</a>
+<% } else { %>
+<span class="muted">
+<%= t('reception.detail.no_package') %>
+</span>
+<% } %>
+</div>
+</div>
+</section>
+<section class="panel">
+<h2>
+<%= t('reception.form.notes') %>
+</h2>
+<p>
+<%= reception.notes || t('reception.detail.no_notes') %>
+</p>
+</section>
+<section class="panel">
+<h2>
+<%= t('reception.actions.title') %>
+</h2>
+<div class="actions">
+<% if (reception.status === 'pending' && can('carrier_reception', 'edit')) { %>
+<form method="POST" action="/carrier-reception/<%= reception.id %>/cancel" class="inline-form" onsubmit="return confirm('<%= t('reception.actions.cancel_confirm') %>');">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn danger">
+<%= t('reception.actions.cancel') %>
+</button>
+</form>
+<% } else { %>
+<button class="btn" disabled>
+<%= t('reception.actions.cancel') %>
+</button>
+<% } %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

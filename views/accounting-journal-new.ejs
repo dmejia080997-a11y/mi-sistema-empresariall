@@ -1,0 +1,178 @@
+﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nueva póliza</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand"><%= t('common.brand') %></div>
+<nav class="nav">
+<a href="/dashboard">Dashboard</a>
+<a href="/logout"><%= t('nav.logout') %></a>
+</nav>
+</header>
+<main class="container">
+<h1>Nueva póliza contable</h1>
+<nav class="subnav">
+<a href="/accounting/accounts" class="<%= active === 'accounts' ? 'active' : '' %>">Catálogo</a>
+<a href="/accounting/categories">Categorías</a>
+<a href="/accounting/categories/rules">Reglas</a>
+<a href="/accounting/journal" class="<%= active === 'journal' ? 'active' : '' %>">Pólizas</a>
+<a href="/accounting/reports" class="<%= active === 'reports' ? 'active' : '' %>">Reportes</a>
+<a href="/accounting/settings">Configuración</a>
+</nav>
+
+<% if (flash) { %>
+<div class="alert <%= flash.type %>"><%= flash.message %></div>
+<% } %>
+
+<section class="panel">
+<form class="form" method="post" action="/accounting/journal/create">
+<label>
+Fecha
+<input type="date" name="entry_date" required />
+<span class="helper">La fecha contable de la póliza.</span>
+</label>
+<label>
+Moneda de la póliza
+<select name="currency" id="currency">
+<% (allowedCurrencies || [baseCurrency]).forEach(curr => { %>
+<option value="<%= curr %>" <%= curr === baseCurrency ? 'selected' : '' %>><%= curr %></option>
+<% }) %>
+</select>
+<span class="helper">La moneda base de la empresa es <%= baseCurrency %>.</span>
+</label>
+<label>
+Tipo de cambio (a moneda base)
+<input type="number" step="0.0001" min="0" name="exchange_rate" id="exchange_rate" value="1" />
+<span class="helper">Requerido si la moneda no es la base.</span>
+</label>
+<label>
+Descripción
+<input type="text" name="description" placeholder="Ej. Pago de proveedores" required />
+<span class="helper">Explica el hecho económico.</span>
+</label>
+<label>
+Referencia / Nota (opcional)
+<input type="text" name="memo" placeholder="Factura, documento, referencia" />
+</label>
+<label>
+<input type="checkbox" name="apply_tax" id="apply_tax" /> Aplicar IVA
+</label>
+<label>
+Tipo de IVA
+<select name="tax_type" id="tax_type">
+<option value="sale">Venta</option>
+<option value="purchase">Compra</option>
+</select>
+<span class="helper">Venta: IVA trasladado. Compra: IVA acreditable.</span>
+</label>
+<label>
+Tasa IVA (%)
+<input type="number" step="0.01" min="0" name="tax_rate" id="tax_rate" value="<%= taxRate || 0 %>" />
+</label>
+
+<div class="panel">
+<div class="panel-header">
+<h2>Detalle de movimientos</h2>
+<button class="btn" type="button" id="add-line">Agregar línea</button>
+</div>
+<div class="table" id="lines">
+<div class="table-row header accounting-line-items">
+<div>Cuenta</div>
+<div>Debe</div>
+<div>Haber</div>
+<div>Detalle</div>
+<div></div>
+</div>
+<div class="table-row accounting-line-items accounting-row line-item">
+<div>
+<select name="account_id[]" required>
+<option value="">Selecciona cuenta</option>
+<% accounts.forEach(acc => { %>
+<option value="<%= acc.id %>"><%= acc.code %> - <%= acc.name %></option>
+<% }) %>
+</select>
+</div>
+<div><input type="number" step="0.01" min="0" name="debit[]" placeholder="0.00" /></div>
+<div><input type="number" step="0.01" min="0" name="credit[]" placeholder="0.00" /></div>
+<div><input type="text" name="line_memo[]" placeholder="Detalle" /></div>
+<div><button class="btn" type="button" data-remove>Quitar</button></div>
+</div>
+</div>
+<div class="helper" id="balance-hint">Debes cuadrar: Debe = Haber.</div>
+</div>
+
+<button class="btn primary" type="submit">Guardar póliza</button>
+</form>
+</section>
+</main>
+<script>
+const lines = document.getElementById('lines');
+const addLineBtn = document.getElementById('add-line');
+const hint = document.getElementById('balance-hint');
+const currencySelect = document.getElementById('currency');
+const exchangeRateInput = document.getElementById('exchange_rate');
+const baseCurrency = "<%= baseCurrency %>";
+
+function updateTotals() {
+  const debitInputs = lines.querySelectorAll('input[name="debit[]"]');
+  const creditInputs = lines.querySelectorAll('input[name="credit[]"]');
+  let debit = 0;
+  let credit = 0;
+  debitInputs.forEach((input) => { debit += Number(input.value || 0); });
+  creditInputs.forEach((input) => { credit += Number(input.value || 0); });
+  if (Math.abs(debit - credit) < 0.005 && debit > 0) {
+    hint.textContent = 'La póliza cuadra correctamente.';
+    hint.style.color = '#3d7b6f';
+  } else {
+    hint.textContent = `Debe: ${debit.toFixed(2)} | Haber: ${credit.toFixed(2)} (deben ser iguales)`;
+    hint.style.color = '#c44536';
+  }
+}
+
+function bindLine(row) {
+  const removeBtn = row.querySelector('[data-remove]');
+  removeBtn.addEventListener('click', () => {
+    if (lines.querySelectorAll('.line-item').length > 1) {
+      row.remove();
+      updateTotals();
+    }
+  });
+  row.querySelectorAll('input').forEach((input) => {
+    input.addEventListener('input', updateTotals);
+  });
+}
+
+addLineBtn.addEventListener('click', () => {
+  const template = lines.querySelector('.line-item');
+  const clone = template.cloneNode(true);
+  clone.querySelectorAll('input').forEach((input) => { input.value = ''; });
+  clone.querySelector('select').value = '';
+  lines.appendChild(clone);
+  bindLine(clone);
+});
+
+document.querySelectorAll('.line-item').forEach(bindLine);
+updateTotals();
+
+function updateExchangeRateState() {
+  const currency = currencySelect.value;
+  if (currency === baseCurrency) {
+    exchangeRateInput.value = '1';
+    exchangeRateInput.setAttribute('disabled', 'disabled');
+  } else {
+    exchangeRateInput.removeAttribute('disabled');
+  }
+}
+
+currencySelect.addEventListener('change', updateExchangeRateState);
+updateExchangeRateState();
+</script>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+

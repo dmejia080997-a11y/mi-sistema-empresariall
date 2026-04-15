@@ -1,0 +1,295 @@
+??<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('inventory.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<h1>
+<%= t('inventory.title') %>
+</h1>
+<div class="subnav">
+<a class="active" href="/inventory">
+<%= t('inventory.items') %>
+</a>
+<a href="/categories">
+<%= t('inventory.categories') %>
+</a>
+<a href="/brands">
+<%= t('inventory.brands') %>
+</a>
+</div>
+<section class="panel">
+<h2>
+<%= t('inventory.add_item') %>
+</h2>
+<% if (error) { %>
+<div class="alert">
+<%= error %>
+</div>
+<% } %>
+<form method="POST" action="/inventory/add" class="form grid-2" style="<%= can('inventory', 'create') ? '' : 'display:none' %>">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('inventory.name') %>
+<input type="text" name="name" id="item-name" required />
+</label>
+<label>
+<%= t('inventory.category') %>
+<select name="category_id" id="item-category" required <%= can('inventory', 'edit') ? '' : 'disabled' %>>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% categories.forEach(category => { %>
+<option value="<%= category.id %>">
+<%= category.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('inventory.brand') %>
+<select name="brand_id" id="item-brand" required <%= can('inventory', 'edit') ? '' : 'disabled' %>>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% brands.forEach(brand => { %>
+<option value="<%= brand.id %>">
+<%= brand.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('inventory.code_mode') %>
+<select name="code_mode" id="item-code-mode">
+<option value="auto" selected>
+<%= t('inventory.code_auto') %>
+</option>
+<option value="manual">
+<%= t('inventory.code_manual') %>
+</option>
+</select>
+</label>
+<label>
+<%= t('inventory.item_code') %>
+<input type="text" name="item_code" id="item-code" disabled />
+</label>
+<label>
+<%= t('inventory.sku_preview') %>
+<input type="text" id="item-sku-preview" readonly />
+</label>
+<label>
+<%= t('inventory.quantity') %>
+<input type="number" name="qty" min="0" value="0" />
+</label>
+<label>
+<%= t('inventory.min_stock') %>
+<input type="number" name="min_stock" min="0" value="5" />
+</label>
+<label>
+<%= t('inventory.warehouse_location') %>
+<input type="text" name="warehouse_location" />
+</label>
+<label>
+<%= t('inventory.barcode') %>
+<input type="text" name="barcode" />
+</label>
+<label>
+<%= t('inventory.price') %>
+<input type="number" name="price" min="0" step="0.01" value="0" />
+</label>
+<div>
+<button type="submit" class="btn primary">
+<%= t('inventory.add_item_button') %>
+</button>
+</div>
+</form>
+</section>
+<section class="panel">
+<h2>
+<%= t('inventory.import_export') %>
+</h2>
+<p class="muted">
+<%= t('inventory.csv_headers') %>
+</p>
+<div class="actions">
+<form method="POST" action="/inventory/import" enctype="multipart/form-data" class="form" style="<%= can('inventory', 'create') ? '' : 'display:none' %>">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<input type="file" name="csv" accept=".csv" required />
+<button type="submit" class="btn">
+<%= t('inventory.import_csv') %>
+</button>
+</form>
+<a class="btn primary" href="/inventory/export" style="<%= can('inventory', 'export') ? '' : 'display:none' %>">
+<%= t('inventory.export_csv') %>
+</a>
+</div>
+</section>
+<section class="panel">
+<h2>
+<%= t('inventory.items') %>
+</h2>
+<p class="muted">
+<%= t('inventory.value', { value: Number(totalValue || 0).toFixed(2) }) %>
+</p>
+<% if (lowStockCount > 0) { %>
+<div class="alert">
+<%= t('inventory.low_stock_warning', { count: lowStockCount }) %>
+</div>
+<% } %>
+<% const filterQuery = selectedCategory && selectedCategory !== 'all' ? '?category=' + selectedCategory : ''; %>
+<form method="GET" action="/inventory" class="form grid-2">
+<label>
+<%= t('inventory.filter_by_category') %>
+<select name="category">
+<option value="all" <%= selectedCategory === 'all' ? 'selected' : '' %>>
+<%= t('inventory.all_categories') %>
+</option>
+<% categories.forEach(category => { %>
+<option value="<%= category.id %>" <%= String(selectedCategory) === String(category.id) ? 'selected' : '' %>>
+<%= category.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<div class="actions">
+<button type="submit" class="btn">
+<%= t('inventory.apply_filter') %>
+</button>
+<a class="btn" href="/inventory">
+<%= t('common.reset') %>
+</a>
+</div>
+</form>
+<div class="table">
+<div class="table-row header items">
+<div>
+<%= t('inventory.items_table.name') %>
+</div>
+<div>
+<%= t('inventory.items_table.sku') %>
+</div>
+<div>
+<%= t('inventory.items_table.code_mode') %>
+</div>
+<div>
+<%= t('inventory.items_table.item_code') %>
+</div>
+<div>
+<%= t('inventory.items_table.qty') %>
+</div>
+<div>
+<%= t('inventory.items_table.min') %>
+</div>
+<div>
+<%= t('inventory.items_table.warehouse_location') %>
+</div>
+<div>
+<%= t('inventory.items_table.barcode') %>
+</div>
+<div>
+<%= t('inventory.items_table.price') %>
+</div>
+<div>
+<%= t('inventory.items_table.value') %>
+</div>
+<div>
+<%= t('inventory.items_table.category') %>
+</div>
+<div>
+<%= t('inventory.items_table.brand') %>
+</div>
+<div>
+<%= t('inventory.items_table.actions') %>
+</div>
+</div>
+<% if (items.length === 0) { %>
+<div class="table-row empty">
+<%= t('inventory.no_items') %>
+</div>
+<% } %>
+<% items.forEach(item => { %>
+<% const isLowStock = Number(item.qty) <= Number(item.min_stock); %>
+<% const isManual = Number(item.code_manual) === 1; %>
+<form method="POST" action="/inventory/<%= item.id %>/update<%= filterQuery %>" class="table-row items <%= isLowStock ? 'warning' : '' %>">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<input type="text" name="name" value="<%= item.name %>" <%= can('inventory', 'edit') ? '' : 'disabled' %> required />
+<div class="muted">
+<%= item.sku %>
+</div>
+<select name="code_mode" <%= can('inventory', 'edit') ? '' : 'disabled' %>>
+<option value="auto" <%= !isManual ? 'selected' : '' %>>
+<%= t('inventory.code_auto') %>
+</option>
+<option value="manual" <%= isManual ? 'selected' : '' %>>
+<%= t('inventory.code_manual') %>
+</option>
+</select>
+<input type="text" name="item_code" value="<%= item.item_code || '' %>" <%= can('inventory', 'edit') ? '' : 'disabled' %> />
+<input type="number" name="qty" min="0" value="<%= item.qty %>" <%= can('inventory', 'edit') ? '' : 'disabled' %> />
+<input type="number" name="min_stock" min="0" value="<%= item.min_stock %>" <%= can('inventory', 'edit') ? '' : 'disabled' %> />
+<input type="text" name="warehouse_location" value="<%= item.warehouse_location || '' %>" <%= can('inventory', 'edit') ? '' : 'disabled' %> />
+<input type="text" name="barcode" value="<%= item.barcode || '' %>" <%= can('inventory', 'edit') ? '' : 'disabled' %> />
+<input type="number" name="price" min="0" step="0.01" value="<%= item.price %>" <%= can('inventory', 'edit') ? '' : 'disabled' %> />
+<div class="muted">$<%= (Number(item.qty) * Number(item.price)).toFixed(2) %>
+</div>
+<select name="category_id" <%= can('inventory', 'edit') ? '' : 'disabled' %>>
+<option value="">
+<%= t('common.unassigned') %>
+</option>
+<% categories.forEach(category => { %>
+<option value="<%= category.id %>" <%= String(item.category_id || '') === String(category.id) ? 'selected' : '' %>>
+<%= category.name %>
+</option>
+<% }) %>
+</select>
+<select name="brand_id" <%= can('inventory', 'edit') ? '' : 'disabled' %>>
+<option value="">
+<%= t('common.unassigned') %>
+</option>
+<% brands.forEach(brand => { %>
+<option value="<%= brand.id %>" <%= String(item.brand_id || '') === String(brand.id) ? 'selected' : '' %>>
+<%= brand.name %>
+</option>
+<% }) %>
+</select>
+<div class="actions">
+<% if (can('inventory', 'edit')) { %>
+<button type="submit" class="btn">
+<%= t('common.save') %>
+</button>
+<% } %>
+<% if (can('inventory', 'delete')) { %>
+<button type="submit" class="btn danger" formaction="/inventory/<%= item.id %>/delete<%= filterQuery %>" formmethod="POST">
+<%= t('common.delete') %>
+</button>
+<% } %>
+</div>
+</form>
+<% }) %>
+</div>
+</section>
+</main>
+<script>    (function () {      const nameInput = document.getElementById('item-name');      const categorySelect = document.getElementById('item-category');      const brandSelect = document.getElementById('item-brand');      const modeSelect = document.getElementById('item-code-mode');      const codeInput = document.getElementById('item-code');      const previewInput = document.getElementById('item-sku-preview');      if (!nameInput || !categorySelect || !brandSelect || !modeSelect || !codeInput || !previewInput) return;      const setCodeState = () => {        const isManual = modeSelect.value === 'manual';        codeInput.disabled = !isManual;        if (!isManual) {          codeInput.value = '';        }      };      const updatePreview = () => {        const name = nameInput.value.trim();        const categoryId = categorySelect.value;        const brandId = brandSelect.value;        if (!name || !categoryId || !brandId) {          previewInput.value = '';          return;        }        const params = new URLSearchParams({          name,          category_id: categoryId,          brand_id: brandId,          code_mode: modeSelect.value,          item_code: codeInput.value || ''        });        fetch(`/inventory/sku-preview?${params.toString()}`)          .then((res) => res.json())          .then((data) => {            previewInput.value = data && data.sku ? data.sku : '';            if (modeSelect.value === 'auto' && data && data.item_code) {              codeInput.value = data.item_code;            }          })          .catch(() => {            previewInput.value = '';          });      };      ['input', 'change'].forEach((evt) => {        nameInput.addEventListener(evt, updatePreview);        categorySelect.addEventListener(evt, updatePreview);        brandSelect.addEventListener(evt, updatePreview);        codeInput.addEventListener(evt, updatePreview);      });      modeSelect.addEventListener('change', () => {        setCodeState();        updatePreview();      });      setCodeState();    })();  </script>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

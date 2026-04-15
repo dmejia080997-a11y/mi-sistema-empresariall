@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('audit.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<h1>
+<%= t('audit.title') %>
+</h1>
+<section class="panel">
+<div class="table">
+<div class="table-row header audit">
+<div>
+<%= t('audit.table.time') %>
+</div>
+<div>
+<%= t('audit.table.user') %>
+</div>
+<div>
+<%= t('audit.table.action') %>
+</div>
+<div>
+<%= t('audit.table.details') %>
+</div>
+<div>
+</div>
+</div>
+<% if (logs.length === 0) { %>
+<div class="table-row empty">
+<%= t('audit.no_logs') %>
+</div>
+<% } %>
+<% logs.forEach(log => { %>
+<div class="table-row audit">
+<div>
+<%= new Date(log.created_at).toLocaleString() %>
+</div>
+<div>
+<%= log.username || t('common.system') %>
+</div>
+<div>
+<%= log.action %>
+</div>
+<div>
+<%= log.details %>
+</div>
+<div>
+</div>
+</div>
+<% }) %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

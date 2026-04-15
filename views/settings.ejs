@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('settings.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container settings-module">
+<div class="page-header">
+<div>
+<h1>
+<%= t('settings.title') %>
+</h1>
+<p class="muted">
+<%= t('settings.subtitle') %>
+</p>
+</div>
+</div>
+<section class="panel module-landing">
+<div class="module-tiles">
+<% if (can('dashboard', 'view')) { %>
+<a class="module-tile" href="/launcher/settings">
+<div class="module-tile-title">
+<%= t('launcher.settings.title') %>
+</div>
+<div class="module-tile-sub">
+<%= t('launcher.settings.subtitle') %>
+</div>
+</a>
+<% } %>
+<% if (can('settings', 'manage')) { %>
+<a class="module-tile" href="/settings/carriers">
+<div class="module-tile-title">
+<%= t('settings.carriers_title') %>
+</div>
+<div class="module-tile-sub">
+<%= t('settings.carriers_subtitle') %>
+</div>
+</a>
+<a class="module-tile" href="/settings/package-sender">
+<div class="module-tile-title">
+<%= t('settings.package_sender_title') %>
+</div>
+<div class="module-tile-sub">
+<%= t('settings.package_sender_subtitle') %>
+</div>
+</a>
+<% } %>
+<% if (can('settings', 'view')) { %>
+<a class="module-tile" href="/settings/labels">
+<div class="module-tile-title">
+<%= t('settings.labels_title') %>
+</div>
+<div class="module-tile-sub">
+<%= t('settings.labels_subtitle') %>
+</div>
+</a>
+<% } %>
+<% if (can('cuscar', 'manage_catalogs')) { %>
+<a class="module-tile" href="/cuscar/catalogs/countries">
+<div class="module-tile-title">
+<%= t('settings.cuscar_catalogs_title') %>
+</div>
+<div class="module-tile-sub">
+<%= t('settings.cuscar_catalogs_subtitle') %>
+</div>
+</a>
+<% } %>
+</div>
+</section>
+<section class="panel">
+<h2>
+<%= t('settings.language_title') %>
+</h2>
+<p class="muted">
+<%= t('settings.language_subtitle') %>
+</p>
+<form method="POST" action="/language" class="form">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('common.language') %>
+<select name="lang">
+<% Object.keys(languages || {}).forEach((code) => { %>
+<option value="<%= code %>" <%= lang === code ? 'selected' : '' %>><%= languages[code] %></option>
+<% }); %>
+</select>
+</label>
+<div>
+<button type="submit" class="btn primary">
+<%= t('common.save') %>
+</button>
+</div>
+</form>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

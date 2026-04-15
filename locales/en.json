@@ -1,0 +1,1276 @@
+{
+  "common.brand": "Inventory System",
+  "common.language": "Language",
+  "common.unassigned": "Unassigned",
+  "common.select": "Select",
+  "common.walk_in": "Walk-in",
+  "common.system": "System",
+  "common.save": "Save",
+  "common.delete": "Delete",
+  "common.reset": "Reset",
+  "common.saved": "Saved",
+  "common.view": "View",
+  "common.show": "Show",
+  "common.hide": "Hide",
+  "common.cancel": "Cancel",
+
+  "nav.dashboard": "Dashboard",
+  "nav.inventory": "Inventory",
+  "nav.packages": "Packages",
+  "nav.customers": "Customers",
+  "nav.invoices": "Invoices",
+  "nav.users": "Users",
+  "nav.audit": "Audit Logs",
+  "nav.carrier_settings": "Carrier settings",
+  "nav.logout": "Logout",
+
+  "launcher.eyebrow": "Apps",
+  "launcher.title": "Home",
+  "launcher.subtitle": "Choose a module to start your workflow.",
+  "launcher.notes_eyebrow": "Notes",
+  "launcher.notes_title": "Quick notes",
+  "launcher.notes_subtitle": "Capture ideas or tasks on the fly.",
+  "launcher.notes_add": "New note",
+  "launcher.notes_placeholder": "Write here...",
+  "launcher.notes_delete": "Delete",
+  "launcher.notes_hide": "Hide",
+  "launcher.notes_layout_grid": "View grid",
+  "launcher.notes_layout_vertical": "View vertical",
+  "launcher.notes_show": "Show notes",
+  "launcher.notes_hidden": "Notes hidden",
+  "launcher.widgets_eyebrow": "Widgets",
+  "launcher.widgets_title": "Personalize your home",
+  "launcher.widgets_subtitle": "Show or hide sections the way you prefer.",
+  "launcher.widgets_hero": "Welcome",
+  "launcher.widgets_notes": "Quick notes",
+  "launcher.widgets_apps": "Apps",
+  "launcher.widgets_move": "Move",
+  "launcher.widgets_planner": "Weekly planner",
+  "launcher.planner_eyebrow": "Planner",
+  "launcher.planner_title": "Weekly planner",
+  "launcher.planner_subtitle": "Organize this week and next.",
+  "launcher.planner_hide_past": "Hide past days",
+  "launcher.planner_show_all": "Show all",
+  "launcher.planner_week_current": "Current week",
+  "launcher.planner_week_next": "Next week",
+  "launcher.planner_day_placeholder": "Write tasks or reminders...",
+  "launcher.planner_hide_before": "Hide before",
+  "launcher.planner_clear_filter": "Clear",
+  "launcher.planner_show_history": "Show history",
+  "launcher.planner_hide_history": "Hide history",
+  "launcher.planner_week_history": "Previous week",
+  "launcher.planner_item_add": "Add item",
+  "launcher.planner_item_remove": "Remove",
+  "launcher.planner_range_from": "From",
+  "launcher.planner_range_to": "To",
+  "launcher.planner_today": "Today",
+  "launcher.planner_focus_date": "View week of",
+  "launcher.planner_color": "Color",
+  "launcher.planner_quick_toggle": "Add + date",
+  "launcher.planner_quick_date": "Date",
+  "launcher.planner_quick_text": "Task",
+  "launcher.planner_quick_placeholder": "New task...",
+  "launcher.planner_quick_add": "Add",
+  "launcher.planner_quick_cancel": "Cancel",
+  "launcher.planner_history_title": "History",
+  "launcher.planner_history_prev": "Prev",
+  "launcher.planner_history_next": "Next",
+  "launcher.planner_history_mode_week": "Week",
+  "launcher.planner_history_mode_month": "Month",
+  "launcher.planner_history_mode_year": "Year",
+  "launcher.quick_title": "Quick summary",
+  "launcher.stats.received_today": "Packages received today",
+  "launcher.stats.in_transit": "Packages in transit",
+  "launcher.stats.in_customs": "Packages in customs",
+  "launcher.stats.ready_delivery": "Packages ready for delivery",
+  "launcher.packages.name": "Packages",
+  "launcher.packages.desc": "Manage shipments, statuses, and documents.",
+  "launcher.packages_status.desc": "Update packages to status {status}.",
+  "launcher.customers.name": "Customers",
+  "launcher.customers.desc": "Customer profiles and portal codes.",
+  "launcher.consignatarios.name": "Consignees",
+  "launcher.consignatarios.desc": "Manage consignees and delivery recipients.",
+  "launcher.inventory.name": "Inventory",
+  "launcher.inventory.desc": "Stock levels, categories, and pricing.",
+  "launcher.users.name": "Users",
+  "launcher.users.desc": "Roles, access, and permissions.",
+  "launcher.invoices.name": "Billing",
+  "launcher.invoices.desc": "Invoices, taxes, and discounts.",
+  "launcher.accounting.name": "Accounting",
+  "launcher.accounting.desc": "Accounting setup and financial reports.",
+  "launcher.agenda_medica.name": "Medical Agenda",
+  "launcher.agenda_medica.desc": "Medical appointments by day or week.",
+  "launcher.tracking.name": "Tracking",
+  "launcher.tracking.desc": "Public shipment lookup.",
+  "launcher.portal.name": "Customer Portal",
+  "launcher.portal.desc": "Client access to their shipment history.",
+
+  "launcher.manifests.name": "Manifests",
+
+  "launcher.manifests.desc": "Group packages into dispatch pieces.",
+  "launcher.master.name": "Master",
+  "launcher.master.desc": "Multi-company control center.",
+  "launcher.settings.name": "Launcher settings",
+  "launcher.settings.desc": "Choose which icons appear on your home.",
+  "launcher.settings.title": "Launcher settings",
+  "launcher.settings.subtitle": "Select the modules visible on your home screen.",
+  "launcher.settings.save": "Save changes",
+  "launcher.settings.back": "Back to home",
+  "launcher.settings.saved": "Launcher settings saved",
+  "launcher.open": "Open module",
+  "agenda_medica.title": "Medical Agenda",
+  "agenda_medica.subtitle": "Manage appointments by day or week.",
+  "agenda_medica.new_appointment": "New appointment",
+  "agenda_medica.edit_appointment": "Edit appointment",
+  "agenda_medica.manage_doctors": "Doctors",
+  "agenda_medica.view_toggle": "Toggle view",
+  "agenda_medica.view_day": "Day",
+  "agenda_medica.view_week": "Week",
+  "agenda_medica.prev": "Previous",
+  "agenda_medica.next": "Next",
+  "agenda_medica.today": "Today",
+  "agenda_medica.filter_doctor": "Doctor",
+  "agenda_medica.all_doctors": "All",
+  "agenda_medica.patient_name": "Patient",
+  "agenda_medica.phone": "Phone",
+  "agenda_medica.reason": "Reason",
+  "agenda_medica.doctor": "Doctor",
+  "agenda_medica.select_doctor": "Select a doctor",
+  "agenda_medica.datetime": "Date and time",
+  "agenda_medica.duration": "Duration (min)",
+  "agenda_medica.status": "Status",
+  "agenda_medica.delete": "Delete",
+  "agenda_medica.cancel": "Cancel",
+  "agenda_medica.save": "Save",
+  "agenda_medica.patient": "Patient",
+  "agenda_medica.save_error": "Could not save the appointment.",
+  "agenda_medica.delete_confirm": "Delete this appointment?",
+  "agenda_medica.delete_error": "Could not delete the appointment.",
+  "agenda_medica.doctor_name": "Doctor name",
+  "agenda_medica.doctor_phone": "Phone",
+  "agenda_medica.doctor_specialty": "Specialty",
+  "agenda_medica.doctor_active": "Active",
+  "agenda_medica.doctor_save": "Save doctor",
+  "agenda_medica.doctor_clear": "New",
+  "agenda_medica.doctor_edit": "Edit",
+  "agenda_medica.doctor_delete": "Delete",
+  "agenda_medica.doctor_empty": "No doctors registered.",
+  "agenda_medica.doctor_inactive": "Inactive",
+  "agenda_medica.doctor_name_required": "Enter the doctor's name.",
+  "agenda_medica.doctor_save_error": "Could not save the doctor.",
+  "agenda_medica.doctor_delete_confirm": "Delete this doctor?",
+  "agenda_medica.doctor_delete_blocked": "Cannot delete: has appointments.",
+  "agenda_medica.doctor_delete_error": "Could not delete the doctor.",
+  "agenda_medica.status.pendiente": "Pending",
+  "agenda_medica.status.confirmada": "Confirmed",
+  "agenda_medica.status.atendida": "Completed",
+  "agenda_medica.status.cancelada": "Canceled",
+
+
+  "login.title": "Login",
+  "login.heading": "Inventory Login",
+  "login.subtitle": "Use your account to access the dashboard.",
+  "login.company_username": "Company username",
+  "login.company_username_helper": "Use the company username, not the company name.",
+  "login.user_username": "User username",
+  "login.password": "Password",
+  "login.sign_in": "Sign in",
+
+  "dashboard.title": "Dashboard",
+  "dashboard.total_products": "Total products",
+  "dashboard.total_categories": "Total categories",
+  "dashboard.low_stock": "Low stock (at or below minimum)",
+  "dashboard.inventory_value": "Inventory value",
+  "dashboard.packages_overview": "Packages",
+  "dashboard.total_packages": "Total packages",
+  "dashboard.packages_received_today": "Packages received today",
+  "dashboard.packages_in_customs": "Packages in customs",
+  "dashboard.packages_ready_delivery": "Packages ready for delivery",
+  "dashboard.packages_by_status": "Packages by status",
+  "dashboard.no_packages_data": "No package data yet.",
+  "dashboard.low_stock_products": "Low stock products",
+  "dashboard.low_stock_empty": "No low stock items.",
+  "dashboard.recent_activity": "Recent activity",
+  "dashboard.recent_activity_empty": "No recent activity.",
+  "dashboard.simple_charts": "Simple charts",
+  "dashboard.products_by_category": "Products by category",
+  "dashboard.no_category_data": "No category data yet.",
+  "dashboard.stock_health": "Stock health",
+  "dashboard.out_of_stock": "Out of stock",
+  "dashboard.low_stock_label": "Low stock",
+  "dashboard.healthy": "Healthy",
+  "dashboard.quick_actions": "Quick actions",
+  "dashboard.quick_actions_text": "Add, update, or remove items in the inventory.",
+  "dashboard.review_inventory": "Review inventory",
+  "dashboard.view_audit": "View audit logs",
+  "dashboard.go_inventory": "Go to Inventory",
+  "dashboard.table.product": "Product",
+  "dashboard.table.sku": "SKU",
+  "dashboard.table.qty": "Qty",
+  "dashboard.table.category": "Category",
+
+  "inventory.title": "Inventory",
+  "inventory.add_item": "Add item",
+  "inventory.name": "Name",
+  "inventory.sku": "SKU",
+  "inventory.quantity": "Current stock",
+  "inventory.min_stock": "Minimum stock",
+  "inventory.warehouse_location": "Warehouse location",
+  "inventory.barcode": "Barcode",
+  "inventory.price": "Price",
+  "inventory.category": "Category",
+  "inventory.brand": "Brand",
+  "inventory.brands": "Brands",
+  "inventory.add_item_button": "Add item",
+  "inventory.categories": "Categories",
+  "inventory.new_category": "New category",
+  "inventory.create_category": "Create category",
+  "inventory.new_brand": "New brand",
+  "inventory.create_brand": "Create brand",
+  "inventory.no_brands": "No brands yet.",
+  "inventory.code": "Code",
+  "inventory.code_mode": "Code mode",
+  "inventory.code_auto": "Auto",
+  "inventory.code_manual": "Manual",
+  "inventory.item_code": "Item code",
+  "inventory.sku_preview": "SKU preview",
+  "inventory.table.name": "Name",
+  "inventory.table.code": "Code",
+  "inventory.table.code_mode": "Code mode",
+  "inventory.table.actions": "Actions",
+  "inventory.no_categories": "No categories yet.",
+  "inventory.import_export": "Import and export",
+  "inventory.csv_headers": "CSV headers: name, sku, qty, min_stock, warehouse_location, barcode, price, category, brand",
+  "inventory.import_csv": "Import CSV",
+  "inventory.export_csv": "Export CSV",
+  "inventory.items": "Items",
+  "inventory.value": "Inventory value: ${value}",
+  "inventory.low_stock_warning": "Low stock warning. {count} items are at or below minimum stock.",
+  "inventory.filter_by_category": "Filter by category",
+  "inventory.all_categories": "All categories",
+  "inventory.apply_filter": "Apply filter",
+  "inventory.items_table.name": "Name",
+  "inventory.items_table.sku": "SKU",
+  "inventory.items_table.code_mode": "Code mode",
+  "inventory.items_table.item_code": "Item code",
+  "inventory.items_table.qty": "Stock",
+  "inventory.items_table.min": "Min",
+  "inventory.items_table.warehouse_location": "Location",
+  "inventory.items_table.barcode": "Barcode",
+  "inventory.items_table.price": "Price",
+  "inventory.items_table.value": "Value",
+  "inventory.items_table.category": "Category",
+  "inventory.items_table.brand": "Brand",
+  "inventory.items_table.actions": "Actions",
+  "inventory.no_items": "No items yet.",
+
+  "customers.title": "Customers",
+  "customers.menu_list": "List",
+  "customers.menu_import": "Import and export",
+  "customers.menu_create": "Create and edit",
+  "customers.menu_packages": "Customer packages",
+  "customers.menu_voided": "Voided",
+  "customers.edit_shortcut_title": "Edit customer",
+  "customers.edit_select": "Select customer",
+  "customers.edit_go": "Go to edit",
+  "customers.add_customer": "Add customer",
+  "customers.void_button": "Void",
+  "customers.void_confirm": "Void this customer?",
+  "customers.void_success": "Customer voided.",
+  "customers.voided_list": "Voided customers",
+  "customers.no_voided": "No voided customers yet.",
+  "customers.status_voided": "Voided",
+  "customers.name": "Name",
+  "customers.first_name": "First name",
+  "customers.last_name": "Last name",
+  "customers.phone": "Phone",
+  "customers.email": "Email",
+  "customers.address": "Address",
+  "customers.house_number": "House number",
+  "customers.street_number": "Street number",
+  "customers.notes": "Notes",
+  "customers.create_customer": "Create customer",
+  "customers.list": "Customer list",
+  "customers.table.name": "Name",
+  "customers.table.code": "Code",
+  "customers.table.phone": "Phone",
+  "customers.table.email": "Email",
+  "customers.table.address": "Address",
+  "customers.customer_code": "Customer code",
+  "customers.portal_code": "Portal code",
+  "customers.portal_password": "Portal password",
+  "customers.portal_password_hint": "Leave blank to keep current",
+  "customers.portal_auto_hint": "Generated automatically on create",
+  "customers.portal_password_auto_hint": "Generated automatically on create",
+  "customers.portal_created_flash": "Portal credentials. User {portal_code}. Password {portal_password}.",
+  "customers.sat_manual_query": "Manual query",
+  "customers.portal_code_hint": "Code for customer portal access.",
+  "customers.table.portal_code": "Portal code",
+  "customers.reset_portal_code": "Regenerate code",
+  "customers.table.actions": "Actions",
+  "customers.no_customers": "No customers yet.",
+
+  "users.title": "User Management",
+  "users.create_user": "Create user",
+  "users.username": "Username",
+  "users.password": "Password",
+  "users.role": "Role",
+  "users.employee": "Employee",
+  "users.admin": "Admin",
+  "users.create_user_button": "Create user",
+  "users.list": "Users",
+  "users.table.username": "Username",
+  "users.table.role": "Role",
+  "users.table.password": "Password",
+  "users.table.created": "Created",
+  "users.table.active": "Active",
+  "users.table.actions": "Actions",
+  "users.no_users": "No users found.",
+  "users.new_password_optional": "New password (optional)",
+  "users.active": "Active",
+  "users.permissions": "Permissions",
+  "users.permissions_note": "Only for employees. Admin has full access.",
+  "users.permissions_none": "No actions available.",
+  "users.permissions_empty": "No permission modules configured.",
+  "users.permissions_title": "User permissions",
+  "users.admin_full_access": "Full access",
+  "users.admin_permissions_locked": "Admin permissions cannot be edited.",
+  "users.eyebrow": "Administration",
+  "users.subtitle": "Manage internal access, roles, and permissions with clarity.",
+  "users.new_user": "New user",
+  "users.view_list": "View list",
+  "users.create_desc": "Complete the details and assign permissions.",
+  "users.required_fields": "Key fields",
+  "users.username_helper": "Unique identifier per company.",
+  "users.password_helper": "If you leave it blank, a temporary password will be assigned.",
+  "users.role_helper": "Defines the access level.",
+  "users.state_helper": "Enable or disable access.",
+  "users.list_desc": "Manage existing users and their credentials.",
+  "users.total_users": "users",
+  "users.permissions_desc": "Assign permissions by module in an organized way.",
+  "users.permissions_for": "Permissions for",
+  "users.permissions_short": "Permissions",
+  "users.status_active": "Active",
+  "users.status_inactive": "Inactive",
+  "users.created_title": "User created",
+  "users.created_subtitle": "Share the access details with the new user.",
+  "users.created_success_title": "User created successfully",
+  "users.created_success_sub": "Access summary ready to copy.",
+  "users.access_title": "Access details",
+  "users.company_user": "Company user",
+  "users.temp_password": "Temporary password",
+  "users.access_note": "We recommend the user changes the password on first login.",
+  "users.copy_access": "Copy access",
+  "users.copied_access": "Copied",
+  "users.copy_username": "Copy username",
+  "users.copied_username": "Username copied",
+  "users.copy_password": "Copy password",
+  "users.copied_password": "Password copied",
+  "users.back_to_list": "Back to list",
+  "users.create_another": "Create another user",
+  "users.company_default": "Company",
+
+  "invoices.title": "Invoices",
+  "invoices.create_invoice": "Create invoice",
+  "invoices.customer": "Customer",
+  "invoices.walk_in_unassigned": "Walk-in and unassigned",
+  "invoices.tax_default": "Default tax rate 12%",
+  "invoices.currency": "Currency",
+  "invoices.exchange_rate": "Exchange rate",
+  "invoices.total_base": "Total in base currency",
+  "invoices.discount_type": "Discount type",
+  "invoices.fixed_amount": "Fixed amount",
+  "invoices.percentage": "Percentage",
+  "invoices.discount_value": "Discount value",
+  "invoices.table.product": "Product",
+  "invoices.table.qty": "Qty",
+  "invoices.table.unit_price": "Unit price",
+  "invoices.table.line_total": "Line total",
+  "invoices.table.actions": "Actions",
+  "invoices.select_product": "Select product",
+  "invoices.remove": "Remove",
+  "invoices.add_line": "Add product line",
+  "invoices.subtotal": "Subtotal",
+  "invoices.tax": "Tax",
+  "invoices.discount": "Discount",
+  "invoices.total": "Total",
+  "invoices.create_invoice_button": "Create invoice",
+  "invoices.history": "Invoice history",
+  "invoices.table.invoice": "Invoice",
+  "invoices.table.customer": "Customer",
+  "invoices.table.subtotal": "Subtotal",
+  "invoices.table.tax": "Tax",
+  "invoices.table.discount": "Discount",
+  "invoices.table.total": "Total",
+  "invoices.table.created": "Created",
+  "invoices.table.actions_header": "Actions",
+  "invoices.no_invoices": "No invoices yet.",
+  "invoices.fixed": "fixed",
+  "invoices.view_breakdown": "View breakdown",
+  "invoices.view_invoice": "View invoice",
+
+  "invoice_detail.title": "Invoice #{id}",
+  "invoice_detail.heading": "Invoice #{id}",
+  "invoice_detail.customer": "Customer",
+  "invoice_detail.created": "Created",
+  "invoice_detail.phone": "Phone",
+  "invoice_detail.email": "Email",
+  "invoice_detail.address": "Address",
+  "invoice_detail.line_items": "Line items",
+  "invoice_detail.table.product": "Product",
+  "invoice_detail.table.sku": "SKU",
+  "invoice_detail.table.qty": "Qty",
+  "invoice_detail.table.unit_price": "Unit price",
+  "invoice_detail.table.line_total": "Line total",
+  "invoice_detail.no_items": "No items for this invoice.",
+  "invoice_detail.subtotal": "Subtotal",
+  "invoice_detail.tax": "Tax",
+  "invoice_detail.discount": "Discount",
+  "invoice_detail.total": "Total",
+
+  "audit.title": "Audit Logs",
+  "audit.table.time": "Time",
+  "audit.table.user": "User",
+  "audit.table.action": "Action",
+  "audit.table.details": "Details",
+  "audit.no_logs": "No audit logs yet.",
+
+  "errors.server_try_again": "Server error. Try again.",
+  "errors.invalid_credentials": "Invalid username or password.",
+  "errors.company_expired": "Company account expired. Contact the administrator.",
+  "errors.company_inactive": "Company account is inactive. Contact the administrator.",
+  "errors.company_create_failed": "Company creation failed.",
+  "errors.master_login_disabled": "Master login is disabled. Configure environment variables.",
+  "errors.master_invalid_credentials": "Invalid master credentials.",
+  "errors.name_sku_required": "Name and SKU are required.",
+  "errors.item_required_fields": "Name, category, and brand are required.",
+  "errors.item_code_required": "Item code is required.",
+  "errors.sku_exists": "SKU already exists.",
+  "errors.category_lookup_failed": "Category lookup failed.",
+  "errors.brand_lookup_failed": "Brand lookup failed.",
+  "errors.export_failed": "Export failed.",
+  "errors.csv_required": "CSV file is required.",
+  "errors.invalid_csv": "Invalid CSV format.",
+  "errors.csv_empty": "CSV file is empty.",
+  "errors.import_file_required": "CSV or XLSX file is required.",
+  "errors.invalid_import_file": "Invalid file format.",
+  "errors.import_empty": "The file is empty.",
+  "errors.category_name_required": "Category name is required.",
+  "errors.category_create_failed": "Category creation failed. Name may already exist.",
+  "errors.category_update_failed": "Category update failed. Name may already exist.",
+  "errors.category_delete_failed": "Category delete failed.",
+  "errors.brand_name_required": "Brand name is required.",
+  "errors.brand_create_failed": "Brand creation failed. Name may already exist.",
+  "errors.brand_update_failed": "Brand update failed. Name may already exist.",
+  "errors.brand_delete_failed": "Brand delete failed.",
+  "errors.code_required": "Code is required for manual mode.",
+  "errors.code_duplicate": "Code already exists.",
+  "errors.customer_name_required": "Customer name is required.",
+  "errors.customer_create_failed": "Customer creation failed.",
+  "errors.customer_update_failed": "Customer update failed.",
+  "errors.customer_delete_failed": "Customer delete failed.",
+  "errors.customer_void_failed": "Customer void failed.",
+  "errors.customer_voided_not_allowed": "Customer is voided. Operations are not allowed.",
+  "errors.invoice_min_one_item": "Please add at least one product with quantity.",
+  "errors.invoice_invalid_product": "Invalid product selected.",
+  "errors.invoice_create_failed": "Invoice creation failed.",
+  "errors.invoice_item_create_failed": "Invoice item creation failed.",
+  "errors.package_required_fields": "Consignee and tracking number are required.",
+  "errors.package_invalid_consignatario": "Selected consignee is invalid.",
+  "errors.consignatario_customer_required": "Select a valid customer for the consignee.",
+  "errors.consignatario_name_required": "Consignee name is required.",
+  "errors.consignatario_create_failed": "Unable to create consignee.",
+  "errors.exchange_rate_invalid": "Invalid exchange rate.",
+  "errors.username_password_required": "Username and password are required.",
+  "errors.user_create_failed": "User creation failed. Username may already exist.",
+  "errors.username_required": "Username is required.",
+  "errors.user_remove_admin_self": "You cannot remove your own admin role.",
+  "errors.user_update_failed": "User update failed. Username may already exist.",
+  "errors.password_update_failed": "Password update failed.",
+  "errors.user_delete_self": "You cannot delete your own account.",
+  "errors.user_not_found": "User not found.",
+  "errors.user_delete_last_admin": "You cannot delete the last admin.",
+  "errors.permissions_update_failed": "Permissions could not be updated.",
+  "errors.permissions_invalid": "Invalid permissions.",
+  "errors.user_admin_permissions_fixed": "Admin permissions cannot be edited.",
+
+  "packages.title": "Packages",
+  "packages.new_package": "New package",
+  "packages.subtitle": "Professional courier and cargo workflow control.",
+  "packages.dashboard_link": "Package dashboard",
+  "packages.customer": "Customer",
+  "packages.select_customer": "Select a customer",
+  "packages.customer_phone": "Phone",
+  "packages.customer_email": "Email",
+  "packages.internal_code": "Internal code",
+  "packages.sender_name": "Sender",
+  "packages.store_name": "Store",
+  "packages.description": "Description",
+  "packages.weight_lbs": "Weight in lbs",
+  "packages.length_cm": "Length in cm",
+  "packages.width_cm": "Width in cm",
+  "packages.height_cm": "Height in cm",
+  "packages.dimensions_cm": "Dimensions in cm",
+  "packages.declared_value": "Declared value",
+  "packages.shipping_type": "Shipping type",
+  "packages.shipping_air": "Air",
+  "packages.shipping_sea": "Sea",
+  "packages.shipping_land": "Land",
+  "packages.branch_destination": "Destination branch",
+  "packages.delivery_type": "Delivery type",
+  "packages.delivery_pickup": "Pickup",
+  "packages.delivery_delivery": "Delivery",
+  "packages.payment_status": "Payment status",
+  "packages.payment_pending": "Pending",
+  "packages.payment_paid": "Paid",
+  "packages.invoice_status": "Invoice status",
+  "packages.invoice_pending": "Pending",
+  "packages.invoice_uploaded": "Uploaded",
+  "packages.carrier": "Carrier",
+  "packages.tracking": "Tracking",
+  "packages.received_at": "Received at",
+  "packages.invoice_file": "Invoice and document",
+  "packages.photos": "Photos",
+  "packages.notes": "Notes",
+  "packages.sender_store_hint": "Use sender or store.",
+  "packages.create_button": "Create package",
+  "packages.filters": "Filters",
+  "packages.filter_status": "Status",
+  "packages.filter_customer": "Customer",
+  "packages.filter_tracking": "Tracking",
+  "packages.filter_search": "Search",
+  "packages.filter_search_hint": "Tracking and consignee",
+  "packages.filter_customer_name": "Customer name",
+  "packages.filter_carrier": "Carrier",
+  "packages.filter_received_date": "Received date",
+  "packages.apply_filter": "Apply filters",
+  "packages.reset_filters": "Reset filters",
+  "packages.list": "Package list",
+  "packages.summary": "Summary by status",
+  "packages.export_csv": "Export CSV",
+  "packages.urgent_hint": "Alerts: {stuck} days stuck, {invoice} days invoice pending, {customs} days in customs.",
+  "packages.urgent_stuck": "Stuck",
+  "packages.urgent_invoice": "Invoice overdue",
+  "packages.urgent_customs": "Customs overdue",
+  "packages.quick_pending_invoice": "Pending invoice",
+  "packages.quick_in_transit": "In transit",
+  "packages.quick_delivered": "Delivered",
+  "packages.bulk_apply": "Apply",
+  "packages.print_receipt": "Print receipt",
+  "packages.view_label": "Label",
+  "packages.print_label": "Print label",
+  "packages.print_labels": "Print labels",
+  "packages.download_label": "Download label PDF",
+  "package_label.title": "Package label",
+  "packages.status": "Status",
+  "packages.table.tracking": "Tracking",
+  "packages.table.internal_code": "Internal code",
+  "packages.table.customer": "Customer",
+  "packages.table.description": "Description",
+  "packages.table.carrier": "Carrier",
+  "packages.table.weight": "Weight",
+  "packages.table.status": "Status",
+  "packages.table.payment_status": "Payment",
+  "packages.table.invoice_status": "Invoice",
+  "packages.table.actions": "Actions",
+  "packages.no_packages": "No packages yet.",
+  "packages.view_detail": "View detail",
+  "packages.edit": "Edit",
+  "packages.action.view_short": "View",
+  "packages.action.edit_short": "Edit",
+  "packages.action.status_short": "Status",
+  "packages.action.label_short": "Label",
+  "packages.change_status": "Change status",
+  "packages.upload_invoice": "Upload invoice",
+  "packages.upload_photos": "Upload photos",
+  "packages.module.dashboard": "Dashboard",
+  "packages.module.list": "Package list",
+  "packages.module.pending_invoice": "Missing invoice",
+  "packages.module.new": "New package",
+  "packages.module.home": "Packages home",
+  "packages.module.statuses": "Statuses",
+  "packages.module.labels": "Labels",
+  "packages.module.tracking": "Tracking",
+  "packages.module.reports": "Reports",
+  "packages.module.select_all": "Select all",
+  "packages.module.statuses_desc": "Available package status steps.",
+  "packages.status_manifest.title": "Update status by manifest",
+  "packages.status_manifest.subtitle": "Apply status {status} to all packages in a manifest or update individual packages by scanning.",
+  "packages.status_manifest.status_label": "Status to apply",
+  "packages.status_manifest.manifest_select": "Select manifest",
+  "packages.status_manifest.manifest_placeholder": "Select a manifest",
+  "packages.status_manifest.manifest_hint": "All packages in the selected manifest will be updated.",
+  "packages.status_manifest.apply_manifest": "Apply to manifest",
+  "packages.status_manifest.scan_label": "Quick scan",
+  "packages.status_manifest.scan_placeholder": "Scan code or tracking",
+  "packages.status_manifest.scan_hint": "Use the scanner to update a single package.",
+  "packages.status_manifest.scan_button": "Update by scan",
+  "packages.status_manifest.no_manifests": "No manifests available.",
+  "packages.status_manifest.flash_invalid": "Select a valid manifest and status.",
+  "packages.status_manifest.flash_manifest_empty": "The manifest has no packages.",
+  "packages.status_manifest.flash_manifest_updated": "Updated status {status} for {updated} of {total} packages in manifest {manifestId}.",
+  "packages.status_manifest.flash_scan_not_found": "No package found with that code.",
+  "packages.status_manifest.flash_scan_updated": "Package status updated.",
+  "packages.status_manifest.flash_scan_unchanged": "The package is already in status {status}.",
+  "packages.module.labels_desc": "Label printing and management.",
+  "packages.module.labels_hint": "Print batches from the package list.",
+  "packages.module.tracking_desc": "Quick access to the tracking lookup.",
+  "packages.module.tracking_hint": "Use the public search to locate a package.",
+  "packages.module.open_tracking": "Open tracking",
+  "packages.module.reports_desc": "Package reporting and summaries.",
+  "packages.module.reports_hint": "Build filters and export insights.",
+  "packages.module.coming_soon": "Coming soon",
+  "packages.pending_invoice.title": "Packages missing invoice",
+  "packages.pending_invoice.subtitle": "Request the purchase invoice or upload it directly.",
+  "packages.pending_invoice.empty": "No packages are missing an invoice.",
+  "packages.pending_invoice.whatsapp": "WhatsApp",
+  "packages.pending_invoice.email": "Email",
+  "packages.pending_invoice.upload": "Upload invoice",
+  "packages.pending_invoice.send_success": "Request sent.",
+  "packages.pending_invoice.send_failed": "Unable to send the request.",
+  "packages.pending_invoice.no_phone": "Customer has no phone on file.",
+  "packages.pending_invoice.no_email": "Customer has no email on file.",
+  "packages.pending_invoice.email_subject": "Purchase invoice needed",
+  "packages.pending_invoice.upload_title": "Upload purchase invoice",
+  "packages.pending_invoice.upload_hint": "Upload the purchase document so your shipment can continue.",
+  "packages.pending_invoice.upload_required": "Select a file to upload the invoice.",
+  "packages.pending_invoice.upload_success": "Invoice uploaded successfully.",
+  "packages.pending_invoice.upload_invalid": "Invalid or expired link.",
+  "package_detail.title": "Package detail",
+  "package_detail.summary": "Summary",
+  "package_detail.status": "Current status",
+  "package_detail.update_status": "Update status",
+  "package_detail.status_notes": "Status notes",
+  "package_detail.history": "Status history",
+  "package_detail.no_history": "No history yet.",
+  "package_detail.comments": "Internal comments",
+  "package_detail.no_comments": "No comments yet.",
+  "package_detail.add_comment": "New comment",
+  "package_detail.add_comment_button": "Add comment",
+  "package_detail.photos": "Package photos",
+  "package_detail.no_photos": "No photos yet.",
+  "package_detail.upload_photos": "Upload photos",
+  "package_detail.invoice": "Document",
+  "package_detail.no_invoice": "No document uploaded.",
+  "package_detail.upload_invoice": "Upload document",
+  "package_edit.title": "Edit package",
+  "package_edit.edit_heading": "Update package information",
+  "package_edit.save_button": "Save changes",
+  "package_edit.back_detail": "Back to detail",
+  "package_receipt.title": "Package receipt",
+  "package_receipt.print": "Print",
+  "package_receipt.back": "Back",
+  "tracking.title": "Package tracking",
+  "tracking.heading": "Track your package",
+  "tracking.subtitle": "Enter your tracking number or internal code to see the status.",
+  "tracking.input_label": "Tracking number or internal code",
+  "tracking.input_placeholder": "e.g. PKG-2026-AB12CD or 1Z123...",
+  "tracking.search": "Search",
+  "tracking.result_title": "Package status",
+  "tracking.latest_status_date": "Latest update",
+  "tracking.progress_label": "Estimated progress: {percent}%",
+  "tracking.timeline_title": "Timeline",
+  "tracking.completed_on": "Completed on {date}",
+  "tracking.pending": "Pending",
+  "tracking.photos": "Available photos",
+  "tracking.not_found": "Package not found.",
+  "tracking.admin_login": "Admin login",
+  "customer_portal.login_title": "Customer portal",
+  "customer_portal.login_heading": "Customer portal login",
+  "customer_portal.login_subtitle": "See all your packages in one place.",
+  "customer_portal.email": "Email",
+  "customer_portal.portal_code": "Portal code",
+  "customer_portal.password": "Password",
+  "customer_portal.login_button": "Sign in",
+  "customer_portal.portal_hint": "Ask your service agent for your code.",
+  "customer_portal.change_title": "Change password",
+  "customer_portal.change_heading": "Set a new password",
+  "customer_portal.change_subtitle": "For privacy, update your password before continuing.",
+  "customer_portal.new_password": "New password",
+  "customer_portal.confirm_password": "Confirm password",
+  "customer_portal.change_button": "Update password",
+  "customer_portal.change_error": "Unable to update the password.",
+  "customer_portal.change_mismatch": "Passwords do not match.",
+  "customer_portal.login_error": "Invalid credentials.",
+  "customer_portal.back_tracking": "Back to tracking",
+  "customer_portal.portal_title": "Customer portal",
+  "customer_portal.portal_heading": "Your packages",
+  "customer_portal.portal_subtitle": "Tracking all your shipments.",
+  "customer_portal.packages_title": "Packages",
+  "customer_portal.actions": "Actions",
+  "customer_portal.view_tracking": "View tracking",
+  "customer_portal.track_one": "Track one",
+  "customer_portal.no_packages": "No packages found.",
+  "customer_portal.logout": "Logout",
+  "tracking.rate_limited": "Too many searches. Please try again in a minute.",
+  "tracking.empty_title": "Check your shipment in seconds",
+  "tracking.empty_text": "Enter your tracking number or internal code to see your package progress.",
+  "packages_dashboard.title": "Package dashboard",
+  "packages_dashboard.subtitle": "Operational overview in real time.",
+  "packages_dashboard.back_list": "Back to list",
+  "packages_dashboard.total": "Total packages",
+  "packages_dashboard.received_today": "Received today",
+  "packages_dashboard.pending_invoice": "Pending invoice",
+  "packages_dashboard.in_transit": "In transit",
+  "packages_dashboard.in_customs": "In customs",
+  "packages_dashboard.ready_delivery": "Ready for delivery",
+  "packages_dashboard.delivered": "Delivered",
+  "common.clear": "Clear",
+  "common.search": "Search",
+  "common.choose": "Choose",
+  "common.all": "All",
+  "common.back": "Back",
+  "customers.filters_title": "Filters",
+  "customers.search_name": "Search by name or tax ID",
+  "customers.search_document": "Search by document",
+  "customers.search_code": "Code",
+  "customers.import_export": "Import and export",
+  "customers.import_headers": "Headers: customer_code, portal_code, name, document_type, document_number, phone, mobile, email, advisor, payment_method, communication_type, country, department, municipality, zone, address, full_address, house_number, street_number, notes",
+  "customers.import_file": "Import CSV and XLSX",
+  "customers.export_excel": "Export Excel",
+  "customers.filter_advisor": "Filter by advisor",
+  "customers.filter_payment": "Filter by payment",
+  "customers.filter_communication": "Filter by communication",
+  "customers.document_type": "Document type",
+  "customers.document_number": "Document number",
+  "customers.mobile": "Mobile",
+  "customers.full_address": "Full address",
+  "customers.zone": "Zone",
+  "customers.municipality": "Municipality",
+  "customers.department": "Department",
+  "customers.country": "Country",
+  "customers.select_department": "Select department",
+  "customers.select_municipality": "Select municipality",
+  "customers.payment_method": "Payment method",
+  "customers.payment_method.Efectivo": "Cash",
+  "customers.payment_method.Transferencia": "Bank transfer",
+  "customers.payment_method.Tarjeta": "Card",
+  "customers.communication_type": "Communication type",
+  "customers.communication_type.Whatsapp": "WhatsApp",
+  "customers.communication_type.Correo": "Email",
+  "customers.communication_type.Llamada": "Phone call",
+  "customers.advisor": "Advisor",
+  "customers.verify_sat": "Verify NIT",
+  "customers.sat_manual_action": "Manual check",
+  "customers.sat_hint": "NIT only. If SAT is unavailable, enter the name manually.",
+  "customers.sat_checking": "Checking SAT...",
+  "customers.sat_verified": "SAT verified",
+  "customers.sat_unavailable": "SAT unavailable. Enter the name manually.",
+  "customers.sat_manual": "Manual entry",
+  "customers.sat_portal_link": "Open SAT portal",
+  "customers.packages_title": "Customer packages",
+  "customers.packages_filter_code": "Package code",
+  "customers.packages_empty": "No packages found.",
+  "customers.table.document": "Document",
+  "customers.table.contact": "Contact",
+  "customers.table.advisor": "Advisor",
+  "customers.table.payment": "Payment and communication",
+  "customers.detail_title": "Customer detail",
+  "customers.detail_header": "Customer",
+  "customers.detail_info": "Overview",
+  "customers.route_title": "Route",
+  "customers.route_hint": "Open directions from your current location to the customer's address.",
+  "customers.route_google": "Open in Google Maps",
+  "customers.route_waze": "Open in Waze",
+  "customers.edit_customer": "Edit customer",
+  "customers.sat_status": "SAT status",
+  "customers.sat_name": "SAT name",
+  "customers.sat_checked_at": "SAT checked at",
+  "consignatarios.title": "Consignees",
+  "consignatarios.menu_list": "List",
+  "consignatarios.menu_filters": "Filters and download",
+  "consignatarios.menu_manage": "Create and edit",
+  "consignatarios.filters_title": "Filters",
+  "consignatarios.search_name": "Search by name",
+  "consignatarios.search_document": "Search by document",
+  "consignatarios.filter_customer": "Customer",
+  "consignatarios.export_excel": "Export Excel",
+  "consignatarios.edit_shortcut_title": "Edit consignee",
+  "consignatarios.edit_select": "Select consignee",
+  "consignatarios.edit_go": "Go to edit",
+  "consignatarios.add_title": "Add consignee",
+  "consignatarios.document_type": "Document type",
+  "consignatarios.document_number": "Document number",
+  "consignatarios.name": "Name",
+  "consignatarios.full_address": "Full address",
+  "consignatarios.zone": "Zone",
+  "consignatarios.municipality": "Municipality",
+  "consignatarios.department": "Department",
+  "consignatarios.country": "Country",
+  "consignatarios.select_department": "Select department",
+  "consignatarios.select_municipality": "Select municipality",
+  "consignatarios.phone": "Phone",
+  "consignatarios.mobile": "Mobile",
+  "consignatarios.email": "Email",
+  "consignatarios.notes": "Notes",
+  "consignatarios.add": "Add consignee",
+  "consignatarios.empty": "No consignees registered.",
+  "consignatarios.list": "Consignees list",
+  "consignatarios.table.name": "Consignee",
+  "consignatarios.table.customer": "Customer",
+  "consignatarios.table.contact": "Contact",
+  "consignatarios.table.actions": "Actions",
+  "consignatarios.no_consignatarios": "No consignees registered.",
+  "consignatarios.detail_title": "Consignee detail",
+  "consignatarios.detail_header": "Consignee",
+  "consignatarios.detail_info": "Overview",
+  "consignatarios.edit_title": "Edit consignee",
+  "consignatarios.back_list": "Back to consignees",
+  "consignatarios.back_customer": "Back to customer",
+  "consignatarios.customer": "Customer",
+  "consignatarios.packages_title": "Consignee packages",
+  "consignatarios.packages_empty": "No packages found.",
+  "packages.consignatario": "Consignee",
+  "packages.select_consignatario": "Select consignee",
+  "packages.consignatario_address": "Delivery address"  ,"nav.carrier_reception": "Carrier reception"
+  ,"launcher.reception.name": "Carrier reception"
+  ,"launcher.reception.desc": "Fast scan of inbound carrier packages"
+  ,"reception.title": "Carrier package reception"
+  ,"reception.subtitle": "Scan tracking numbers from UPS, Amazon, USPS, FedEx, and others."
+  ,"reception.quick_title": "Quick reception"
+  ,"reception.form.tracking": "Tracking number"
+  ,"reception.form.tracking_placeholder": "Scan or type"
+  ,"reception.form.carrier": "Carrier"
+  ,"reception.form.carrier_select": "Select carrier"
+  ,"reception.form.carrier_other": "Other"
+  ,"reception.form.carrier_manage": "Manage"
+  ,"reception.form.received_by": "Received by"
+  ,"reception.form.notes": "Notes"
+  ,"reception.form.submit": "Register"
+  ,"reception.form.no_permission": "No permission to register"
+  ,"reception.errors.required": "Tracking number and carrier are required."
+  ,"reception.success": "Reception recorded."
+  ,"reception.summary_title": "Summary"
+  ,"reception.stats.received_today": "Received today"
+  ,"reception.stats.pending": "Pending"
+  ,"reception.stats.processed": "Processed"
+  ,"reception.stats.by_carrier": "Totals by carrier"
+  ,"reception.empty_carriers": "No carrier totals yet"
+  ,"reception.list_title": "Receptions"
+  ,"reception.filters.tracking": "Tracking"
+  ,"reception.filters.carrier": "Carrier"
+  ,"reception.filters.status": "Status"
+  ,"reception.filters.date": "Date"
+  ,"reception.filters.apply": "Apply"
+  ,"reception.filters.reset": "Reset"
+  ,"reception.filters.default_pending": "Pending"
+  ,"reception.filters.all_status": "All"
+  ,"reception.table.tracking": "Tracking"
+  ,"reception.table.carrier": "Carrier"
+  ,"reception.table.received_at": "Received"
+  ,"reception.table.status": "Status"
+  ,"reception.table.actions": "Actions"
+  ,"reception.status.pending": "Pending"
+  ,"reception.status.processed": "Processed"
+  ,"reception.status.cancelled": "Cancelled"
+  ,"reception.actions.record": "Record package"
+  ,"reception.actions.view": "View"
+  ,"reception.actions.cancel": "Cancel"
+  ,"reception.actions.cancel_confirm": "Cancel this reception?"
+  ,"reception.actions.export": "Export Excel"
+  ,"reception.actions.back": "Back"
+  ,"reception.actions.title": "Actions"
+  ,"reception.detail_title": "Reception detail"
+  ,"reception.detail_subtitle": "Inbound tracking detail"
+  ,"reception.detail_info": "General info"
+  ,"reception.detail.package_link": "Linked package"
+  ,"reception.detail.view_package": "View package"
+  ,"reception.detail.no_package": "No package"
+  ,"reception.detail.no_notes": "No notes"
+  ,"reception.empty_list": "No receptions"
+  ,"reception.session_count": "Current session"
+  ,"reception.bulk_mode": "Sticky carrier mode"
+  ,"packages.reception_prefill": "Creating package from reception"
+  ,"launcher.settings_module.name": "Settings"
+  ,"launcher.settings_module.desc": "General configuration and preferences."
+  ,"settings.title": "Settings"
+  ,"settings.subtitle": "Manage system configuration."
+  ,"settings.labels_title": "Labels"
+  ,"settings.labels_subtitle": "Access the labels generated by the system."
+  ,"settings.labels_packages_title": "Package label"
+  ,"settings.labels_packages_subtitle": "Print labels by package."
+  ,"settings.labels_manifests_title": "Manifest label"
+  ,"settings.labels_manifests_subtitle": "Generate piece stickers from manifests."
+  ,"settings.language_title": "Language"
+  ,"settings.language_subtitle": "Change the interface language."
+  ,"settings.back_settings": "Back to settings"
+,"settings.carriers_title": "Carriers"
+  ,"settings.carriers_subtitle": "Define the carrier list available in Reception."
+  ,"settings.carriers_label": "Carrier list"
+  ,"settings.carriers_hint": "One per line or comma-separated."
+  ,"settings.package_sender_title": "Package sender"
+  ,"settings.package_sender_subtitle": "Define the global sender used for all packages."
+  ,"settings.package_sender_name_label": "Sender name"
+  ,"settings.package_sender_store_label": "Store / origin"
+  ,"settings.back_reception": "Back to reception"
+
+  ,"manifests.title": "Manifests"
+
+  ,"manifests.subtitle": "Create shipment manifests to group packages."
+
+  ,"manifests.new": "New manifest"
+
+  ,"manifests.list": "Manifest list"
+
+  ,"manifests.create": "Create manifest"
+
+  ,"manifests.detail": "Manifest detail"
+
+  ,"manifests.airway_bill": "Air Waybill number"
+
+  ,"manifests.airway_hint": "Editable while the manifest is open."
+
+  ,"manifests.notes": "Notes"
+
+  ,"manifests.status": "Status"
+
+  ,"manifests.status.open": "Open"
+
+  ,"manifests.status.closed": "Closed"
+
+  ,"manifests.pieces": "Pieces"
+
+  ,"manifests.packages": "Packages"
+
+  ,"manifests.created_at": "Created"
+
+  ,"manifests.actions": "Actions"
+
+  ,"manifests.view": "View"
+
+  ,"manifests.add_piece": "Add piece"
+
+  ,"manifests.add_package": "Add packages"
+
+  ,"manifests.close": "Close manifest"
+
+  ,"manifests.reopen": "Reopen manifest"
+
+  ,"manifests.no_pieces": "No pieces yet."
+
+  ,"manifests.no_packages": "No packages yet."
+
+  ,"manifests.no_manifests": "No manifests yet."
+
+  ,"manifests.package_select": "Select package"
+  ,"manifests.scan_piece_select": "Select piece"
+  ,"manifests.scan_placeholder": "Scan code or tracking"
+  ,"manifests.scan_button": "Scan"
+  ,"manifests.piece_sticker": "Sticker PDF"
+
+  ,"manifests.piece_number": "Piece {number}"
+
+  ,"manifests.update_airway": "Update air waybill"
+
+  ,"manifests.update_notes": "Update notes"
+  ,"manifests.summary": "Summary"
+
+  ,"manifests.total_pieces": "Total pieces"
+
+  ,"manifests.total_packages": "Total packages"
+
+  ,"manifests.total_weight": "Total weight in lbs"
+
+  ,"manifests.download_pdf": "Download PDF"
+
+  ,"manifests.download_excel": "Download Excel"
+
+  ,"launcher.awb.name": "Air Waybill"
+  ,"launcher.awb.desc": "Create and manage air waybills (AWB)."
+
+  ,"awb.title": "Air Waybill"
+  ,"awb.subtitle": "Manage air waybills with a paper-style layout."
+  ,"awb.new": "New AWB"
+  ,"awb.create": "Create AWB"
+  ,"awb.edit": "Edit AWB"
+  ,"awb.save": "Save changes"
+  ,"awb.detail": "AWB detail"
+  ,"awb.list": "AWB list"
+  ,"awb.view": "View"
+  ,"awb.print": "Print"
+  ,"awb.preview": "Print preview"
+  ,"awb.view_iata_pdf": "View IATA PDF"
+  ,"awb.download_iata_pdf": "Download IATA PDF"
+  ,"awb.close": "Close"
+  ,"awb.issue": "Issue"
+  ,"awb.reopen": "Reopen"
+  ,"awb.actions": "Actions"
+  ,"awb.status": "Status"
+  ,"awb.status.draft": "Draft"
+  ,"awb.status.closed": "Closed"
+  ,"awb.status.issued": "Issued"
+  ,"awb.created_at": "Created"
+  ,"awb.no_awbs": "No air waybills yet."
+  ,"awb.paper_title": "Air Waybill"
+
+  ,"awb.sections.header": "Header"
+  ,"awb.sections.parties": "Shipper and consignee"
+  ,"awb.sections.routing": "Routing"
+  ,"awb.sections.charges": "Charges"
+  ,"awb.sections.cargo": "Cargo details"
+  ,"awb.sections.handling": "Handling, SSR and OSI"
+
+  ,"awb.awb_type": "AWB type"
+  ,"awb.awb_number": "AWB number"
+  ,"awb.awb_date": "AWB date"
+  ,"awb.issuing_carrier": "Issuing carrier"
+  ,"awb.agent_name": "Agent"
+  ,"awb.agent_iata_code": "Agent IATA code"
+  ,"awb.agent_cass_code": "Agent CASS code"
+  ,"awb.shipper": "Shipper"
+  ,"awb.consignee": "Consignee"
+  ,"awb.shipper_name": "Shipper name"
+  ,"awb.shipper_address": "Shipper address"
+  ,"awb.consignee_name": "Consignee name"
+  ,"awb.consignee_address": "Consignee address"
+  ,"awb.accounting_information": "Accounting information"
+  ,"awb.reference_number": "Reference"
+  ,"awb.optional_shipping_info_1": "Optional shipping info 1"
+  ,"awb.optional_shipping_info_2": "Optional shipping info 2"
+  ,"awb.airport_of_departure": "Airport of departure"
+  ,"awb.airport_of_destination": "Airport of destination"
+  ,"awb.carrier_code": "Carrier code"
+  ,"awb.flight_number": "Flight number"
+  ,"awb.departure_airport": "Departure airport"
+  ,"awb.departure_date": "Departure date"
+  ,"awb.arrival_airport": "Arrival airport"
+  ,"awb.arrival_date": "Arrival date"
+  ,"awb.currency": "Currency"
+  ,"awb.charges_code": "Charges code"
+  ,"awb.weight_valuation_charge_type": "Weight and valuation charge type"
+  ,"awb.other_charges_type": "Other charges type"
+  ,"awb.declared_value_carriage": "Declared value for carriage"
+  ,"awb.declared_value_customs": "Declared value for customs"
+  ,"awb.insurance_amount": "Insurance amount"
+  ,"awb.handling_information": "Handling information"
+  ,"awb.special_handling_details": "Special handling details"
+  ,"awb.ssr": "SSR"
+  ,"awb.osi": "OSI"
+  ,"awb.total_pieces": "Total pieces"
+  ,"awb.gross_weight": "Gross weight"
+  ,"awb.chargeable_weight": "Chargeable weight"
+  ,"awb.goods_description": "Goods description"
+  ,"awb.routing": "Routing"
+  ,"awb.charges": "Charges"
+
+  ,"awb.items.title": "Cargo items"
+  ,"awb.items.hint": "Fill in multiple cargo lines if needed."
+  ,"awb.items.pieces": "Pieces"
+  ,"awb.items.gross_weight": "Gross weight"
+  ,"awb.items.dimensions": "Dimensions"
+  ,"awb.items.goods_description": "Description"
+  ,"awb.items.rate_class": "Rate class"
+  ,"awb.items.chargeable_weight": "Chargeable weight"
+  ,"awb.items.rate": "Rate"
+  ,"awb.items.total": "Total"
+  ,"awb.items.empty": "No cargo items."
+
+  ,"awb.manifests.section": "Linked manifests"
+  ,"awb.manifests.select": "Add manifest"
+  ,"awb.manifests.select_placeholder": "Select manifest"
+  ,"awb.manifests.add": "Link"
+  ,"awb.manifests.none": "No linked manifests yet."
+  ,"awb.manifests.total_pieces": "Total pieces"
+  ,"awb.manifests.total_packages": "Total packages"
+  ,"awb.manifests.total_weight": "Total weight in lbs"
+  ,"awb.manifests.pieces": "Pieces"
+  ,"awb.manifests.packages": "Packages"
+  ,"awb.manifests.weight": "Weight"
+  ,"launcher.cuscar.name": "CUSCAR SAT"
+  ,"launcher.cuscar.desc": "CUSCAR manifests and SAT preparation."
+  ,"cuscar.title": "CUSCAR SAT Manifests"
+  ,"cuscar.subtitle": "Manage manifests and base catalogs for CUSCAR."
+  ,"cuscar.nav.dashboard": "Dashboard"
+  ,"cuscar.nav.manifests": "Manifests"
+  ,"cuscar.nav.catalogs": "Catalogs"
+  ,"cuscar.dashboard.title": "CUSCAR Dashboard"
+  ,"cuscar.dashboard.total": "Total manifests"
+  ,"cuscar.dashboard.draft": "Drafts"
+  ,"cuscar.dashboard.closed": "Closed"
+  ,"cuscar.dashboard.pending_transmission": "Pending transmission"
+  ,"cuscar.dashboard.ready_to_generate": "Ready to generate"
+  ,"cuscar.dashboard.generated": "Generated"
+  ,"cuscar.dashboard.transmitted": "Transmitted"
+  ,"cuscar.dashboard.error": "With error"
+  ,"cuscar.catalogs.title": "Base catalogs"
+  ,"cuscar.catalogs.subtitle": "Define catalogs required for CUSCAR."
+  ,"cuscar.catalog.empty": "No records in this catalog."
+  ,"cuscar.catalog.saved": "Catalog saved."
+  ,"cuscar.catalog.deleted": "Catalog deleted."
+  ,"cuscar.catalog.name": "Name"
+  ,"cuscar.catalog.code": "Code"
+  ,"cuscar.catalog.description": "Description"
+  ,"cuscar.catalog.transporters.title": "Transporters"
+  ,"cuscar.catalog.transporters.subtitle": "Registered transporters."
+  ,"cuscar.catalog.consignatarios.title": "CUSCAR consignees"
+  ,"cuscar.catalog.consignatarios.subtitle": "Consignees for manifests."
+  ,"cuscar.catalog.remitentes.title": "Shippers"
+  ,"cuscar.catalog.remitentes.subtitle": "Shippers for house AWBs."
+  ,"cuscar.catalog.airlines.title": "Airlines"
+  ,"cuscar.catalog.airlines.subtitle": "Authorized airlines."
+  ,"cuscar.catalog.ports.title": "Ports / Customs"
+  ,"cuscar.catalog.ports.subtitle": "Ports and customs entries."
+  ,"cuscar.catalog.countries.title": "Countries"
+  ,"cuscar.catalog.countries.subtitle": "Country list."
+  ,"cuscar.catalog.package_types.title": "Package types"
+  ,"cuscar.catalog.package_types.subtitle": "Package types for cargo."
+  ,"cuscar.catalog.units.title": "Units of measure"
+  ,"cuscar.catalog.units.subtitle": "Units of measure for CUSCAR."
+  ,"cuscar.manifests.title": "CUSCAR manifests"
+  ,"cuscar.manifests.new": "New manifest"
+  ,"cuscar.manifests.list": "Manifest list"
+  ,"cuscar.manifests.empty": "No CUSCAR manifests yet."
+  ,"cuscar.manifest.detail": "Manifest detail"
+  ,"cuscar.manifest.saved": "Manifest updated."
+  ,"cuscar.manifest.closed": "Manifest closed."
+  ,"cuscar.manifest.reopened": "Manifest reopened."
+  ,"cuscar.manifest.preview": "CUSCAR preview"
+  ,"cuscar.manifest.generate_preview": "Generate preview"
+  ,"cuscar.manifest.back": "Back"
+  ,"cuscar.manifest.items": "House AWBs / cargo"
+  ,"cuscar.manifest.add_item": "Add house AWB"
+  ,"cuscar.item.saved": "Item saved."
+  ,"cuscar.item.deleted": "Item deleted."
+  ,"cuscar.fields.internal_number": "Internal manifest number"
+  ,"cuscar.fields.master_airway_bill": "Master airway bill"
+  ,"cuscar.fields.flight_number": "Flight"
+  ,"cuscar.fields.flight_date": "Flight date"
+  ,"cuscar.fields.airline": "Airline"
+  ,"cuscar.fields.origin": "Origin"
+  ,"cuscar.fields.destination": "Destination"
+  ,"cuscar.fields.customs": "Entry customs"
+  ,"cuscar.fields.transporter": "Transporter"
+  ,"cuscar.fields.status": "Status"
+  ,"cuscar.fields.observations": "Observations"
+  ,"cuscar.fields.created_at": "Created"
+  ,"cuscar.fields.actions": "Actions"
+  ,"cuscar.item.hawb_number": "House AWB number"
+  ,"cuscar.item.shipper": "Shipper"
+  ,"cuscar.item.consignee": "Consignee"
+  ,"cuscar.item.goods_description": "Goods description"
+  ,"cuscar.item.package_qty": "Package quantity"
+  ,"cuscar.item.package_type": "Package type"
+  ,"cuscar.item.gross_weight": "Gross weight"
+  ,"cuscar.item.net_weight": "Net weight"
+  ,"cuscar.item.declared_value": "Declared value"
+  ,"cuscar.item.origin_country": "Country of origin"
+  ,"cuscar.status.draft": "Draft"
+  ,"cuscar.status.closed": "Closed"
+  ,"cuscar.status.ready_to_generate": "Ready to generate"
+  ,"cuscar.status.generated": "Generated"
+  ,"cuscar.status.transmitted": "Transmitted"
+  ,"cuscar.status.error": "Error"
+  ,"cuscar.actions.view": "View"
+  ,"cuscar.actions.edit": "Edit"
+  ,"cuscar.actions.close": "Close manifest"
+  ,"cuscar.actions.reopen": "Reopen manifest"
+  ,"cuscar.transmit.simulate": "Simulate transmission"
+  ,"cuscar.transmit.send": "Transmit"
+  ,"cuscar.transmit.success": "Transmission recorded."
+  ,"cuscar.transmit.history": "Transmission history"
+  ,"cuscar.transmit.status": "Status"
+  ,"cuscar.transmit.mode": "Mode"
+  ,"cuscar.transmit.endpoint": "Endpoint"
+  ,"cuscar.transmit.response": "Response"
+  ,"cuscar.transmit.empty": "No transmissions yet."
+  ,"cuscar.errors.required_fields": "Complete required fields."
+  ,"cuscar.errors.required_field": "Field {field} is required."
+  ,"cuscar.errors.duplicate_internal_number": "A manifest with that internal number already exists."
+  ,"cuscar.errors.manifest_create_failed": "Could not create manifest."
+  ,"cuscar.errors.manifest_update_failed": "Could not update manifest."
+  ,"cuscar.errors.manifest_close_failed": "Could not close manifest."
+  ,"cuscar.errors.manifest_closed_no_edit": "The manifest is closed and cannot be edited."
+  ,"cuscar.errors.preview_requires_closed": "You must close the manifest before generating the preview."
+  ,"cuscar.errors.preview_failed": "Could not generate preview."
+  ,"cuscar.errors.manifest_not_found": "Manifest not found."
+  ,"cuscar.errors.item_required_fields": "Complete required fields for the house AWB."
+  ,"cuscar.errors.item_non_negative": "Packages and weights must be zero or greater."
+  ,"cuscar.errors.item_create_failed": "Could not add the house AWB."
+  ,"cuscar.errors.item_update_failed": "Could not update the house AWB."
+  ,"cuscar.errors.item_delete_failed": "Could not delete the house AWB."
+  ,"cuscar.errors.items_required": "Add at least one house AWB."
+  ,"cuscar.errors.items_invalid": "Review the house AWB data."
+  ,"cuscar.errors.invalid_catalog": "Some catalog references are invalid or removed."
+  ,"cuscar.errors.reopen_admin_only": "Only an admin can reopen the manifest."
+  ,"cuscar.errors.reopen_failed": "Could not reopen the manifest."
+  ,"cuscar.errors.catalog_name_required": "Catalog name is required."
+  ,"cuscar.errors.catalog_create_failed": "Could not create catalog."
+  ,"cuscar.errors.catalog_update_failed": "Could not update catalog."
+  ,"cuscar.errors.catalog_delete_failed": "Could not delete catalog."
+  ,"cuscar.errors.transmit_failed": "Could not transmit manifest."
+  ,"cuscar.errors.transmit_sim_error": "CUSRES simulation returned error."
+  ,"cuscar.catalog.customs_offices.title": "Customs offices"
+  ,"cuscar.catalog.customs_offices.subtitle": "SAT customs offices catalog."
+  ,"cuscar.catalog.airports.title": "Airports"
+  ,"cuscar.catalog.airports.subtitle": "SAT authorized airports."
+  ,"cuscar.catalog.transport_modes.title": "Transport modes"
+  ,"cuscar.catalog.transport_modes.subtitle": "SAT transport modes."
+  ,"cuscar.catalog.transport_means.title": "Transport means"
+  ,"cuscar.catalog.transport_means.subtitle": "SAT transport means."
+  ,"cuscar.catalog.message_types.title": "Message types"
+  ,"cuscar.catalog.message_types.subtitle": "Message name codes."
+  ,"cuscar.catalog.message_functions.title": "Message functions"
+  ,"cuscar.catalog.message_functions.subtitle": "Allowed message functions."
+  ,"cuscar.catalog.reference_qualifiers.title": "Reference qualifiers"
+  ,"cuscar.catalog.reference_qualifiers.subtitle": "SAT reference qualifiers."
+  ,"cuscar.catalog.message_responsibles.title": "Message responsibles"
+  ,"cuscar.catalog.message_responsibles.subtitle": "SAT message responsibles."
+  ,"cuscar.catalog.transport_id_agencies.title": "Identification agencies"
+  ,"cuscar.catalog.transport_id_agencies.subtitle": "Agencies responsible for transport identification."
+  ,"cuscar.catalogs.missing": "Some catalogs are empty: {list}. Reload or create records in CUSCAR Catalogs."
+  ,"cuscar.catalog.reloaded": "Base catalogs reloaded."
+  ,"cuscar.fields.transport_mode": "Transport mode"
+  ,"cuscar.fields.transport_means": "Transport means"
+  ,"cuscar.fields.message_type": "Message type"
+  ,"cuscar.fields.message_function": "Message function"
+  ,"cuscar.fields.message_responsible": "Message responsible"
+  ,"cuscar.fields.reference_qualifier": "Reference qualifier"
+  ,"cuscar.fields.transport_id_agency": "Transport ID agency"
+  ,"cuscar.fields.origin_airport": "Origin (airport)"
+  ,"cuscar.fields.origin_port": "Origin (port)"
+  ,"cuscar.fields.destination_airport": "Destination (airport)"
+  ,"cuscar.fields.destination_port": "Destination (port)"
+  ,"cuscar.fields.customs_office": "Entry customs"
+  ,"cuscar.item.weight_unit": "Unit of measure"
+  ,"cuscar.errors.origin_required": "Select origin airport or port."
+  ,"cuscar.errors.destination_required": "Select destination airport or port."
+  ,"cuscar.errors.customs_required": "Select the entry customs office."
+  ,"cuscar.errors.catalog_code_required": "Catalog code is required."
+  ,"cuscar.errors.catalog_duplicate_code": "A record with that code already exists."
+  ,"cuscar.catalog.search": "Search"
+  ,"cuscar.catalog.search_placeholder": "Code or name"
+  ,"cuscar.catalog.status": "Status"
+  ,"cuscar.catalog.source": "Source"
+  ,"cuscar.catalog.is_active": "Active"
+  ,"cuscar.catalog.sort_order": "Sort"
+  ,"cuscar.catalog.reload": "Reload base catalogs"
+  ,"common.active": "Active"
+  ,"common.inactive": "Inactive"
+  ,"settings.cuscar_catalogs_title": "CUSCAR Catalogs"
+  ,"settings.cuscar_catalogs_subtitle": "Manage base CUSCAR catalogs."
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

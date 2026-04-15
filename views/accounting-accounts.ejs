@@ -1,0 +1,151 @@
+﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Catálogo de cuentas</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand"><%= t('common.brand') %></div>
+<nav class="nav">
+<a href="/dashboard">Dashboard</a>
+<a href="/logout"><%= t('nav.logout') %></a>
+</nav>
+</header>
+<main class="container">
+<h1>Catálogo de cuentas</h1>
+<nav class="subnav">
+<a href="/accounting/accounts" class="<%= active === 'accounts' ? 'active' : '' %>">Catálogo</a>
+<a href="/accounting/categories">Categorías</a>
+<a href="/accounting/categories/rules">Reglas</a>
+<a href="/accounting/journal" class="<%= active === 'journal' ? 'active' : '' %>">Pólizas</a>
+<a href="/accounting/reports" class="<%= active === 'reports' ? 'active' : '' %>">Reportes</a>
+<a href="/accounting/settings">Configuración</a>
+</nav>
+
+<% if (flash) { %>
+<div class="alert <%= flash.type %>"><%= flash.message %></div>
+<% } %>
+
+<section class="panel">
+<div class="panel-header">
+<h2>Listado de cuentas</h2>
+<span class="helper">Marco contable: <strong><%= framework %></strong></span>
+</div>
+<% if (framework === 'NIIF') { %>
+<form method="post" action="/accounting/accounts/seed-niif" class="actions">
+<button class="btn" type="submit">Cargar plantilla NIIF</button>
+</form>
+<% } %>
+<form method="post" action="/accounting/accounts/auto-assign" class="actions">
+<input type="hidden" name="framework" value="<%= framework %>" />
+<button class="btn" type="submit">Auto asignar categorías</button>
+</form>
+<div class="actions">
+<a class="btn" href="/accounting/accounts/auto-assign/preview?framework=<%= framework %>">Previsualizar autoasignación</a>
+</div>
+<div class="table">
+<div class="table-row header accounting-accounts">
+<div>Código</div>
+<div>Nombre</div>
+<div>Tipo</div>
+<div>Nivel</div>
+<div>Categoría</div>
+<div>Subtipo</div>
+<div>Depreciación</div>
+</div>
+<% if (!accounts.length) { %>
+<div class="table-row empty">No hay cuentas. Usa el formulario para crear el catálogo base.</div>
+<% } %>
+<% accounts.forEach(acc => { %>
+<div class="table-row accounting-accounts">
+<div><%= acc.code %></div>
+<div><%= acc.name %></div>
+<div><%= acc.type %></div>
+<div><%= acc.level %></div>
+<div><%= acc.category_name || '-' %></div>
+<div><%= acc.subtype || '-' %></div>
+<div>
+<%= acc.depreciable ? 'Depreciable' : '' %>
+<%= acc.is_depreciation ? 'Depreciación acumulada' : '' %>
+</div>
+</div>
+<% }) %>
+</div>
+</section>
+
+<section class="panel">
+<h2>Crear cuenta</h2>
+<form class="form" method="post" action="/accounting/accounts/create">
+<label>
+Código
+<input type="text" name="code" placeholder="Ej. 1105" required />
+<span class="helper">Usa un código numérico único por empresa.</span>
+</label>
+<label>
+Nombre
+<input type="text" name="name" placeholder="Ej. Bancos nacionales" required />
+</label>
+<label>
+Tipo
+<select name="type">
+<option value="">Selecciona</option>
+<% nifTypes.forEach(type => { %>
+<option value="<%= type %>"><%= type %></option>
+<% }) %>
+</select>
+<span class="helper">Si eliges una categoría, el tipo se ajusta automáticamente.</span>
+</label>
+<label>
+Nivel
+<select name="level">
+<option value="mayor">Mayor</option>
+<option value="subcuenta">Subcuenta</option>
+</select>
+<span class="helper">Las subcuentas requieren cuenta padre.</span>
+</label>
+<label>
+Cuenta padre (opcional)
+<select name="parent_id">
+<option value="">Sin padre</option>
+<% accounts.forEach(acc => { %>
+<option value="<%= acc.id %>"><%= acc.code %> - <%= acc.name %></option>
+<% }) %>
+</select>
+</label>
+<label>
+Categoría (opcional)
+<select name="category_id">
+<option value="">Sin categoría</option>
+<% (categories || []).forEach(cat => { %>
+<option value="<%= cat.id %>"><%= cat.code %> - <%= cat.name %></option>
+<% }) %>
+</select>
+<span class="helper">Las categorías se definen por marco contable.</span>
+</label>
+<label>
+Subtipo (opcional)
+<select name="subtype">
+<option value="">Sin subtipo</option>
+<% nifSubtypes.forEach(sub => { %>
+<option value="<%= sub %>"><%= sub %></option>
+<% }) %>
+</select>
+<span class="helper">Usa EFECTIVO o BANCOS para reportes de flujo de efectivo.</span>
+</label>
+<label>
+<input type="checkbox" name="depreciable" /> Activo depreciable
+</label>
+<label>
+<input type="checkbox" name="is_depreciation" /> Cuenta de depreciación acumulada
+</label>
+<button class="btn primary" type="submit">Crear cuenta</button>
+</form>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+

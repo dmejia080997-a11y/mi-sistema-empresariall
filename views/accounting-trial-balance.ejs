@@ -1,0 +1,74 @@
+﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Balance de comprobación</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand"><%= t('common.brand') %></div>
+<nav class="nav">
+<a href="/dashboard">Dashboard</a>
+<a href="/accounting/reports">Reportes</a>
+<a href="/logout"><%= t('nav.logout') %></a>
+</nav>
+</header>
+<main class="container">
+<h1>Balance de comprobación</h1>
+<nav class="subnav">
+<a href="/accounting/accounts">Catálogo</a>
+<a href="/accounting/categories">Categorías</a>
+<a href="/accounting/categories/rules">Reglas</a>
+<a href="/accounting/journal">Pólizas</a>
+<a href="/accounting/reports" class="<%= active === 'reports' ? 'active' : '' %>">Reportes</a>
+<a href="/accounting/settings">Configuración</a>
+</nav>
+
+<section class="panel">
+<form class="form" method="get" action="/accounting/reports/balance">
+<label>
+Desde
+<input type="date" name="start" value="<%= startDate || '' %>" />
+</label>
+<label>
+Hasta
+<input type="date" name="end" value="<%= endDate || '' %>" />
+</label>
+<button class="btn primary" type="submit">Filtrar</button>
+</form>
+<div class="actions">
+<a class="btn" href="/accounting/reports/balance/export?format=xlsx&start=<%= startDate || '' %>&end=<%= endDate || '' %>">Exportar Excel</a>
+<a class="btn" href="/accounting/reports/balance/export?format=pdf&start=<%= startDate || '' %>&end=<%= endDate || '' %>">Exportar PDF</a>
+</div>
+</section>
+
+<section class="panel">
+<div class="table">
+<div class="table-row header accounting-balance">
+<div>Cuenta</div>
+<div>Nombre</div>
+<div>Debe</div>
+<div>Haber</div>
+<div>Balance</div>
+</div>
+<% if (!balances.length) { %>
+<div class="table-row empty">No hay movimientos en el rango seleccionado.</div>
+<% } %>
+<% balances.forEach(row => { %>
+<div class="table-row accounting-balance">
+<div><%= row.code %></div>
+<div><%= row.name %></div>
+<div><%= baseCurrency %> <%= Number(row.debit || 0).toFixed(2) %></div>
+<div><%= baseCurrency %> <%= Number(row.credit || 0).toFixed(2) %></div>
+<div><%= baseCurrency %> <%= Number(row.balance || 0).toFixed(2) %></div>
+</div>
+<% }) %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+

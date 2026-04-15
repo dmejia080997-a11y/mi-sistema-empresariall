@@ -1,0 +1,84 @@
+<% var currentPackagesNav = typeof packagesNav !== 'undefined' ? packagesNav : 'list'; %>
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('packages.module.tracking') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container packages-module">
+<div class="page-header">
+<div>
+<h1>
+<%= t('packages.module.tracking') %>
+</h1>
+<p class="muted">
+<%= t('packages.module.tracking_desc') %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/packages/home">
+<%= t('packages.module.home') %>
+</a>
+<a class="btn" href="/packages">
+<%= t('packages.module.list') %>
+</a>
+<a class="btn" href="/tracking">
+<%= t('packages.module.open_tracking') %>
+</a>
+</div>
+</div>
+<div class="module-nav">
+<a href="/packages/dashboard" class="<%= currentPackagesNav === 'dashboard' ? 'active' : '' %>">
+<%= t('packages.module.dashboard') %>
+</a>
+<a href="/packages" class="<%= currentPackagesNav === 'list' ? 'active' : '' %>">
+<%= t('packages.module.list') %>
+</a>
+<a href="/packages/pending-invoice" class="<%= currentPackagesNav === 'pending_invoice' ? 'active' : '' %>">
+<%= t('packages.module.pending_invoice') %>
+</a>
+<a href="/packages/new" class="<%= currentPackagesNav === 'new' ? 'active' : '' %>">
+<%= t('packages.module.new') %>
+</a>
+<a href="/packages/statuses" class="<%= currentPackagesNav === 'statuses' ? 'active' : '' %>">
+<%= t('packages.module.statuses') %>
+</a>
+<a href="/packages/tracking" class="<%= currentPackagesNav === 'tracking' ? 'active' : '' %>">
+<%= t('packages.module.tracking') %>
+</a>
+</div>
+<section class="panel">
+<h2>
+<%= t('packages.module.tracking') %>
+</h2>
+<p class="muted">
+<%= t('packages.module.tracking_hint') %>
+</p>
+<div class="actions">
+<a class="btn" href="/tracking">
+<%= t('packages.module.open_tracking') %>
+</a>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

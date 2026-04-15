@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('settings.carriers_title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<div class="page-header">
+<div>
+<h1>
+<%= t('settings.carriers_title') %>
+</h1>
+<p class="muted">
+<%= t('settings.carriers_subtitle') %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/settings">
+<%= t('settings.back_settings') %>
+</a>
+<a class="btn" href="/carrier-reception/quick">
+<%= t('settings.back_reception') %>
+</a>
+</div>
+</div>
+<% if (message && message.message) { %>
+<div class="alert <%= message.type || '' %>">
+<%= message.message %>
+</div>
+<% } %>
+<section class="panel">
+<form method="POST" action="/settings/carriers" class="form">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('settings.carriers_label') %>
+<textarea name="carriers_text" rows="8" placeholder="UPS\nAmazon\nUSPS\nFedEx\nDHL">
+<%= carriersText || '' %>
+</textarea>
+<span class="helper">
+<%= t('settings.carriers_hint') %>
+</span>
+</label>
+<div>
+<button type="submit" class="btn primary">
+<%= t('common.save') %>
+</button>
+</div>
+</form>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,412 @@
+﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('reception.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page" data-company-id="<%= companyId || '' %>">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container reception-module">
+<div class="page-header">
+<div>
+<h1>
+<%= t('reception.title') %>
+</h1>
+<p class="muted">
+<%= t('reception.subtitle') %>
+</p>
+</div>
+</div>
+<div class="module-nav reception-module-nav">
+<a class="active" href="#recepcion-rapida">
+<%= t('reception.quick_title') %>
+</a>
+<a href="#recepcion-resumen">
+<%= t('reception.summary_title') %>
+</a>
+<a href="#recepcion-lista">
+<%= t('reception.list_title') %>
+</a>
+</div>
+<% if (message && message.text) { %>
+<div class="alert <%= message.type || '' %>" data-reception-message="<%= message.type || '' %>">
+<%= message.text %>
+</div>
+<% } %>
+<div class="reception-layout">
+<div class="reception-column reception-column-quick">
+<section class="panel reception-panel" id="recepcion-rapida">
+<div class="panel-header">
+<div>
+<h2>
+<%= t('reception.quick_title') %>
+</h2>
+<p class="muted">
+<%= t('reception.subtitle') %>
+</p>
+</div>
+<div class="reception-session">
+<div class="session-label">Carrier activo:</div>
+<div class="session-value" id="active-carrier-label">-</div>
+<div class="session-meta">
+<span>Sesión (carrier)</span>
+<strong id="session-carrier-count">0</strong>
+</div>
+<div class="session-meta">
+<span>
+<%= t('reception.session_count') %>
+</span>
+<strong id="session-count">0</strong>
+</div>
+<div class="session-meta">
+<span>
+<%= t('reception.stats.received_today') %>
+</span>
+<strong id="received-today-count">
+<%= stats.receivedToday || 0 %>
+</strong>
+</div>
+</div>
+</div>
+<form method="POST" action="/carrier-reception" class="form reception-form compact" autocomplete="off">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label class="reception-field wide tracking-field">
+<span>
+<%= t('reception.form.tracking') %>
+</span>
+<input                type="text"                name="tracking_number"                required                autofocus                placeholder="<%= t('reception.form.tracking_placeholder') %>"                inputmode="text"                autocomplete="off"              />
+</label>
+<div class="reception-carrier-bar">
+<div class="carrier-bar-main">
+<div class="carrier-active">
+<span>Carrier activo:</span>
+<strong id="active-carrier-inline">-</strong>
+</div>
+<div class="carrier-quick">
+<button type="button" class="btn small carrier-quick-btn" data-carrier="UPS">UPS</button>
+<button type="button" class="btn small carrier-quick-btn" data-carrier="Amazon">Amazon</button>
+<button type="button" class="btn small carrier-quick-btn" data-carrier="USPS">USPS</button>
+<button type="button" class="btn small carrier-quick-btn" data-carrier="FedEx">FedEx</button>
+<button type="button" class="btn small carrier-quick-btn" data-carrier="Otro">Otro</button>
+</div>
+</div>
+<label class="reception-field carrier-field">
+<span>
+<%= t('reception.form.carrier') %>
+</span>
+<% if (can('settings', 'manage')) { %>
+<a class="btn small" href="/settings/carriers">
+<%= t('reception.form.carrier_manage') %>
+</a>
+<% } %>
+<div class="carrier-input">
+<select id="carrier-select">
+<option value="">
+<%= t('reception.form.carrier_select') %>
+</option>
+<% if (carrierOptions && carrierOptions.length) { %>
+<% carrierOptions.forEach((opt) => { %>
+<option value="<%= opt %>">
+<%= opt %>
+</option>
+<% }) %>
+<% } %>
+<option value="Otro">
+<%= t('reception.form.carrier_other') %>
+</option>
+</select>
+<input type="text" name="carrier" required placeholder="UPS, Amazon, USPS, FedEx" />
+</div>
+</label>
+</div>
+<label class="reception-field">
+<span>
+<%= t('reception.form.received_by') %>
+</span>
+<input                type="text"                name="received_by"                value="<%= user && user.username ? user.username : '' %>"                readonly                aria-readonly="true"              />
+</label>
+<label class="reception-field">
+<span>
+<%= t('reception.form.notes') %>
+</span>
+<input type="text" name="notes" />
+</label>
+<div class="reception-actions">
+<div class="mode-toggle">
+<label class="toggle-row reception-mode-toggle">
+<input type="radio" name="reception_mode" value="manual" />
+<span>Manual</span>
+</label>
+<label class="toggle-row reception-mode-toggle">
+<input type="radio" name="reception_mode" value="scanner" />
+<span>Escáner</span>
+</label>
+</div>
+<% if (can('carrier_reception', 'create')) { %>
+<button type="submit" class="btn primary">
+<%= t('reception.form.submit') %>
+</button>
+<% } else { %>
+<span class="muted">
+<%= t('reception.form.no_permission') %>
+</span>
+<% } %>
+</div>
+</form>
+<div class="reception-today">
+<div class="session-label">Hoy por carrier</div>
+<div class="pill-list">
+<% if (carrierTodayTotals && carrierTodayTotals.length) { %>
+<% carrierTodayTotals.forEach((row) => { %>
+<span class="pill">
+<%= row.carrier || t('common.unassigned') %> · <%= row.count %>
+</span>
+<% }) %>
+<% } else { %>
+<span class="muted">
+<%= t('reception.empty_carriers') %>
+</span>
+<% } %>
+</div>
+</div>
+<div class="reception-session-summary">
+<div class="session-label">Sesión por carrier</div>
+<div class="pill-list" id="session-carrier-list">
+<span class="muted">Sin datos de sesión.</span>
+</div>
+</div>
+<div class="reception-recent">
+<div class="session-label">Escaneados recientes</div>
+<div class="recent-list">
+<% const recentReceptions = (receptions || []).slice(0, 6); %>
+<% if (recentReceptions.length) { %>
+<% recentReceptions.forEach((rec) => { %>
+<div class="recent-item">
+<div class="recent-main">
+<span class="recent-tracking">
+<%= rec.tracking_number %>
+</span>
+<span class="recent-carrier">
+<%= rec.carrier %>
+</span>
+</div>
+<div class="recent-meta">
+<%= rec.received_at ? new Date(rec.received_at).toLocaleTimeString() : '-' %>
+</div>
+</div>
+<% }) %>
+<% } else { %>
+<span class="muted">
+<%= t('reception.empty_list') %>
+</span>
+<% } %>
+</div>
+</div>
+</section>
+</div>
+<div class="reception-column reception-column-summary">
+<section class="panel" id="recepcion-resumen">
+<div class="panel-header">
+<h2>
+<%= t('reception.summary_title') %>
+</h2>
+</div>
+<div class="grid">
+<div class="stat">
+<div class="stat-label">
+<%= t('reception.stats.received_today') %>
+</div>
+<div class="stat-value">
+<%= stats.receivedToday || 0 %>
+</div>
+</div>
+<div class="stat">
+<div class="stat-label">
+<%= t('reception.stats.pending') %>
+</div>
+<div class="stat-value">
+<%= stats.pending || 0 %>
+</div>
+</div>
+<div class="stat">
+<div class="stat-label">
+<%= t('reception.stats.processed') %>
+</div>
+<div class="stat-value">
+<%= stats.processed || 0 %>
+</div>
+</div>
+</div>
+<div class="summary-strip reception-carriers">
+<div class="summary-item">
+<span class="summary-label">
+<%= t('reception.stats.by_carrier') %>
+</span>
+<div class="pill-list">
+<% if (carrierTotals && carrierTotals.length) { %>
+<% carrierTotals.forEach((row) => { %>
+<span class="pill">
+<%= row.carrier || t('common.unassigned') %> · <%= row.count %>
+</span>
+<% }) %>
+<% } else { %>
+<span class="muted">
+<%= t('reception.empty_carriers') %>
+</span>
+<% } %>
+</div>
+</div>
+</div>
+</section>
+</div>
+<div class="reception-column reception-column-list">
+<section class="panel" id="recepcion-lista">
+<h2>
+<%= t('reception.list_title') %>
+</h2>
+<div class="filters-bar">
+<form method="GET" action="/carrier-reception" class="filters-form">
+<label class="filters-field">
+<span>
+<%= t('reception.filters.tracking') %>
+</span>
+<input type="text" name="tracking" value="<%= filters.tracking || '' %>" />
+</label>
+<label class="filters-field">
+<span>
+<%= t('reception.filters.carrier') %>
+</span>
+<input type="text" name="carrier" value="<%= filters.carrier || '' %>" />
+</label>
+<label class="filters-field">
+<span>
+<%= t('reception.filters.status') %>
+</span>
+<select name="status">
+<option value="" <%= !filters.status ? 'selected' : '' %>>
+<%= t('reception.filters.default_pending') %>
+</option>
+<option value="pending" <%= filters.status === 'pending' ? 'selected' : '' %>>
+<%= t('reception.status.pending') %>
+</option>
+<option value="processed" <%= filters.status === 'processed' ? 'selected' : '' %>>
+<%= t('reception.status.processed') %>
+</option>
+<option value="cancelled" <%= filters.status === 'cancelled' ? 'selected' : '' %>>
+<%= t('reception.status.cancelled') %>
+</option>
+<option value="all" <%= filters.status === 'all' ? 'selected' : '' %>>
+<%= t('reception.filters.all_status') %>
+</option>
+</select>
+</label>
+<label class="filters-field">
+<span>
+<%= t('reception.filters.date') %>
+</span>
+<input type="date" name="date" value="<%= filters.date || '' %>" />
+</label>
+<div class="filters-actions">
+<button type="submit" class="btn small">
+<%= t('reception.filters.apply') %>
+</button>
+<a class="btn small" href="/carrier-reception">
+<%= t('reception.filters.reset') %>
+</a>
+</div>
+</form>
+</div>
+<% const statusClassMap = { pending: 'status-pending', processed: 'status-processed', cancelled: 'status-cancelled' }; %>
+<div class="table compact reception-table">
+<div class="table-row header reception-row">
+<div>
+<%= t('reception.table.tracking') %>
+</div>
+<div>
+<%= t('reception.table.carrier') %>
+</div>
+<div>
+<%= t('reception.table.received_at') %>
+</div>
+<div>
+<%= t('reception.table.status') %>
+</div>
+<div>
+<%= t('reception.table.actions') %>
+</div>
+</div>
+<% if (!receptions || receptions.length === 0) { %>
+<div class="table-row empty">
+<%= t('reception.empty_list') %>
+</div>
+<% } %>
+<% receptions.forEach((rec) => { %>
+<div class="table-row reception-row <%= rec.status === 'pending' ? 'pending' : '' %>">
+<div class="cell-ellipsis" title="<%= rec.tracking_number %>">
+<%= rec.tracking_number %>
+</div>
+<div class="cell-ellipsis" title="<%= rec.carrier %>">
+<%= rec.carrier %>
+</div>
+<div>
+<%= rec.received_at ? new Date(rec.received_at).toLocaleString() : '-' %>
+</div>
+<div>
+<span class="status-badge <%= statusClassMap[rec.status] || 'status-default' %>">
+<%= t('reception.status.' + rec.status) %>
+</span>
+</div>
+<div class="actions actions-compact">
+<% if (rec.status === 'pending' && can('packages', 'create')) { %>
+<% const recDate = rec.received_at ? new Date(rec.received_at).toISOString().slice(0, 10) : ''; %>
+<a class="btn small" href="/packages/new?tracking=<%= encodeURIComponent(rec.tracking_number) %>&carrier=<%= encodeURIComponent(rec.carrier) %>&reception_id=<%= rec.id %>&received_at=<%= encodeURIComponent(recDate) %>">
+<%= t('reception.actions.record') %>
+</a>
+<% } else { %>
+<button class="btn small" disabled>
+<%= t('reception.actions.record') %>
+</button>
+<% } %>
+<a class="btn small" href="/carrier-reception/<%= rec.id %>">
+<%= t('reception.actions.view') %>
+</a>
+<% if (rec.status === 'pending' && can('carrier_reception', 'edit')) { %>
+<form method="POST" action="/carrier-reception/<%= rec.id %>/cancel" class="inline-form" onsubmit="return confirm('<%= t('reception.actions.cancel_confirm') %>');">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn small danger">
+<%= t('reception.actions.cancel') %>
+</button>
+</form>
+<% } else { %>
+<button class="btn small" disabled>
+<%= t('reception.actions.cancel') %>
+</button>
+<% } %>
+</div>
+</div>
+<% }) %>
+</div>
+</section>
+</div>
+</div>
+</main>
+<script>    (function () {      const form = document.querySelector('.reception-form');      const tracking = document.querySelector('input[name="tracking_number"]');      const carrier = document.querySelector('input[name="carrier"]');      const carrierSelect = document.getElementById('carrier-select');      const message = document.querySelector('[data-reception-message]');      const sessionCountEl = document.getElementById('session-count');      const sessionCarrierCountEl = document.getElementById('session-carrier-count');      const activeCarrierEl = document.getElementById('active-carrier-label');      const activeCarrierInlineEl = document.getElementById('active-carrier-inline');      const sessionCarrierListEl = document.getElementById('session-carrier-list');      const modeInputs = document.querySelectorAll('input[name="reception_mode"]');      const quickButtons = document.querySelectorAll('.carrier-quick-btn');      const moduleNav = document.querySelector('.reception-module-nav');      const moduleNavLinks = moduleNav ? Array.from(moduleNav.querySelectorAll('a')) : [];      const companyId = document.body ? document.body.getAttribute('data-company-id') : '';      const storagePrefix = companyId ? `carrierReception:${companyId}:` : 'carrierReception:';      const activeCarrierKey = `${storagePrefix}activeCarrier`;      const lastSubmittedCarrierKey = `${storagePrefix}lastSubmittedCarrier`;      const sessionDateKey = `${storagePrefix}sessionDate`;      const sessionTotalKey = `${storagePrefix}sessionTotal`;      const sessionByCarrierKey = `${storagePrefix}sessionByCarrier`;      const modeKey = `${storagePrefix}mode`;      let submitting = false;      function setActiveModuleNav(hash) {        if (!moduleNavLinks.length) return;        const target = hash && hash.startsWith('#') ? hash : '#recepcion-rapida';        moduleNavLinks.forEach((link) => {          const href = link.getAttribute('href');          link.classList.toggle('active', href === target);        });      }      function focusTracking() {        if (!tracking) return;        tracking.focus();        tracking.select();      }      function getTodayKey() {        const now = new Date();        const month = String(now.getMonth() + 1).padStart(2, '0');        const day = String(now.getDate()).padStart(2, '0');        return `${now.getFullYear()}-${month}-${day}`;      }      function getSessionByCarrier() {        try {          const raw = localStorage.getItem(sessionByCarrierKey);          return raw ? JSON.parse(raw) : {};        } catch (error) {          return {};        }      }      function saveSessionByCarrier(map) {        localStorage.setItem(sessionByCarrierKey, JSON.stringify(map || {}));        renderSessionCarrierList(map);      }      function ensureSessionDate() {        const todayKey = getTodayKey();        const stored = localStorage.getItem(sessionDateKey);        if (stored !== todayKey) {          localStorage.setItem(sessionDateKey, todayKey);          localStorage.setItem(sessionTotalKey, '0');          saveSessionByCarrier({});        }      }      function updateSessionTotal(count) {        if (sessionCountEl) sessionCountEl.textContent = String(count);      }      function updateSessionCarrierCount(value) {        if (!sessionCarrierCountEl) return;        const map = getSessionByCarrier();        const key = value || '';        sessionCarrierCountEl.textContent = String(map[key] || 0);      }      function renderSessionCarrierList(map) {        if (!sessionCarrierListEl) return;        const entries = Object.entries(map || {}).filter(([, count]) => Number(count) > 0);        sessionCarrierListEl.innerHTML = '';        if (!entries.length) {          const empty = document.createElement('span');          empty.className = 'muted';          empty.textContent = 'Sin datos de sesión.';          sessionCarrierListEl.appendChild(empty);          return;        }        entries          .sort((a, b) => Number(b[1]) - Number(a[1]))          .forEach(([carrierName, count]) => {            const pill = document.createElement('span');            pill.className = 'pill';            pill.textContent = `${carrierName || 'Sin carrier'} · ${count}`;            sessionCarrierListEl.appendChild(pill);          });      }      function updateActiveCarrierLabel(value) {        if (!activeCarrierEl) return;        activeCarrierEl.textContent = value ? value : 'Sin seleccionar';        if (activeCarrierInlineEl) {          activeCarrierInlineEl.textContent = value ? value : 'Sin seleccionar';        }        updateQuickButtons(value);      }      function updateQuickButtons(value) {        if (!quickButtons || !quickButtons.length) return;        const cleaned = (value || '').trim();        let matched = false;        quickButtons.forEach((button) => {          const carrierValue = button.getAttribute('data-carrier') || '';          const isMatch = cleaned && carrierValue === cleaned;          if (isMatch) matched = true;          button.classList.toggle('is-active', isMatch);        });        if (!matched && cleaned) {          quickButtons.forEach((button) => {            if (button.getAttribute('data-carrier') === 'Otro') {              button.classList.add('is-active');            }          });        }      }      function syncCarrierSelect(value) {        if (!carrierSelect) return;        const match = Array.from(carrierSelect.options).some((opt) => opt.value === value);        if (!value) {          carrierSelect.value = '';          return;        }        carrierSelect.value = match ? value : 'Otro';      }      function setActiveCarrier(value) {        const cleaned = (value || '').trim();        if (carrier && carrier.value !== cleaned) carrier.value = cleaned;        localStorage.setItem(activeCarrierKey, cleaned);        updateActiveCarrierLabel(cleaned);        updateSessionCarrierCount(cleaned);        syncCarrierSelect(cleaned);      }      function getActiveCarrier() {        return (localStorage.getItem(activeCarrierKey) || (carrier ? carrier.value : '') || '').trim();      }      function getMode() {        return localStorage.getItem(modeKey) || 'manual';      }      function setMode(mode) {        const value = mode === 'scanner' ? 'scanner' : 'manual';        localStorage.setItem(modeKey, value);        modeInputs.forEach((input) => {          input.checked = input.value === value;        });      }      function submitReception() {        if (!form || submitting) return;        submitting = true;        if (form.requestSubmit) {          form.requestSubmit();          return;        }        form.submit();      }      function loadSessionCount() {        ensureSessionDate();        const current = Number(localStorage.getItem(sessionTotalKey) || 0);        updateSessionTotal(current);        const map = getSessionByCarrier();        renderSessionCarrierList(map);        updateSessionCarrierCount(getActiveCarrier());      }      loadSessionCount();      setMode(getMode());      setActiveCarrier(getActiveCarrier());      setActiveModuleNav(window.location.hash);      focusTracking();      if (modeInputs && modeInputs.length) {        modeInputs.forEach((input) => {          input.addEventListener('change', () => {            setMode(input.value);            focusTracking();          });        });      }      if (carrierSelect) {        carrierSelect.addEventListener('change', () => {          const value = carrierSelect.value;          if (!value) return;          if (value !== 'Otro') {            setActiveCarrier(value);            focusTracking();            return;          }          if (carrier) {            carrier.focus();            carrier.select();          }        });      }      if (quickButtons && quickButtons.length) {        quickButtons.forEach((button) => {          button.addEventListener('click', () => {            const value = button.getAttribute('data-carrier') || '';            if (value && value !== 'Otro') {              setActiveCarrier(value);              focusTracking();              return;            }            if (carrierSelect) carrierSelect.value = 'Otro';            if (carrier) {              carrier.focus();              carrier.select();            }          });        });      }      if (carrier) {        carrier.addEventListener('input', () => {          setActiveCarrier(carrier.value);        });      }      if (message && message.dataset && message.dataset.receptionMessage) {        if (message.dataset.receptionMessage === 'success') {          ensureSessionDate();          const submittedCarrier = (localStorage.getItem(lastSubmittedCarrierKey) || '').trim();          const carrierKey = submittedCarrier || getActiveCarrier() || '';          const total = Number(localStorage.getItem(sessionTotalKey) || 0) + 1;          localStorage.setItem(sessionTotalKey, String(total));          updateSessionTotal(total);          const map = getSessionByCarrier();          map[carrierKey] = Number(map[carrierKey] || 0) + 1;          saveSessionByCarrier(map);          updateSessionCarrierCount(carrierKey);          if (tracking) tracking.value = '';          focusTracking();        }      }      if (moduleNavLinks.length) {        window.addEventListener('hashchange', () => {          setActiveModuleNav(window.location.hash);        });      }      if (tracking) {        tracking.addEventListener('keydown', (event) => {          if (event.key === 'Enter') {            if (getMode() === 'scanner') {              event.preventDefault();              submitReception();              return;            }            event.preventDefault();            setTimeout(() => tracking.select(), 0);          }        });      }      if (form) {        form.addEventListener('submit', () => {          submitting = true;          const carrierValue = carrier ? carrier.value.trim() : '';          localStorage.setItem(lastSubmittedCarrierKey, carrierValue);          if (carrierValue) setActiveCarrier(carrierValue);        });      }      document.addEventListener('visibilitychange', () => {        if (document.visibilityState === 'visible') {          focusTracking();        }      });    })();  </script>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

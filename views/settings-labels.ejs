@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('settings.labels_title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<div class="page-header">
+<div>
+<h1>
+<%= t('settings.labels_title') %>
+</h1>
+<p class="muted">
+<%= t('settings.labels_subtitle') %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/settings">
+<%= t('settings.back_settings') %>
+</a>
+</div>
+</div>
+<section class="panel module-landing">
+<div class="module-tiles">
+<% if (can('packages', 'view')) { %>
+<a class="module-tile" href="/settings/labels/packages">
+<div class="module-tile-title">
+<%= t('settings.labels_packages_title') %>
+</div>
+<div class="module-tile-sub">
+<%= t('settings.labels_packages_subtitle') %>
+</div>
+</a>
+<% } %>
+<% if (can('manifests', 'view')) { %>
+<a class="module-tile" href="/manifests">
+<div class="module-tile-title">
+<%= t('settings.labels_manifests_title') %>
+</div>
+<div class="module-tile-sub">
+<%= t('settings.labels_manifests_subtitle') %>
+</div>
+</a>
+<% } %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

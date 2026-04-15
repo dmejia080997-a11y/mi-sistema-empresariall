@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('cuscar.manifests.new') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<div class="page-header">
+<div>
+<h1>
+<%= t('cuscar.manifests.new') %>
+</h1>
+<p class="muted">
+<%= t('cuscar.subtitle') %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/cuscar/manifests">
+<%= t('cuscar.manifests.list') %>
+</a>
+</div>
+</div>
+<% if (error) { %>
+<div class="alert error">
+<%= error %>
+</div>
+<% } %>
+<% if (success) { %>
+<div class="alert success">
+<%= success %>
+</div>
+<% } %>
+<% const missingCatalogs = []; %>
+<% if (!(catalogs.airlines || []).length) missingCatalogs.push(t('cuscar.catalog.airlines.title')); %>
+<% if (!(catalogs.transporters || []).length) missingCatalogs.push(t('cuscar.catalog.transporters.title')); %>
+<% if (!(catalogs.countries || []).length) missingCatalogs.push(t('cuscar.catalog.countries.title')); %>
+<% if (!(catalogs.customsOffices || []).length) missingCatalogs.push(t('cuscar.catalog.customs_offices.title')); %>
+<% if (!(catalogs.airports || []).length) missingCatalogs.push(t('cuscar.catalog.airports.title')); %>
+<% if (!(catalogs.ports || []).length) missingCatalogs.push(t('cuscar.catalog.ports.title')); %>
+<% if (!(catalogs.transportModes || []).length) missingCatalogs.push(t('cuscar.catalog.transport_modes.title')); %>
+<% if (!(catalogs.transportMeans || []).length) missingCatalogs.push(t('cuscar.catalog.transport_means.title')); %>
+<% if (!(catalogs.messageTypes || []).length) missingCatalogs.push(t('cuscar.catalog.message_types.title')); %>
+<% if (!(catalogs.messageFunctions || []).length) missingCatalogs.push(t('cuscar.catalog.message_functions.title')); %>
+<% if (!(catalogs.referenceQualifiers || []).length) missingCatalogs.push(t('cuscar.catalog.reference_qualifiers.title')); %>
+<% if (!(catalogs.messageResponsibles || []).length) missingCatalogs.push(t('cuscar.catalog.message_responsibles.title')); %>
+<% if (!(catalogs.transportIdAgencies || []).length) missingCatalogs.push(t('cuscar.catalog.transport_id_agencies.title')); %>
+<% if (!(catalogs.packageTypes || []).length) missingCatalogs.push(t('cuscar.catalog.package_types.title')); %>
+<% if (!(catalogs.units || []).length) missingCatalogs.push(t('cuscar.catalog.units.title')); %>
+<% if (missingCatalogs.length) { %>
+<div class="alert warning">
+<%= t('cuscar.catalogs.missing', { list: missingCatalogs.join(', ') }) %>
+</div>
+<% } %>
+<form method="POST" action="/cuscar/manifests/create" class="panel form grid-2">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('cuscar.fields.internal_number') %>
+<input type="text" name="internal_number" value="<%= values.internal_number || '' %>" required />
+</label>
+<label>
+<%= t('cuscar.fields.master_airway_bill') %>
+<input type="text" name="master_airway_bill" value="<%= values.master_airway_bill || '' %>" required />
+</label>
+<label>
+<%= t('cuscar.fields.flight_number') %>
+<input type="text" name="flight_number" value="<%= values.flight_number || '' %>" required />
+</label>
+<label>
+<%= t('cuscar.fields.flight_date') %>
+<input type="date" name="flight_date" value="<%= values.flight_date || '' %>" required />
+</label>
+<label>
+<%= t('cuscar.fields.airline') %>
+<select name="airline_id" required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.airlines || []).forEach((airline) => { %>
+<option value="<%= airline.id %>" <%= Number(values.airline_id) === airline.id ? 'selected' : '' %>>
+<%= airline.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.transport_mode') %>
+<select name="transport_mode_id" required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.transportModes || []).forEach((mode) => { %>
+<option value="<%= mode.id %>" <%= Number(values.transport_mode_id) === mode.id ? 'selected' : '' %>>
+<%= mode.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.transport_means') %>
+<select name="transport_means_id" required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.transportMeans || []).forEach((means) => { %>
+<option value="<%= means.id %>" <%= Number(values.transport_means_id) === means.id ? 'selected' : '' %>>
+<%= means.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.message_type') %>
+<select name="message_type_id" required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.messageTypes || []).forEach((msg) => { %>
+<option value="<%= msg.id %>" <%= Number(values.message_type_id) === msg.id ? 'selected' : '' %>>
+<%= msg.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.message_function') %>
+<select name="message_function_id" required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.messageFunctions || []).forEach((func) => { %>
+<option value="<%= func.id %>" <%= Number(values.message_function_id) === func.id ? 'selected' : '' %>>
+<%= func.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.message_responsible') %>
+<select name="message_responsible_id" required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.messageResponsibles || []).forEach((resp) => { %>
+<option value="<%= resp.id %>" <%= Number(values.message_responsible_id) === resp.id ? 'selected' : '' %>>
+<%= resp.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.reference_qualifier') %>
+<select name="reference_qualifier_id" required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.referenceQualifiers || []).forEach((ref) => { %>
+<option value="<%= ref.id %>" <%= Number(values.reference_qualifier_id) === ref.id ? 'selected' : '' %>>
+<%= ref.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.transport_id_agency') %>
+<select name="transport_id_agency_id" required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.transportIdAgencies || []).forEach((agency) => { %>
+<option value="<%= agency.id %>" <%= Number(values.transport_id_agency_id) === agency.id ? 'selected' : '' %>>
+<%= agency.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.origin_airport') %>
+<select name="origin_airport_id">
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.airports || []).forEach((airport) => { %>
+<option value="<%= airport.id %>" <%= Number(values.origin_airport_id) === airport.id ? 'selected' : '' %>>
+<%= airport.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.origin_port') %>
+<select name="origin_port_id">
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.ports || []).forEach((port) => { %>
+<option value="<%= port.id %>" <%= Number(values.origin_port_id) === port.id ? 'selected' : '' %>>
+<%= port.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.destination_airport') %>
+<select name="destination_airport_id">
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.airports || []).forEach((airport) => { %>
+<option value="<%= airport.id %>" <%= Number(values.destination_airport_id) === airport.id ? 'selected' : '' %>>
+<%= airport.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.destination_port') %>
+<select name="destination_port_id">
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.ports || []).forEach((port) => { %>
+<option value="<%= port.id %>" <%= Number(values.destination_port_id) === port.id ? 'selected' : '' %>>
+<%= port.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.customs_office') %>
+<select name="customs_office_id" required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.customsOffices || []).forEach((office) => { %>
+<option value="<%= office.id %>" <%= Number(values.customs_office_id) === office.id ? 'selected' : '' %>>
+<%= office.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.transporter') %>
+<select name="transporter_id" required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.transporters || []).forEach((transporter) => { %>
+<option value="<%= transporter.id %>" <%= Number(values.transporter_id) === transporter.id ? 'selected' : '' %>>
+<%= transporter.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label style="grid-column: 1 / -1;">
+<%= t('cuscar.fields.observations') %>
+<textarea name="observations" rows="3"><%= values.observations || '' %></textarea>
+</label>
+<div style="grid-column: 1 / -1;">
+<button type="submit" class="btn primary">
+<%= t('common.save') %>
+</button>
+</div>
+</form>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

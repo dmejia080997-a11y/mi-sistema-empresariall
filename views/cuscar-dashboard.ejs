@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('cuscar.dashboard.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<div class="page-header">
+<div>
+<h1>
+<%= t('cuscar.dashboard.title') %>
+</h1>
+<p class="muted">
+<%= t('cuscar.subtitle') %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/cuscar/manifests">
+<%= t('cuscar.nav.manifests') %>
+</a>
+<a class="btn" href="/cuscar/catalogs/transporters">
+<%= t('cuscar.nav.catalogs') %>
+</a>
+</div>
+</div>
+<% if (flash) { %>
+<div class="alert <%= flash.type %>">
+<%= flash.message %>
+</div>
+<% } %>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('cuscar.dashboard.title') %>
+</h2>
+</div>
+<div class="summary-strip">
+<div class="summary-item">
+<span class="summary-label">
+<%= t('cuscar.dashboard.total') %>
+</span>
+<span class="summary-value">
+<%= stats.total || 0 %>
+</span>
+</div>
+<div class="summary-item">
+<span class="summary-label">
+<%= t('cuscar.dashboard.draft') %>
+</span>
+<span class="summary-value">
+<%= stats.draft || 0 %>
+</span>
+</div>
+<div class="summary-item">
+<span class="summary-label">
+<%= t('cuscar.dashboard.closed') %>
+</span>
+<span class="summary-value">
+<%= stats.closed || 0 %>
+</span>
+</div>
+<div class="summary-item">
+<span class="summary-label">
+<%= t('cuscar.dashboard.pending_transmission') %>
+</span>
+<span class="summary-value">
+<%= stats.pending_transmission || 0 %>
+</span>
+</div>
+<div class="summary-item">
+<span class="summary-label">
+<%= t('cuscar.dashboard.generated') %>
+</span>
+<span class="summary-value">
+<%= stats.generated || 0 %>
+</span>
+</div>
+<div class="summary-item">
+<span class="summary-label">
+<%= t('cuscar.dashboard.transmitted') %>
+</span>
+<span class="summary-value">
+<%= stats.transmitted || 0 %>
+</span>
+</div>
+<div class="summary-item">
+<span class="summary-label">
+<%= t('cuscar.dashboard.error') %>
+</span>
+<span class="summary-value">
+<%= stats.error || 0 %>
+</span>
+</div>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,325 @@
+?<%  var currentPackagesNav = typeof packagesNav !== 'undefined' ? packagesNav : 'list';  var safeStats = typeof stats !== 'undefined' && stats ? stats : {    total: 0,    receivedToday: 0,    pending: 0,    delivered: 0,    inTransit: 0,    customsHold: 0  };%>
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('packages.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container packages-module">
+<% const canPackagesCreate = can('packages', 'create'); %>
+<% const canPackagesExport = can('packages', 'export'); %>
+<% const canPackagesEdit = can('packages', 'edit'); %>
+<% const canPackagesStatus = can('packages', 'change_status'); %>
+<div class="page-header">
+<div>
+<h1>
+<%= t('packages.title') %>
+</h1>
+<p class="muted">
+<%= t('packages.subtitle') %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/packages/home">
+<%= t('packages.module.home') %>
+</a>
+<% if (canPackagesCreate) { %>
+<a class="btn" href="/packages/new">
+<%= t('packages.module.new') %>
+</a>
+<% } %>
+<a class="btn" href="/packages/dashboard">
+<%= t('packages.dashboard_link') %>
+</a>
+</div>
+</div>
+<div class="module-nav">
+<a href="/packages/dashboard" class="<%= currentPackagesNav === 'dashboard' ? 'active' : '' %>">
+<%= t('packages.module.dashboard') %>
+</a>
+<a href="/packages" class="<%= currentPackagesNav === 'list' ? 'active' : '' %>">
+<%= t('packages.module.list') %>
+</a>
+<a href="/packages/pending-invoice" class="<%= currentPackagesNav === 'pending_invoice' ? 'active' : '' %>">
+<%= t('packages.module.pending_invoice') %>
+</a>
+<% if (canPackagesCreate) { %>
+<a href="/packages/new" class="<%= currentPackagesNav === 'new' ? 'active' : '' %>">
+<%= t('packages.module.new') %>
+</a>
+<% } %>
+<a href="/packages/statuses" class="<%= currentPackagesNav === 'statuses' ? 'active' : '' %>">
+<%= t('packages.module.statuses') %>
+</a>
+<a href="/packages/tracking" class="<%= currentPackagesNav === 'tracking' ? 'active' : '' %>">
+<%= t('packages.module.tracking') %>
+</a>
+</div>
+<div class="packages-quick-actions">
+<span class="quick-label">
+<%= t('packages.module.home') %>
+</span>
+<div class="actions">
+<% if (canPackagesCreate) { %>
+<a class="btn primary" href="/packages/new">
+<%= t('packages.module.new') %>
+</a>
+<% } %>
+<a class="btn" href="/packages/dashboard">
+<%= t('packages.module.dashboard') %>
+</a>
+<a class="btn" href="/packages/tracking">
+<%= t('packages.module.tracking') %>
+</a>
+</div>
+</div>
+<% if (error) { %>
+<div class="alert">
+<%= error %>
+</div>
+<% } %>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('packages.summary') %>
+</h2>
+<% if (canPackagesExport) { %>
+<a class="btn" href="<%= exportUrl %>">
+<%= t('packages.export_csv') %>
+</a>
+<% } %>
+</div>
+<div class="grid">
+<% statuses.forEach(status => { %>
+<% const found = (statusCounts || []).find(row => row.status === status); %>
+<div class="stat">
+<div class="stat-label">
+<%= status %>
+</div>
+<div class="stat-value">
+<%= found ? found.count : 0 %>
+</div>
+</div>
+<% }) %>
+</div>
+</section>
+<section class="panel">
+<h2>
+<%= t('packages.list') %>
+</h2>
+<div class="muted">
+<%= t('packages.urgent_hint', {          stuck: urgentConfig.stuckDays,          invoice: urgentConfig.invoiceDays,          customs: urgentConfig.customsDays        }) %>
+</div>
+<div class="summary-strip">
+<div class="summary-item">
+<span class="summary-label">
+<%= t('packages_dashboard.total') %>
+</span>
+<span class="summary-value">
+<%= safeStats.total || 0 %>
+</span>
+</div>
+<div class="summary-item">
+<span class="summary-label">
+<%= t('packages_dashboard.pending_invoice') %>
+</span>
+<span class="summary-value">
+<%= safeStats.pendingInvoice || 0 %>
+</span>
+</div>
+<div class="summary-item">
+<span class="summary-label">
+<%= t('packages_dashboard.delivered') %>
+</span>
+<span class="summary-value">
+<%= safeStats.delivered || 0 %>
+</span>
+</div>
+</div>
+<div class="filters-bar">
+<form method="GET" action="/packages" class="filters-form">
+<label class="filters-field">
+<span>
+<%= t('packages.filter_search') %>
+</span>
+<input              type="text"              name="q"              value="<%= filters.q || '' %>"              placeholder="<%= t('packages.filter_search_hint') %>"            />
+</label>
+<label class="filters-field">
+<span>
+<%= t('packages.filter_status') %>
+</span>
+<select name="status">
+<option value="" <%= !filters.status ? 'selected' : '' %>>
+<%= t('common.reset') %>
+</option>
+<% statuses.forEach(status => { %>
+<option value="<%= status %>" <%= filters.status === status ? 'selected' : '' %>>
+<%= status %>
+</option>
+<% }) %>
+</select>
+</label>
+<label class="filters-field">
+<span>
+<%= t('packages.filter_customer') %>
+</span>
+<select name="customer">
+<option value="" <%= !filters.customer ? 'selected' : '' %>>
+<%= t('common.reset') %>
+</option>
+<% customers.forEach(customer => { %>
+<option value="<%= customer.id %>" <%= String(filters.customer) === String(customer.id) ? 'selected' : '' %>>
+<%= customer.customer_code ? `${customer.customer_code} - ` : '' %><%= customer.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label class="filters-field">
+<span>
+<%= t('packages.filter_carrier') %>
+</span>
+<input type="text" name="carrier" value="<%= filters.carrier || '' %>" />
+</label>
+<label class="filters-field">
+<span>
+<%= t('packages.filter_received_date') %>
+</span>
+<input type="date" name="received_date" value="<%= filters.received_date || '' %>" />
+</label>
+<div class="filters-actions">
+<button type="submit" class="btn small">
+<%= t('packages.apply_filter') %>
+</button>
+<a class="btn small" href="/packages">
+<%= t('packages.reset_filters') %>
+</a>
+</div>
+</form>
+</div>
+<form id="bulk-actions-form" method="POST">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<div class="bulk-actions-bar">
+<label class="checkbox">
+<input type="checkbox" id="select-all-packages" />
+<span>
+<%= t('packages.module.select_all') %>
+</span>
+</label>
+<% if (canPackagesExport) { %>
+<div class="bulk-form">
+<button type="submit" class="btn small" formaction="/packages/labels/print">
+<%= t('packages.print_labels') %>
+</button>
+</div>
+<a class="btn small" href="<%= exportUrl %>">
+<%= t('packages.export_csv') %>
+</a>
+<% } %>
+</div>
+<%          const statusClassMap = {            'Recibido en bodega USA': 'status-received',            'Recibido en bodega': 'status-received',            'Pendiente de factura': 'status-pending',            'Factura subida': 'status-invoice',            'Cargado a vuelo': 'status-loaded',          'En tránsito': 'status-transit',          'En aduana de destino': 'status-customs',          'En proceso de aduana': 'status-customs',          'Liberado': 'status-released',          'En entrega': 'status-delivery',          'Entregado': 'status-delivered'          };        %>
+<div class="table compact packages-table">
+<div class="table-row header packages-compact">
+<div>
+<%= t('packages.table.internal_code') %>
+</div>
+<div>
+<%= t('packages.table.tracking') %>
+</div>
+<div>
+<%= t('packages.consignatario') %>
+</div>
+<div>
+<%= t('packages.table.description') %>
+</div>
+<div>
+<%= t('packages.table.weight') %>
+</div>
+<div>
+<%= t('packages.table.carrier') %>
+</div>
+<div>
+<%= t('packages.table.status') %>
+</div>
+<div>
+<%= t('packages.table.actions') %>
+</div>
+</div>
+<% if (packages.length === 0) { %>
+<div class="table-row empty">
+<%= t('packages.no_packages') %>
+</div>
+<% } %>
+<% packages.forEach(pkg => { %>
+<% const stuckTooLong = pkg.days_in_status !== null && pkg.days_in_status >= urgentConfig.stuckDays; %>
+<% const invoiceTooLong = (pkg.invoice_status !== 'uploaded') && pkg.days_since_received !== null && pkg.days_since_received >= urgentConfig.invoiceDays; %>
+<% const inCustoms = pkg.status === 'En aduana de destino' || pkg.status === 'En proceso de aduana'; %>
+<% const customsTooLong = inCustoms && pkg.days_in_status !== null && pkg.days_in_status >= urgentConfig.customsDays; %>
+<% const statusClass = statusClassMap[pkg.status] || 'status-default'; %>
+<div class="table-row packages-compact <%= (stuckTooLong || invoiceTooLong || customsTooLong) ? 'urgent' : '' %>">
+<div class="cell-ellipsis" title="<%= pkg.internal_code || '-' %>">
+<%= pkg.internal_code || '-' %>
+</div>
+<div class="cell-ellipsis" title="<%= pkg.tracking_number || '-' %>">
+<%= pkg.tracking_number || '-' %>
+</div>
+<div class="cell-ellipsis" title="<%= pkg.consignatario_name || (pkg.customer_code ? `${pkg.customer_code} - ` : '') + (pkg.customer_name || t('common.unassigned')) %>">
+<%= pkg.consignatario_name || (pkg.customer_code ? `${pkg.customer_code} - ` : '') + (pkg.customer_name || t('common.unassigned')) %>
+</div>
+<div class="cell-ellipsis" title="<%= pkg.description || '-' %>">
+<%= pkg.description || '-' %>
+</div>
+<div>
+<%= pkg.weight_lbs ? Number(pkg.weight_lbs).toFixed(2) + ' lbs' : '-' %>
+</div>
+<div class="cell-ellipsis" title="<%= pkg.carrier || '-' %>">
+<%= pkg.carrier || '-' %>
+</div>
+<div class="status-cell">
+<span class="status-badge <%= statusClass %>">
+<%= pkg.status %>
+</span>
+</div>
+<div class="actions actions-compact actions-packages">
+<input                type="checkbox"                name="package_ids[]"                value="<%= pkg.id %>"                class="package-select"                aria-label="Seleccionar paquete"              />
+<a class="btn small" href="/packages/<%= pkg.id %>">
+<%= t('packages.action.view_short') %>
+</a>
+<% if (canPackagesEdit) { %>
+<a class="btn small" href="/packages/<%= pkg.id %>/edit">
+<%= t('packages.action.edit_short') %>
+</a>
+<% } %>
+<a class="btn small" href="/packages/<%= pkg.id %>/label">
+<%= t('packages.action.label_short') %>
+</a>
+</div>
+</div>
+<% }) %>
+</div>
+</form>
+</section>
+</main>
+<script>    (function () {      const selectAll = document.getElementById('select-all-packages');      const boxes = Array.from(document.querySelectorAll('.package-select'));      if (!selectAll || boxes.length === 0) return;      selectAll.addEventListener('change', function () {        boxes.forEach((box) => {          box.checked = selectAll.checked;        });      });    })();  </script>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+
+

@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('package_detail.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<div class="page-header">
+<div>
+<h1>
+<%= t('package_detail.title') %>
+</h1>
+<p class="muted">
+<%= pkg.internal_code || '-' %>  -  <%= pkg.tracking_number || '-' %>
+</p>
+</div>
+<div class="actions">
+<span class="pill">
+<%= pkg.status %>
+</span>
+<a class="btn" href="/packages/<%= pkg.id %>/receipt">
+<%= t('packages.print_receipt') %>
+</a>
+<a class="btn" href="/packages/<%= pkg.id %>/label">
+<%= t('packages.view_label') %>
+</a>
+<a class="btn" href="/packages/<%= pkg.id %>/label?print=1">
+<%= t('packages.print_label') %>
+</a>
+<a class="btn" href="/packages/<%= pkg.id %>/label?format=pdf">
+<%= t('packages.download_label') %>
+</a>
+</div>
+</div>
+<% if (error) { %>
+<div class="alert">
+<%= error %>
+</div>
+<% } %>
+<section class="panel">
+<h2>
+<%= t('package_detail.summary') %>
+</h2>
+<div class="detail-grid">
+<div>
+<span class="muted">
+<%= t('packages.internal_code') %>
+</span>
+<div>
+<%= pkg.internal_code || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.tracking') %>
+</span>
+<div>
+<%= pkg.tracking_number || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.consignatario') %>
+</span>
+<div>
+<%= pkg.consignatario_name || (pkg.customer_code ? `${pkg.customer_code} - ` : '') + (pkg.customer_name || t('common.unassigned')) %>
+</div>
+</div>
+<% if (pkg.consignatario_name && pkg.customer_name) { %>
+<div>
+<span class="muted">
+<%= t('packages.customer') %>
+</span>
+<div class="muted">
+<%= pkg.customer_code ? `${pkg.customer_code} - ` : '' %><%= pkg.customer_name %>
+</div>
+</div>
+<% } %>
+<div>
+<span class="muted">
+<%= t('packages.customer_phone') %>
+</span>
+<div>
+<%= pkg.customer_phone || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.consignatario_address') %>
+</span>
+<div>
+<%= pkg.consignatario_address || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.customer_email') %>
+</span>
+<div>
+<%= pkg.customer_email || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.sender_name') %>
+</span>
+<div>
+<%= pkg.sender_name || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.store_name') %>
+</span>
+<div>
+<%= pkg.store_name || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.description') %>
+</span>
+<div>
+<%= pkg.description || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.weight_lbs') %>
+</span>
+<div>
+<%= pkg.weight_lbs ? Number(pkg.weight_lbs).toFixed(2) + ' lbs' : '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.dimensions_cm') %>
+</span>
+<div>
+<%= pkg.length_cm || '-' %> x <%= pkg.width_cm || '-' %> x <%= pkg.height_cm || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.declared_value') %>
+</span>
+<div>
+<%= pkg.declared_value === 0 || pkg.declared_value ? Number(pkg.declared_value).toFixed(2) : '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.shipping_type') %>
+</span>
+<div>
+<%= pkg.shipping_type === 'air'              ? t('packages.shipping_air')              : pkg.shipping_type === 'sea'              ? t('packages.shipping_sea')              : pkg.shipping_type === 'land'              ? t('packages.shipping_land')              : '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.branch_destination') %>
+</span>
+<div>
+<%= pkg.branch_destination || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.delivery_type') %>
+</span>
+<div>
+<%= pkg.delivery_type === 'pickup'              ? t('packages.delivery_pickup')              : pkg.delivery_type === 'delivery'              ? t('packages.delivery_delivery')              : '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.payment_status') %>
+</span>
+<div>
+<%= pkg.payment_status === 'paid' ? t('packages.payment_paid') : t('packages.payment_pending') %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.invoice_status') %>
+</span>
+<div>
+<%= pkg.invoice_status === 'uploaded' ? t('packages.invoice_uploaded') : t('packages.invoice_pending') %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.carrier') %>
+</span>
+<div>
+<%= pkg.carrier || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.received_at') %>
+</span>
+<div>
+<%= pkg.received_at || '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+<%= t('packages.notes') %>
+</span>
+<div>
+<%= pkg.notes || '-' %>
+</div>
+</div>
+</div>
+</section>
+<% if (can('packages', 'change_status')) { %>
+<section class="panel" id="status">
+<h2>
+<%= t('package_detail.status') %>
+</h2>
+<form method="POST" action="/packages/<%= pkg.id %>/status" class="form">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('package_detail.update_status') %>
+<select name="status">
+<% statuses.forEach(status => { %>
+<option value="<%= status %>" <%= status === pkg.status ? 'selected' : '' %>>
+<%= status %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('package_detail.status_notes') %>
+<textarea name="status_notes" rows="3">
+</textarea>
+</label>
+<div>
+<button type="submit" class="btn primary">
+<%= t('package_detail.update_status') %>
+</button>
+</div>
+</form>
+</section>
+<% } %>
+<section class="panel" id="invoice">
+<h2>
+<%= t('package_detail.invoice') %>
+</h2>
+<% if (pkg.invoice_file) { %>
+<a class="btn" href="<%= pkg.invoice_file %>" target="_blank" rel="noopener">
+<%= t('common.view') %>
+</a>
+<% } else { %>
+<p class="muted">
+<%= t('package_detail.no_invoice') %>
+</p>
+<% } %>
+<% if (can('packages', 'edit')) { %>
+<form method="POST" action="/packages/<%= pkg.id %>/invoice" enctype="multipart/form-data" class="form">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<input type="file" name="invoice_file" accept="application/pdf,image/*" required />
+<button type="submit" class="btn">
+<%= t('package_detail.upload_invoice') %>
+</button>
+</form>
+<% } %>
+</section>
+<section class="panel" id="photos">
+<h2>
+<%= t('package_detail.photos') %>
+</h2>
+<% if (photos.length === 0) { %>
+<p class="muted">
+<%= t('package_detail.no_photos') %>
+</p>
+<% } %>
+<div class="photo-grid">
+<% photos.forEach(photo => { %>
+<div class="photo-card">
+<img src="<%= photo.file_path %>" alt="Foto de paquete" />
+</div>
+<% }) %>
+</div>
+<% if (can('packages', 'edit')) { %>
+<form method="POST" action="/packages/<%= pkg.id %>/photos" enctype="multipart/form-data" class="form">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<input type="file" name="photos" accept="image/*" multiple required />
+<button type="submit" class="btn">
+<%= t('package_detail.upload_photos') %>
+</button>
+</form>
+<% } %>
+</section>
+<section class="panel">
+<h2>
+<%= t('package_detail.history') %>
+</h2>
+<div class="timeline">
+<% if (history.length === 0) { %>
+<div class="timeline-empty">
+<%= t('package_detail.no_history') %>
+</div>
+<% } %>
+<% history.forEach(item => { %>
+<div class="timeline-item visual">
+<div class="timeline-status">
+<% if (item.old_status) { %>
+<%= item.old_status %> ? <%= item.display_status || item.status %>
+<% } else { %>
+<%= item.display_status || item.status %>
+<% } %>
+</div>
+<div class="timeline-meta">
+<span class="muted">
+<%= item.changed_by_name || t('common.system') %>
+</span>
+<span class="muted">
+<%= item.changed_at %>
+</span>
+</div>
+<% if (item.notes) { %>
+<div class="muted">
+<%= item.notes %>
+</div>
+<% } %>
+</div>
+<% }) %>
+</div>
+</section>
+<section class="panel">
+<h2>
+<%= t('package_detail.comments') %>
+</h2>
+<% if (comments.length === 0) { %>
+<div class="muted">
+<%= t('package_detail.no_comments') %>
+</div>
+<% } %>
+<div class="timeline">
+<% comments.forEach(comment => { %>
+<div class="timeline-item">
+<div class="timeline-status">
+<%= comment.comment %>
+</div>
+<div class="timeline-meta">
+<span class="muted">
+<%= comment.created_by_name || t('common.system') %>
+</span>
+<span class="muted">
+<%= comment.created_at %>
+</span>
+</div>
+</div>
+<% }) %>
+</div>
+<% if (can('packages', 'edit')) { %>
+<form method="POST" action="/packages/<%= pkg.id %>/comments" class="form">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('package_detail.add_comment') %>
+<textarea name="comment" rows="3" required>
+</textarea>
+</label>
+<button type="submit" class="btn">
+<%= t('package_detail.add_comment_button') %>
+</button>
+</form>
+<% } %>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+

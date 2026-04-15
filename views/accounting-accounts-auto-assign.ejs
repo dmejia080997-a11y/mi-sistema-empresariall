@@ -1,0 +1,114 @@
+﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Previsualizar autoasignación</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand"><%= t('common.brand') %></div>
+<nav class="nav">
+<a href="/dashboard">Dashboard</a>
+<a href="/accounting/accounts">Catálogo</a>
+<a href="/logout"><%= t('nav.logout') %></a>
+</nav>
+</header>
+<main class="container">
+<h1>Previsualizar autoasignación</h1>
+<nav class="subnav">
+<a href="/accounting/accounts">Catálogo</a>
+<a href="/accounting/categories">Categorías</a>
+<a href="/accounting/categories/rules">Reglas</a>
+<a href="/accounting/journal">Pólizas</a>
+<a href="/accounting/reports">Reportes</a>
+<a href="/accounting/settings">Configuración</a>
+</nav>
+
+<% if (flash) { %>
+<div class="alert <%= flash.type %>"><%= flash.message %></div>
+<% } %>
+
+<section class="panel">
+<div class="panel-header">
+<h2>Marco: <%= framework %></h2>
+<form method="post" action="/accounting/accounts/auto-assign/apply" class="actions">
+<input type="hidden" name="framework" value="<%= framework %>" />
+<button class="btn primary" type="submit">Aplicar autoasignación</button>
+</form>
+</div>
+<div class="actions">
+<a class="btn" href="/accounting/accounts/auto-assign/preview/export?framework=<%= framework %>&format=xlsx">Exportar previsualización Excel</a>
+<a class="btn" href="/accounting/accounts/auto-assign/preview/export?framework=<%= framework %>&format=pdf">Exportar previsualización PDF</a>
+</div>
+<div class="table">
+<div class="table-row header accounting-auto-assign">
+<div>Cuenta</div>
+<div>Tipo</div>
+<div>Categoría actual</div>
+<div>Categoría sugerida</div>
+<div>Estado</div>
+</div>
+<% if (!plan.length) { %>
+<div class="table-row empty">No hay cuentas para evaluar.</div>
+<% } %>
+<% plan.forEach(item => { %>
+<div class="table-row accounting-auto-assign">
+<div><%= item.account.code %> - <%= item.account.name %></div>
+<div><%= item.account.type %></div>
+<div><%= item.account.category_id ? 'Asignada' : 'Sin categoría' %></div>
+<div><%= item.newCategory ? (item.newCategory.code + ' - ' + item.newCategory.name) : '-' %></div>
+<div><%= item.account.category_id ? 'Sin cambios' : (item.newCategory ? 'Asignable' : 'Sin regla') %></div>
+</div>
+<% }) %>
+</div>
+</section>
+
+<section class="panel">
+<h2>Revertir lotes recientes</h2>
+<div class="table">
+<div class="table-row header accounting-batches">
+<div>Lote</div>
+<div>Fecha</div>
+<div>Registros</div>
+<div></div>
+</div>
+<% if (!batches.length) { %>
+<div class="table-row empty">Sin lotes registrados.</div>
+<% } %>
+<% batches.forEach(batch => { %>
+<div class="table-row accounting-batches">
+<div><%= batch.batch_id %></div>
+<div><%= batch.created_at %></div>
+<div><%= batch.total %></div>
+<div>
+<form method="post" action="/accounting/accounts/auto-assign/revert">
+<input type="hidden" name="batch_id" value="<%= batch.batch_id %>" />
+<button class="btn danger" type="submit">Revertir</button>
+</form>
+</div>
+</div>
+<% }) %>
+</div>
+</section>
+<section class="panel">
+<h2>Ver detalle por lote</h2>
+<form class="form" method="get" action="/accounting/accounts/auto-assign/batch">
+<label>
+Lote
+<select name="batch_id">
+<option value="">Seleccionar</option>
+<% batches.forEach(batch => { %>
+<option value="<%= batch.batch_id %>"><%= batch.batch_id %></option>
+<% }) %>
+</select>
+</label>
+<button class="btn primary" type="submit">Ver detalle</button>
+</form>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+

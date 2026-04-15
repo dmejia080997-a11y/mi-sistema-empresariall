@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="<%= lang || 'es' %>">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('package_label.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body  class="label-page<%= bwMode ? ' label-bw' : '' %>"  style="<% if (companyBrand) { %>--accent:<%= companyBrand.primary_color || '#d97757' %>; --accent-2:<%= companyBrand.secondary_color || '#3d7b6f' %>;<% } %>">
+<%
+  const layout = labelLayout && Array.isArray(labelLayout.items) && labelLayout.items.length ? labelLayout : null;
+  const layoutItems = layout ? layout.items : [];
+  const sizeMap = {
+    standard: { width: 560, height: 320 },
+    compact: { width: 480, height: 280 },
+    square: { width: 360, height: 360 },
+    large: { width: 720, height: 420 }
+  };
+  const layoutSizeKey = layout && layout.size ? layout.size : 'standard';
+  const layoutSize = sizeMap[layoutSizeKey] || sizeMap.standard;
+  const layoutLogo = (layout && layout.logo) ? layout.logo : (companyBrand && companyBrand.logo) || null;
+  const layoutName = (layout && layout.name) ? layout.name : ((companyBrand && companyBrand.name) ? companyBrand.name : t('common.brand'));
+  const layoutAddress = (layout && layout.address) ? layout.address : (labelData.delivery_address || '-');
+  const shapeDefs = {
+    'shape-line': { width: 180, height: 2, className: 'label-shape-line' },
+    'shape-line-vertical': { width: 2, height: 110, className: 'label-shape-line-vertical' },
+    'shape-rect': { width: 160, height: 90, className: 'label-shape-rect' },
+    'shape-circle': { width: 70, height: 70, className: 'label-shape-circle' }
+  };
+  const resolveValue = (fieldKey) => {
+    switch (fieldKey) {
+      case 'name': return layoutName;
+      case 'address': return layoutAddress;
+      case 'tracking': return pkg.tracking_number || '-';
+      case 'tienda': return pkg.store_name || '-';
+      case 'descripcion': return pkg.description || '-';
+      case 'consignatario': return pkg.consignatario_name || t('common.unassigned');
+      case 'municipio': return labelData.delivery_municipality || '-';
+      case 'departamento': return labelData.delivery_department || '-';
+      case 'telefono': return labelData.delivery_phone || '-';
+      case 'peso': return pkg.weight_lbs ? Number(pkg.weight_lbs).toFixed(2) + ' lbs' : '-';
+      case 'dimensiones': return (pkg.length_cm || '-') + ' x ' + (pkg.width_cm || '-') + ' x ' + (pkg.height_cm || '-');
+      case 'carrier': return pkg.carrier || '-';
+      case 'status': return pkg.status || '-';
+      case 'recibido': return pkg.received_at || '-';
+      case 'internal': return pkg.internal_code || '-';
+      default: return '-';
+    }
+  };
+%>
+<main class="label-shell">
+<section class="label-card">
+<% if (layoutItems.length) { %>
+<div class="label-print-canvas" style="width:<%= layoutSize.width %>px; height:<%= layoutSize.height %>px;">
+<% layoutItems.forEach((item) => { %>
+<% const fieldKey = item.field || ''; %>
+<% const shape = shapeDefs[fieldKey]; %>
+<% const shapeColor = item.color || '#111827'; %>
+<% const shapeThickness = Number(item.thickness) || 2; %>
+<% const shapeLineStyle = item.lineStyle || 'solid'; %>
+<% const itemWidth = Number(item.width) || 0; %>
+<% const itemHeight = Number(item.height) || 0; %>
+<% const itemFontSize = Number(item.fontSize) || 0; %>
+<% const itemText = typeof item.text === 'string' ? item.text : ''; %>
+<%
+  let itemStyle = `left:${item.left || 0}px;top:${item.top || 0}px;`;
+  if (itemWidth) itemStyle += `width:${itemWidth}px;`;
+  if (itemHeight) itemStyle += `height:${itemHeight}px;`;
+  if (itemFontSize) itemStyle += `font-size:${itemFontSize}px;`;
+  let sizeStyle = '';
+  if (itemWidth) sizeStyle += `width:${itemWidth}px;`;
+  if (itemHeight) sizeStyle += `height:${itemHeight}px;`;
+%>
+<div class="label-print-item" style="<%= itemStyle %>">
+<% if (fieldKey === 'logo') { %>
+  <% if (layoutLogo) { %>
+  <img src="<%= layoutLogo %>" alt="Logo" class="label-print-logo" style="<%= sizeStyle %>" />
+  <% } else { %>
+  <div class="label-print-placeholder" style="<%= sizeStyle %>">Logo</div>
+  <% } %>
+<% } else if (fieldKey === 'qr') { %>
+  <% if (qrDataUrl) { %>
+  <img src="<%= qrDataUrl %>" alt="QR" class="label-print-qr" style="<%= sizeStyle %>" />
+  <% } else { %>
+  <div class="label-print-placeholder" style="<%= sizeStyle %>">QR</div>
+  <% } %>
+<% } else if (fieldKey === 'barcode') { %>
+  <% if (barcodeDataUrl) { %>
+  <img src="<%= barcodeDataUrl %>" alt="Barcode" class="label-print-barcode" style="<%= sizeStyle %>" />
+  <% } else { %>
+  <div class="label-print-placeholder" style="<%= sizeStyle %>">BARCODE</div>
+  <% } %>
+<% } else if (shape) { %>
+  <%
+    const shapeWidth = itemWidth || shape.width;
+    const shapeHeight = itemHeight || shape.height;
+    let shapeStyle = `width:${shapeWidth}px;height:${shapeHeight}px;`;
+    if (shape.className === 'label-shape-line') {
+      if (shapeLineStyle === 'dotted') {
+        const dotSize = Math.max(1, Math.round(shapeThickness));
+        const gap = dotSize * 2;
+        const total = dotSize + gap;
+        shapeStyle += `background:transparent;background-image:repeating-linear-gradient(90deg, ${shapeColor}, ${shapeColor} ${dotSize}px, transparent ${dotSize}px, transparent ${total}px);background-size:${total}px ${shapeThickness}px;height:${shapeThickness}px;`;
+      } else {
+        shapeStyle += `background:${shapeColor};height:${shapeThickness}px;`;
+      }
+    } else if (shape.className === 'label-shape-line-vertical') {
+      if (shapeLineStyle === 'dotted') {
+        const dotSize = Math.max(1, Math.round(shapeThickness));
+        const gap = dotSize * 2;
+        const total = dotSize + gap;
+        shapeStyle += `background:transparent;background-image:repeating-linear-gradient(180deg, ${shapeColor}, ${shapeColor} ${dotSize}px, transparent ${dotSize}px, transparent ${total}px);background-size:${shapeThickness}px ${total}px;width:${shapeThickness}px;`;
+      } else {
+        shapeStyle += `background:${shapeColor};width:${shapeThickness}px;`;
+      }
+    } else {
+      shapeStyle += `border-color:${shapeColor};border-width:${shapeThickness}px;`;
+    }
+  %>
+  <div class="label-print-shape <%= shape.className %>" style="<%= shapeStyle %>"></div>
+<% } else if (fieldKey === 'free-text') { %>
+  <div class="label-print-text"><%= itemText %></div>
+<% } else { %>
+  <div class="label-print-text"><%= resolveValue(fieldKey) %></div>
+<% } %>
+</div>
+<% }); %>
+</div>
+<% } else { %>
+<header class="label-header">
+<div class="label-brand">
+<% if (companyBrand && companyBrand.logo) { %>
+<img src="<%= companyBrand.logo %>" alt="Logo" class="label-logo" />
+<% } %>
+<div class="label-brand-name">
+<%= (companyBrand && companyBrand.name) ? companyBrand.name : t('common.brand') %>
+</div>
+</div>
+<div class="label-code-block">
+<div class="label-tracking-label">
+<%= t('packages.tracking') %>
+</div>
+<div class="label-tracking">
+<%= pkg.tracking_number || '-' %>
+</div>
+</div>
+</header>
+<div class="label-content">
+<div class="label-info">
+<div class="label-row">
+<span class="label-label">
+<%= t('packages.consignatario') %>
+</span>
+<div class="label-value label-strong">
+<%= pkg.consignatario_name || t('common.unassigned') %>
+</div>
+<% if (pkg.customer_name) { %>
+<div class="label-subvalue">
+<%= pkg.customer_code ? `${pkg.customer_code} - ` : '' %><%= pkg.customer_name %>
+</div>
+<% } %>
+</div>
+<div class="label-row">
+<span class="label-label">
+<%= t('packages.store_name') %>
+</span>
+<div class="label-value">
+<%= pkg.store_name || '-' %>
+</div>
+</div>
+<div class="label-row">
+<span class="label-label">
+<%= t('packages.description') %>
+</span>
+<div class="label-value">
+<%= pkg.description || '-' %>
+</div>
+</div>
+<div class="label-row">
+<span class="label-label">
+<%= t('consignatarios.full_address') %>
+</span>
+<div class="label-value">
+<%= labelData.delivery_address || '-' %>
+</div>
+</div>
+<div class="label-row">
+<span class="label-label">
+<%= t('consignatarios.municipality') %>
+</span>
+<div class="label-value">
+<%= labelData.delivery_municipality || '-' %>
+</div>
+</div>
+<div class="label-row">
+<span class="label-label">
+<%= t('consignatarios.department') %>
+</span>
+<div class="label-value">
+<%= labelData.delivery_department || '-' %>
+</div>
+</div>
+<% if (labelData.delivery_phone) { %>
+<div class="label-row">
+<span class="label-label">
+<%= t('consignatarios.phone') %>
+</span>
+<div class="label-value">
+<%= labelData.delivery_phone %>
+</div>
+</div>
+<% } %>
+<div class="label-row label-row-inline">
+<div>
+<span class="label-label">
+<%= t('packages.weight_lbs') %>
+</span>
+<div class="label-value">
+<%= pkg.weight_lbs ? Number(pkg.weight_lbs).toFixed(2) + ' lbs' : '-' %>
+</div>
+</div>
+<div>
+<span class="label-label">
+<%= t('packages.dimensions_cm') %>
+</span>
+<div class="label-value">
+<%= pkg.length_cm || '-' %> x <%= pkg.width_cm || '-' %> x <%= pkg.height_cm || '-' %>
+</div>
+</div>
+</div>
+<div class="label-row label-row-inline">
+<div>
+<span class="label-label">
+<%= t('packages.carrier') %>
+</span>
+<div class="label-value">
+<%= pkg.carrier || '-' %>
+</div>
+</div>
+<div>
+<span class="label-label">
+<%= t('packages.status') %>
+</span>
+<div class="label-value">
+<%= pkg.status || '-' %>
+</div>
+</div>
+</div>
+<div class="label-row">
+<span class="label-label">
+<%= t('packages.received_at') %>
+</span>
+<div class="label-value">
+<%= pkg.received_at || '-' %>
+</div>
+</div>
+</div>
+<div class="label-code">
+<div class="label-internal-label">
+<%= t('packages.internal_code') %>
+</div>
+<div class="label-internal">
+<%= pkg.internal_code || '-' %>
+</div>
+<% if (barcodeDataUrl) { %>
+<img class="label-barcode" src="<%= barcodeDataUrl %>" alt="Barcode" />
+<% } %>
+<% if (qrDataUrl) { %>
+<img class="label-qr" src="<%= qrDataUrl %>" alt="QR" />
+<% } else { %>
+<div class="label-code-fallback">
+<%= pkg.internal_code || pkg.tracking_number || '-' %>
+</div>
+<% } %>
+</div>
+</div>
+<% } %>
+</section>
+<div class="label-actions no-print">
+<a class="btn" href="/packages/<%= pkg.id %>">
+<%= t('packages.view_detail') %>
+</a>
+<a class="btn" href="/packages/<%= pkg.id %>/label?print=1">
+<%= t('packages.print_label') %>
+</a>
+<a class="btn" href="/packages/<%= pkg.id %>/label?format=pdf">
+<%= t('packages.download_label') %>
+</a>
+<a class="btn" href="/packages/<%= pkg.id %>/label?bw=1">
+<%= t('packages.print_label') %> B/N</a>
+</div>
+</main>
+<% if (autoPrint) { %>
+<script>      window.addEventListener('load', function () {        window.print();      });    </script>
+<% } %>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

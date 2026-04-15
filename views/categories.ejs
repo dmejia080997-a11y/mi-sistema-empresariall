@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('inventory.categories') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<h1>
+<%= t('inventory.categories') %>
+</h1>
+<div class="subnav">
+<a href="/inventory">
+<%= t('inventory.items') %>
+</a>
+<a class="active" href="/categories">
+<%= t('inventory.categories') %>
+</a>
+<a href="/brands">
+<%= t('inventory.brands') %>
+</a>
+</div>
+<section class="panel">
+<h2>
+<%= t('inventory.new_category') %>
+</h2>
+<% if (error) { %>
+<div class="alert">
+<%= error %>
+</div>
+<% } %>
+<form method="POST" action="/categories/create" class="form grid-2" style="<%= can('inventory', 'create') ? '' : 'display:none' %>">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('inventory.name') %>
+<input type="text" name="name" required />
+</label>
+<label>
+<%= t('inventory.code_mode') %>
+<select name="code_mode">
+<option value="auto" selected>
+<%= t('inventory.code_auto') %>
+</option>
+<option value="manual">
+<%= t('inventory.code_manual') %>
+</option>
+</select>
+</label>
+<label>
+<%= t('inventory.code') %>
+<input type="text" name="code" />
+</label>
+<div>
+<button type="submit" class="btn primary">
+<%= t('inventory.create_category') %>
+</button>
+</div>
+</form>
+</section>
+<section class="panel">
+<h2>
+<%= t('inventory.categories') %>
+</h2>
+<div class="table">
+<div class="table-row header categories">
+<div>
+<%= t('inventory.table.name') %>
+</div>
+<div>
+<%= t('inventory.table.code') %>
+</div>
+<div>
+<%= t('inventory.table.code_mode') %>
+</div>
+<div>
+<%= t('inventory.table.actions') %>
+</div>
+</div>
+<% if (categories.length === 0) { %>
+<div class="table-row empty">
+<%= t('inventory.no_categories') %>
+</div>
+<% } %>
+<% categories.forEach(category => { %>
+<% const isManual = Number(category.code_manual) === 1; %>
+<form method="POST" action="/categories/<%= category.id %>/update" class="table-row categories">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<input type="text" name="name" value="<%= category.name %>" <%= can('inventory', 'edit') ? '' : 'disabled' %> required />
+<input type="text" name="code" value="<%= category.code || '' %>" <%= can('inventory', 'edit') ? '' : 'disabled' %> />
+<select name="code_mode" <%= can('inventory', 'edit') ? '' : 'disabled' %>>
+<option value="auto" <%= !isManual ? 'selected' : '' %>>
+<%= t('inventory.code_auto') %>
+</option>
+<option value="manual" <%= isManual ? 'selected' : '' %>>
+<%= t('inventory.code_manual') %>
+</option>
+</select>
+<div class="actions">
+<% if (can('inventory', 'edit')) { %>
+<button type="submit" class="btn">
+<%= t('common.save') %>
+</button>
+<% } %>
+<% if (can('inventory', 'delete')) { %>
+<button type="submit" class="btn danger" formaction="/categories/<%= category.id %>/delete" formmethod="POST">
+<%= t('common.delete') %>
+</button>
+<% } %>
+</div>
+</form>
+<% }) %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

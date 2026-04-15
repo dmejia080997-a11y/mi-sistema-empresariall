@@ -1,0 +1,340 @@
+﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Crear empresa</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page company-create-page">
+<header class="topbar">
+<div class="brand">Panel master</div>
+<div class="master-topbar-actions">
+  <nav class="master-tabs">
+  <a href="/master" class="is-active">Empresas</a>
+  <a href="/master/activities">Actividad</a>
+  </nav>
+  <a href="/master/logout" class="btn">Cerrar sesión</a>
+</div>
+</header>
+<main class="container">
+<div class="company-create-shell">
+<div class="company-create-card">
+<div class="company-create-header">
+<div>
+<div class="eyebrow">Panel master</div>
+<h1>Crear empresa</h1>
+<p class="muted">Registra una nueva empresa y personaliza su espacio.</p>
+</div>
+<div class="company-inline-note">Los campos con * son obligatorios.</div>
+</div>
+
+<% if (flash && flash.message) { %>
+<div class="alert <%= flash.type || '' %>">
+  <%= flash.message %>
+</div>
+<% } %>
+
+<% if (errors && errors.length) { %>
+<div class="alert error">
+  <strong>Revisa los campos:</strong>
+  <ul>
+    <% errors.forEach(function(error) { %>
+      <li><%= error %></li>
+    <% }); %>
+  </ul>
+</div>
+<% } %>
+
+<form action="/companies/create" method="POST" enctype="multipart/form-data" class="company-form" id="company-create-form">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<div class="company-create-body">
+<div class="company-content">
+<nav class="company-section-nav">
+  <a href="#info-general">Información general</a>
+  <a href="#fiscales-contacto">Datos fiscales y contacto</a>
+  <a href="#contactos">Contactos</a>
+  <a href="#admin-creation">Creacion de Admin</a>
+  <a href="#estado-config">Membresía</a>
+</nav>
+
+<section class="company-section" id="info-general">
+<p class="company-section-title">Información general</p>
+<p class="company-section-sub">Datos principales de la empresa.</p>
+<div class="company-grid">
+<label>Nombre de la empresa *
+  <input type="text" name="name" required value="<%= formData.name || '' %>" placeholder="Ej: AeroCargo GT" />
+</label>
+<label>Nombre de la entidad o persona jurídica
+  <input type="text" name="legal_name" value="<%= formData.legal_name || '' %>" placeholder="Ej: AeroCargo Guatemala, S.A." />
+</label>
+<label>NIT / TAX ID *
+  <input type="text" name="nit" required value="<%= formData.nit || '' %>" placeholder="Ej: 548796-1" />
+</label>
+<label>Cantidad de empleados *
+  <input type="number" name="employees" min="1" required value="<%= formData.employees || '' %>" placeholder="Ej: 25" />
+</label>
+<label>Giro de la empresa *
+  <input type="text" name="business_type" required value="<%= formData.business_type || '' %>" placeholder="Ej: Transporte y logística" />
+</label>
+<label>Actividad *
+  <select name="activity_id" required>
+    <option value="" disabled <%= !formData.activity_id ? 'selected' : '' %>>Selecciona una actividad</option>
+    <% (activities || []).forEach(activity => { %>
+      <option value="<%= activity.id %>" <%= String(formData.activity_id || '') === String(activity.id) ? 'selected' : '' %>>
+        <%= activity.name %>
+      </option>
+    <% }) %>
+  </select>
+</label>
+</div>
+<label>Dirección *
+  <textarea name="address" rows="3" required placeholder="Ej: 5a Avenida 12-34, Zona 10, Guatemala"><%= formData.address || '' %></textarea>
+</label>
+<label>Domicilio fiscal
+  <textarea name="tax_address" rows="3" placeholder="Ej: 3a Calle 4-56, Zona 1, Guatemala"><%= formData.tax_address || '' %></textarea>
+</label>
+</section>
+
+<section class="company-section" id="fiscales-contacto">
+<p class="company-section-title">Datos fiscales y contacto</p>
+<p class="company-section-sub">Moneda base y medios de contacto.</p>
+<div class="company-grid">
+<label>Moneda *
+  <select name="currency" required>
+    <option value="" disabled <%= !formData.currency ? 'selected' : '' %>>Selecciona una moneda</option>
+    <option value="GTQ" <%= formData.currency === 'GTQ' ? 'selected' : '' %>>Quetzal (GTQ)</option>
+    <option value="USD" <%= formData.currency === 'USD' ? 'selected' : '' %>>Dólar (USD)</option>
+  </select>
+</label>
+<label>Correo electrónico *
+  <input type="email" name="email" required value="<%= formData.email || '' %>" placeholder="Ej: contacto@empresa.com" />
+</label>
+<label>Teléfono *
+  <input type="tel" name="phone" required value="<%= formData.phone || '' %>" placeholder="Ej: +502 2222-3333" />
+</label>
+</div>
+</section>
+
+<section class="company-section" id="contactos">
+<p class="company-section-title">Contactos</p>
+<p class="company-section-sub">Datos de contacto principales para la empresa.</p>
+<div class="company-contact-block">
+  <p class="company-section-title">Contacto general</p>
+  <div class="company-grid">
+    <label>Nombre
+      <input type="text" name="contact_general_first_name" value="<%= formData.contact_general_first_name || '' %>" placeholder="Ej: Ana" />
+    </label>
+    <label>Apellido
+      <input type="text" name="contact_general_last_name" value="<%= formData.contact_general_last_name || '' %>" placeholder="Ej: López" />
+    </label>
+    <label>Teléfono
+      <input type="tel" name="contact_general_phone" value="<%= formData.contact_general_phone || '' %>" placeholder="Ej: 2323-4545" />
+    </label>
+    <label>Celular
+      <input type="tel" name="contact_general_mobile" value="<%= formData.contact_general_mobile || '' %>" placeholder="Ej: 5555-0000" />
+    </label>
+    <label>Correo
+      <input type="email" name="contact_general_email" value="<%= formData.contact_general_email || '' %>" placeholder="Ej: ana@empresa.com" />
+    </label>
+    <label>Puesto
+      <input type="text" name="contact_general_position" value="<%= formData.contact_general_position || '' %>" placeholder="Ej: Gerente comercial" />
+    </label>
+  </div>
+</div>
+
+<div class="company-contact-block">
+  <p class="company-section-title">Contacto de pagos</p>
+  <div class="company-grid">
+    <label>Nombre
+      <input type="text" name="contact_payments_first_name" value="<%= formData.contact_payments_first_name || '' %>" placeholder="Ej: Carlos" />
+    </label>
+    <label>Apellido
+      <input type="text" name="contact_payments_last_name" value="<%= formData.contact_payments_last_name || '' %>" placeholder="Ej: Pérez" />
+    </label>
+    <label>Teléfono
+      <input type="tel" name="contact_payments_phone" value="<%= formData.contact_payments_phone || '' %>" placeholder="Ej: 2411-2233" />
+    </label>
+    <label>Celular
+      <input type="tel" name="contact_payments_mobile" value="<%= formData.contact_payments_mobile || '' %>" placeholder="Ej: 5566-7788" />
+    </label>
+    <label>Correo
+      <input type="email" name="contact_payments_email" value="<%= formData.contact_payments_email || '' %>" placeholder="Ej: pagos@empresa.com" />
+    </label>
+    <label>Puesto
+      <input type="text" name="contact_payments_position" value="<%= formData.contact_payments_position || '' %>" placeholder="Ej: Contabilidad" />
+    </label>
+  </div>
+</div>
+
+<div class="company-contact-block">
+  <p class="company-section-title">Contacto operativo</p>
+  <div class="company-grid">
+    <label>Nombre
+      <input type="text" name="contact_ops_first_name" value="<%= formData.contact_ops_first_name || '' %>" placeholder="Ej: Marta" />
+    </label>
+    <label>Apellido
+      <input type="text" name="contact_ops_last_name" value="<%= formData.contact_ops_last_name || '' %>" placeholder="Ej: Gómez" />
+    </label>
+    <label>Teléfono
+      <input type="tel" name="contact_ops_phone" value="<%= formData.contact_ops_phone || '' %>" placeholder="Ej: 2200-1111" />
+    </label>
+    <label>Celular
+      <input type="tel" name="contact_ops_mobile" value="<%= formData.contact_ops_mobile || '' %>" placeholder="Ej: 5511-2233" />
+    </label>
+    <label>Correo
+      <input type="email" name="contact_ops_email" value="<%= formData.contact_ops_email || '' %>" placeholder="Ej: operaciones@empresa.com" />
+    </label>
+    <label>Puesto
+      <input type="text" name="contact_ops_position" value="<%= formData.contact_ops_position || '' %>" placeholder="Ej: Operaciones" />
+    </label>
+  </div>
+</div>
+</section>
+
+<section class="company-section" id="admin-creation">
+<p class="company-section-title">Creacion de Admin</p>
+<p class="company-section-sub">Datos del administrador principal de la empresa.</p>
+<div class="company-grid">
+  <label>Nombre del admin
+    <input type="text" name="admin_name" value="<%= formData.admin_name || '' %>" placeholder="Ej: María Fernández" />
+  </label>
+  <label>Puesto del admin
+    <input type="text" name="admin_position" value="<%= formData.admin_position || '' %>" placeholder="Ej: Dirección general" />
+  </label>
+  <label>Contraseña del admin (opcional)
+    <input type="password" name="password" placeholder="Se genera una temporal si se deja vacío" />
+  </label>
+</div>
+</section>
+
+<section class="company-section" id="estado-config">
+<p class="company-section-title">Membresía</p>
+<p class="company-section-sub">Define la membresía y la vigencia de la empresa.</p>
+<div class="company-grid">
+<label>Estado *
+  <select name="status" required>
+    <option value="active" <%= !formData.status || formData.status === 'active' ? 'selected' : '' %>>Activa</option>
+    <option value="inactive" <%= formData.status === 'inactive' ? 'selected' : '' %>>Inactiva</option>
+  </select>
+</label>
+<label>Modo de vigencia
+  <select name="active_mode" data-active-mode>
+    <option value="contract" <%= !formData.active_mode || formData.active_mode === 'contract' ? 'selected' : '' %>>Por contrato</option>
+    <option value="indefinite" <%= formData.active_mode === 'indefinite' ? 'selected' : '' %>>Indefinido</option>
+    <option value="trial" <%= formData.active_mode === 'trial' ? 'selected' : '' %>>Prueba (7 días)</option>
+  </select>
+</label>
+<label>Activo desde
+  <input type="date" name="active_from" value="<%= formData.active_from || '' %>" data-active-date />
+</label>
+<label>Activo hasta
+  <input type="date" name="active_until" value="<%= formData.active_until || '' %>" data-active-date />
+</label>
+</div>
+<p class="company-inline-note">Si eliges “Por contrato”, indica las fechas de vigencia.</p>
+</section>
+</div>
+</div>
+
+<div class="company-actions">
+<a href="/master" class="btn">Cancelar</a>
+<button type="submit" class="btn primary">Guardar empresa</button>
+</div>
+</form>
+</div>
+</div>
+</main>
+
+<script>
+(function () {
+  const modeSelect = document.querySelector('[data-active-mode]');
+  const dateInputs = Array.from(document.querySelectorAll('[data-active-date]'));
+  const sectionNav = document.querySelector('.company-section-nav');
+  const sectionLinks = sectionNav ? Array.from(sectionNav.querySelectorAll('a[href^="#"]')) : [];
+  const sections = Array.from(document.querySelectorAll('.company-section'));
+  const sectionIds = new Set(sections.map((section) => section.id));
+
+  function formatDate(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function setDateInputsEnabled(enabled) {
+    dateInputs.forEach((input) => {
+      input.disabled = !enabled;
+      input.required = enabled;
+    });
+  }
+
+  function syncActiveMode() {
+    if (!modeSelect) return;
+    const mode = modeSelect.value || 'contract';
+    if (mode === 'indefinite') {
+      setDateInputsEnabled(false);
+      dateInputs.forEach((input) => { input.value = ''; });
+      return;
+    }
+    if (mode === 'trial') {
+      const today = new Date();
+      const until = new Date(today);
+      until.setDate(until.getDate() + 7);
+      dateInputs.forEach((input) => { input.disabled = true; });
+      if (dateInputs[0]) dateInputs[0].value = formatDate(today);
+      if (dateInputs[1]) dateInputs[1].value = formatDate(until);
+      return;
+    }
+    setDateInputsEnabled(true);
+  }
+
+  if (modeSelect) {
+    modeSelect.addEventListener('change', syncActiveMode);
+    syncActiveMode();
+  }
+
+  function setActiveSection(id, options) {
+    const opts = Object.assign({ updateHash: false }, options);
+    let targetId = id;
+    if (!targetId || !sectionIds.has(targetId)) {
+      targetId = sections[0] ? sections[0].id : '';
+    }
+    if (!targetId) return;
+
+    sections.forEach((section) => {
+      section.classList.toggle('is-hidden', section.id !== targetId);
+    });
+
+    sectionLinks.forEach((link) => {
+      const linkTarget = link.getAttribute('href');
+      link.classList.toggle('is-active', linkTarget === `#${targetId}`);
+    });
+
+    if (opts.updateHash && location.hash !== `#${targetId}`) {
+      history.replaceState(null, '', `#${targetId}`);
+    }
+  }
+
+  if (sectionLinks.length && sections.length) {
+    sectionLinks.forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        const targetId = link.getAttribute('href').slice(1);
+        setActiveSection(targetId, { updateHash: true });
+      });
+    });
+
+    window.addEventListener('hashchange', () => {
+      const targetId = location.hash.slice(1);
+      setActiveSection(targetId);
+    });
+
+    const initialId = location.hash.slice(1);
+    setActiveSection(initialId, { updateHash: !!initialId });
+  }
+})();
+</script>
+</body>
+</html>
+

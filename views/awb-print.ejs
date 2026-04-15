@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('awb.print') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="awb-print">
+<%    const totals = manifestTotals && (manifestTotals.totalPieces || manifestTotals.totalPackages || manifestTotals.totalWeight)      ? manifestTotals      : { totalPieces: awb.total_pieces || 0, totalPackages: '-', totalWeight: awb.gross_weight || 0 };  %>
+<div class="awb-print-sheet">
+<div class="awb-print-header">
+<div>
+<div class="awb-print-title">
+<%= t('awb.paper_title') %>
+</div>
+<div class="awb-print-sub">
+<%= t('awb.awb_number') %>: <strong>
+<%= awb.awb_number || '-' %>
+</strong>
+</div>
+</div>
+<div class="awb-print-meta">
+<div>
+<%= t('awb.awb_type') %>: <strong>
+<%= awb.awb_type || '-' %>
+</strong>
+</div>
+<div>
+<%= t('awb.awb_date') %>: <strong>
+<%= awb.awb_date || '-' %>
+</strong>
+</div>
+</div>
+</div>
+<div class="awb-print-grid">
+<div class="awb-print-block">
+<div class="block-title">
+<%= t('awb.shipper') %>
+</div>
+<div>
+<strong>
+<%= awb.shipper_name || '-' %>
+</strong>
+</div>
+<div class="muted">
+<%= awb.shipper_address || '-' %>
+</div>
+</div>
+<div class="awb-print-block">
+<div class="block-title">
+<%= t('awb.consignee') %>
+</div>
+<div>
+<strong>
+<%= awb.consignee_name || '-' %>
+</strong>
+</div>
+<div class="muted">
+<%= awb.consignee_address || '-' %>
+</div>
+</div>
+<div class="awb-print-block">
+<div class="block-title">
+<%= t('awb.routing') %>
+</div>
+<div>
+<%= t('awb.airport_of_departure') %>: <strong>
+<%= awb.airport_of_departure || '-' %>
+</strong>
+</div>
+<div>
+<%= t('awb.airport_of_destination') %>: <strong>
+<%= awb.airport_of_destination || '-' %>
+</strong>
+</div>
+<div>
+<%= t('awb.flight_number') %>: <strong>
+<%= awb.flight_number || '-' %>
+</strong>
+</div>
+<div>
+<%= t('awb.departure_date') %>: <strong>
+<%= awb.departure_date || '-' %>
+</strong>
+</div>
+<div>
+<%= t('awb.arrival_date') %>: <strong>
+<%= awb.arrival_date || '-' %>
+</strong>
+</div>
+</div>
+<div class="awb-print-block">
+<div class="block-title">
+<%= t('awb.manifests.section') %>
+</div>
+<div>
+<%= t('awb.manifests.total_pieces') %>: <strong>
+<%= totals.totalPieces %>
+</strong>
+</div>
+<div>
+<%= t('awb.manifests.total_packages') %>: <strong>
+<%= totals.totalPackages %>
+</strong>
+</div>
+<div>
+<%= t('awb.manifests.total_weight') %>: <strong>
+<%= Number(totals.totalWeight || 0).toFixed(2) %>
+</strong>
+</div>
+</div>
+<div class="awb-print-block">
+<div class="block-title">
+<%= t('awb.charges') %>
+</div>
+<div>
+<%= t('awb.currency') %>: <strong>
+<%= awb.currency || '-' %>
+</strong>
+</div>
+<div>
+<%= t('awb.charges_code') %>: <strong>
+<%= awb.charges_code || '-' %>
+</strong>
+</div>
+<div>
+<%= t('awb.declared_value_carriage') %>: <strong>
+<%= awb.declared_value_carriage || '-' %>
+</strong>
+</div>
+<div>
+<%= t('awb.declared_value_customs') %>: <strong>
+<%= awb.declared_value_customs || '-' %>
+</strong>
+</div>
+<div>
+<%= t('awb.insurance_amount') %>: <strong>
+<%= awb.insurance_amount != null ? awb.insurance_amount : '-' %>
+</strong>
+</div>
+</div>
+</div>
+<div class="awb-print-table">
+<div class="awb-print-row header">
+<div>
+<%= t('awb.items.pieces') %>
+</div>
+<div>
+<%= t('awb.items.gross_weight') %>
+</div>
+<div>
+<%= t('awb.items.dimensions') %>
+</div>
+<div>
+<%= t('awb.items.goods_description') %>
+</div>
+<div>
+<%= t('awb.items.rate_class') %>
+</div>
+<div>
+<%= t('awb.items.chargeable_weight') %>
+</div>
+<div>
+<%= t('awb.items.rate') %>
+</div>
+<div>
+<%= t('awb.items.total') %>
+</div>
+</div>
+<% if (!items || items.length === 0) { %>
+<div class="awb-print-row empty">
+<%= t('awb.items.empty') %>
+</div>
+<% } %>
+<% (items || []).forEach((item) => { %>
+<div class="awb-print-row">
+<div>
+<%= item.pieces != null ? item.pieces : '-' %>
+</div>
+<div>
+<%= item.gross_weight != null ? item.gross_weight : '-' %>
+</div>
+<div>
+<%= item.dimensions || '-' %>
+</div>
+<div>
+<%= item.goods_description || '-' %>
+</div>
+<div>
+<%= item.rate_class || '-' %>
+</div>
+<div>
+<%= item.chargeable_weight != null ? item.chargeable_weight : '-' %>
+</div>
+<div>
+<%= item.rate != null ? item.rate : '-' %>
+</div>
+<div>
+<%= item.total != null ? item.total : '-' %>
+</div>
+</div>
+<% }) %>
+</div>
+<div class="awb-print-footer">
+<div class="awb-print-block">
+<div class="block-title">
+<%= t('awb.handling_information') %>
+</div>
+<div>
+<%= awb.handling_information || '-' %>
+</div>
+</div>
+<div class="awb-print-block">
+<div class="block-title">
+<%= t('awb.special_handling_details') %>
+</div>
+<div>
+<%= awb.special_handling_details || '-' %>
+</div>
+</div>
+<div class="awb-print-block">
+<div class="block-title">
+<%= t('awb.ssr') %>
+</div>
+<div>
+<%= awb.ssr || '-' %>
+</div>
+</div>
+<div class="awb-print-block">
+<div class="block-title">
+<%= t('awb.osi') %>
+</div>
+<div>
+<%= awb.osi || '-' %>
+</div>
+</div>
+</div>
+</div>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

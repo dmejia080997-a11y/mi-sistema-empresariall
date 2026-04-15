@@ -1,0 +1,65 @@
+﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pólizas contables</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand"><%= t('common.brand') %></div>
+<nav class="nav">
+<a href="/dashboard">Dashboard</a>
+<a href="/logout"><%= t('nav.logout') %></a>
+</nav>
+</header>
+<main class="container">
+<h1>Pólizas contables</h1>
+<nav class="subnav">
+<a href="/accounting/accounts" class="<%= active === 'accounts' ? 'active' : '' %>">Catálogo</a>
+<a href="/accounting/categories">Categorías</a>
+<a href="/accounting/categories/rules">Reglas</a>
+<a href="/accounting/journal" class="<%= active === 'journal' ? 'active' : '' %>">Pólizas</a>
+<a href="/accounting/reports" class="<%= active === 'reports' ? 'active' : '' %>">Reportes</a>
+<a href="/accounting/settings">Configuración</a>
+</nav>
+
+<% if (flash) { %>
+<div class="alert <%= flash.type %>"><%= flash.message %></div>
+<% } %>
+
+<section class="panel">
+<div class="panel-header">
+<h2>Listado de pólizas</h2>
+<a class="btn primary" href="/accounting/journal/new">Nueva póliza</a>
+</div>
+<div class="table">
+<div class="table-row header accounting-journal">
+<div>Fecha</div>
+<div>Descripción</div>
+<div>Usuario</div>
+<div>Debe (base)</div>
+<div>Haber (base)</div>
+<div></div>
+</div>
+<% if (!entries.length) { %>
+<div class="table-row empty">No hay pólizas registradas.</div>
+<% } %>
+<% entries.forEach(entry => { %>
+<div class="table-row accounting-journal">
+<div><%= entry.entry_date %></div>
+<div><%= entry.description || entry.memo || '-' %></div>
+<div><%= entry.user_name || '-' %></div>
+<div><%= baseCurrency %> <%= Number(entry.debit_base || 0).toFixed(2) %></div>
+<div><%= baseCurrency %> <%= Number(entry.credit_base || 0).toFixed(2) %></div>
+<div><a href="/accounting/journal/<%= entry.id %>">Ver</a></div>
+</div>
+<% }) %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+

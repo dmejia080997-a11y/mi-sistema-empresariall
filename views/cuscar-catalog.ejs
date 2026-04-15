@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t(catalog.titleKey) %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<div class="page-header">
+<div>
+<h1>
+<%= t('cuscar.catalogs.title') %>
+</h1>
+<p class="muted">
+<%= t('cuscar.catalogs.subtitle') %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/cuscar">
+<%= t('cuscar.nav.dashboard') %>
+</a>
+</div>
+</div>
+<div class="subnav">
+<a href="/cuscar">
+<%= t('cuscar.nav.dashboard') %>
+</a>
+<a href="/cuscar/manifests">
+<%= t('cuscar.nav.manifests') %>
+</a>
+<a class="active" href="/cuscar/catalogs/transporters">
+<%= t('cuscar.nav.catalogs') %>
+</a>
+</div>
+<div class="subnav">
+<% (catalogs || []).forEach((cat) => { %>
+<a class="<%= cat.type === catalog.type ? 'active' : '' %>" href="/cuscar/catalogs/<%= cat.type %>">
+<%= t(cat.titleKey) %>
+</a>
+<% }) %>
+</div>
+<% if (flash) { %>
+<div class="alert <%= flash.type %>">
+<%= flash.message %>
+</div>
+<% } %>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t(catalog.titleKey) %>
+</h2>
+<p class="muted">
+<%= t(catalog.subtitleKey) %>
+</p>
+</div>
+<div class="form grid-2">
+<form method="GET" action="/cuscar/catalogs/<%= catalog.type %>" class="form">
+<label>
+<%= t('cuscar.catalog.search') %>
+<input type="text" name="q" value="<%= (filters && filters.q) || '' %>" placeholder="<%= t('cuscar.catalog.search_placeholder') %>" />
+</label>
+<label>
+<%= t('cuscar.catalog.status') %>
+<select name="status">
+<option value="all" <%= !filters || !filters.status || filters.status === 'all' ? 'selected' : '' %>><%= t('common.all') %></option>
+<option value="active" <%= filters && filters.status === 'active' ? 'selected' : '' %>><%= t('common.active') %></option>
+<option value="inactive" <%= filters && filters.status === 'inactive' ? 'selected' : '' %>><%= t('common.inactive') %></option>
+</select>
+</label>
+<div style="grid-column: 1 / -1;">
+<button type="submit" class="btn">
+<%= t('common.search') %>
+</button>
+</div>
+</form>
+<% if (catalog.seedKey && can('cuscar', 'manage_catalogs')) { %>
+<form method="POST" action="/cuscar/catalogs/<%= catalog.type %>/reload" class="form">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn">
+<%= t('cuscar.catalog.reload') %>
+</button>
+</form>
+<% } %>
+</div>
+<% if (can('cuscar', 'manage_catalogs') && catalog.allowCreate) { %>
+<form method="POST" action="/cuscar/catalogs/<%= catalog.type %>/create" class="form grid-2">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('cuscar.catalog.name') %>
+<input type="text" name="name" required />
+</label>
+<label>
+<%= t('cuscar.catalog.code') %>
+<input type="text" name="code" required />
+</label>
+<label>
+<%= t('cuscar.catalog.sort_order') %>
+<input type="number" name="sort_order" value="0" />
+</label>
+<label>
+<%= t('cuscar.catalog.is_active') %>
+<select name="is_active">
+<option value="1"><%= t('common.active') %></option>
+<option value="0"><%= t('common.inactive') %></option>
+</select>
+</label>
+<label style="grid-column: 1 / -1;">
+<%= t('cuscar.catalog.description') %>
+<textarea name="description" rows="2"></textarea>
+</label>
+<div style="grid-column: 1 / -1;">
+<button type="submit" class="btn primary">
+<%= t('common.save') %>
+</button>
+</div>
+</form>
+<% } %>
+</section>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t(catalog.titleKey) %>
+</h2>
+</div>
+<div class="table">
+<div class="table-row header cuscar-catalogs">
+<div>
+<%= t('cuscar.catalog.name') %>
+</div>
+<div>
+<%= t('cuscar.catalog.code') %>
+</div>
+<div>
+<%= t('cuscar.catalog.description') %>
+</div>
+<div>
+<%= t('cuscar.catalog.source') %>
+</div>
+<div>
+<%= t('cuscar.catalog.is_active') %>
+</div>
+<div>
+<%= t('cuscar.catalog.sort_order') %>
+</div>
+<div>
+<%= t('cuscar.fields.actions') %>
+</div>
+</div>
+<% if (!items || items.length === 0) { %>
+<div class="table-row empty">
+<%= t('cuscar.catalog.empty') %>
+</div>
+<% } %>
+<% (items || []).forEach((item) => { %>
+<form method="POST" action="/cuscar/catalogs/<%= catalog.type %>/<%= item.id %>/update" class="table-row cuscar-catalogs">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<input type="text" name="name" value="<%= item.name || '' %>" <%= can('cuscar', 'manage_catalogs') ? '' : 'disabled' %> required />
+<input type="text" name="code" value="<%= item.code || '' %>" <%= can('cuscar', 'manage_catalogs') ? '' : 'disabled' %> required />
+<input type="text" name="description" value="<%= item.description || '' %>" <%= can('cuscar', 'manage_catalogs') ? '' : 'disabled' %> />
+<input type="text" value="<%= item.source || '-' %>" disabled />
+<select name="is_active" <%= can('cuscar', 'manage_catalogs') ? '' : 'disabled' %>>
+<option value="1" <%= Number(item.is_active) === 1 ? 'selected' : '' %>><%= t('common.active') %></option>
+<option value="0" <%= Number(item.is_active) === 0 ? 'selected' : '' %>><%= t('common.inactive') %></option>
+</select>
+<input type="number" name="sort_order" value="<%= item.sort_order != null ? item.sort_order : 0 %>" <%= can('cuscar', 'manage_catalogs') ? '' : 'disabled' %> />
+<div class="actions">
+<% if (can('cuscar', 'manage_catalogs')) { %>
+<button type="submit" class="btn">
+<%= t('common.save') %>
+</button>
+<button type="submit" class="btn danger" formaction="/cuscar/catalogs/<%= catalog.type %>/<%= item.id %>/delete" formmethod="POST">
+<%= t('common.delete') %>
+</button>
+<% } else { %>
+<span class="muted">-</span>
+<% } %>
+</div>
+</form>
+<% }) %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

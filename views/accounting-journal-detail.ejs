@@ -1,0 +1,83 @@
+﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Detalle de póliza</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand"><%= t('common.brand') %></div>
+<nav class="nav">
+<a href="/dashboard">Dashboard</a>
+<a href="/accounting/journal">Pólizas</a>
+<a href="/logout"><%= t('nav.logout') %></a>
+</nav>
+</header>
+<main class="container">
+<h1>Póliza #<%= entry.id %></h1>
+<nav class="subnav">
+<a href="/accounting/accounts" class="<%= active === 'accounts' ? 'active' : '' %>">Catálogo</a>
+<a href="/accounting/categories">Categorías</a>
+<a href="/accounting/categories/rules">Reglas</a>
+<a href="/accounting/journal" class="<%= active === 'journal' ? 'active' : '' %>">Pólizas</a>
+<a href="/accounting/reports" class="<%= active === 'reports' ? 'active' : '' %>">Reportes</a>
+<a href="/accounting/settings">Configuración</a>
+</nav>
+
+<section class="panel">
+<div class="detail-grid">
+<div><strong>Fecha:</strong> <%= entry.entry_date %></div>
+<div><strong>Usuario:</strong> <%= entry.user_name || '-' %></div>
+<div><strong>Descripción:</strong> <%= entry.description || entry.memo || '-' %></div>
+<div><strong>Estado:</strong> <%= entry.status %></div>
+<div><strong>Moneda:</strong> <%= entry.currency || baseCurrency %></div>
+<div><strong>Tipo de cambio:</strong> <%= entry.exchange_rate || 1 %></div>
+<% if (entry.tax_rate) { %>
+<div><strong>IVA:</strong> <%= entry.tax_rate %>% (<%= entry.tax_type === 'purchase' ? 'Compra' : 'Venta' %>)</div>
+<div><strong>Monto IVA:</strong> <%= baseCurrency %> <%= Number(entry.tax_amount || 0).toFixed(2) %></div>
+<% } %>
+</div>
+</section>
+
+<section class="panel">
+<h2>Movimientos</h2>
+<div class="table">
+<div class="table-row header accounting-journal-lines">
+<div>Cuenta</div>
+<div>Detalle</div>
+<div>Debe</div>
+<div>Haber</div>
+<div>Debe base</div>
+<div>Haber base</div>
+</div>
+<% let totalDebit = 0; let totalCredit = 0; let totalDebitBase = 0; let totalCreditBase = 0; %>
+<% if (!lines.length) { %>
+<div class="table-row empty">Sin movimientos.</div>
+<% } %>
+<% lines.forEach(line => { totalDebit += Number(line.debit || 0); totalCredit += Number(line.credit || 0); totalDebitBase += Number(line.debit_base || 0); totalCreditBase += Number(line.credit_base || 0); %>
+<div class="table-row accounting-journal-lines">
+<div><%= line.account_code %> - <%= line.account_name %></div>
+<div><%= line.line_memo || '-' %></div>
+<div><%= entry.currency || baseCurrency %> <%= Number(line.debit || 0).toFixed(2) %></div>
+<div><%= entry.currency || baseCurrency %> <%= Number(line.credit || 0).toFixed(2) %></div>
+<div><%= baseCurrency %> <%= Number(line.debit_base || 0).toFixed(2) %></div>
+<div><%= baseCurrency %> <%= Number(line.credit_base || 0).toFixed(2) %></div>
+</div>
+<% }) %>
+<div class="table-row header accounting-journal-lines">
+<div>Total</div>
+<div></div>
+<div><%= entry.currency || baseCurrency %> <%= totalDebit.toFixed(2) %></div>
+<div><%= entry.currency || baseCurrency %> <%= totalCredit.toFixed(2) %></div>
+<div><%= baseCurrency %> <%= totalDebitBase.toFixed(2) %></div>
+<div><%= baseCurrency %> <%= totalCreditBase.toFixed(2) %></div>
+</div>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+

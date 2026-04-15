@@ -1,0 +1,81 @@
+﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reportes contables</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand"><%= t('common.brand') %></div>
+<nav class="nav">
+<a href="/dashboard">Dashboard</a>
+<a href="/logout"><%= t('nav.logout') %></a>
+</nav>
+</header>
+<main class="container">
+<h1>Reportes contables</h1>
+<nav class="subnav">
+<a href="/accounting/accounts" class="<%= active === 'accounts' ? 'active' : '' %>">Catálogo</a>
+<a href="/accounting/categories">Categorías</a>
+<a href="/accounting/categories/rules">Reglas</a>
+<a href="/accounting/journal" class="<%= active === 'journal' ? 'active' : '' %>">Pólizas</a>
+<a href="/accounting/reports" class="<%= active === 'reports' ? 'active' : '' %>">Reportes</a>
+<a href="/accounting/settings">Configuración</a>
+</nav>
+
+<% if (flash) { %>
+<div class="alert <%= flash.type %>"><%= flash.message %></div>
+<% } %>
+
+<section class="panel">
+<h2>Estados financieros (resumen)</h2>
+<div class="detail-grid">
+<div><strong>Activos:</strong> <%= baseCurrency %> <%= Number(totals.activos || 0).toFixed(2) %></div>
+<div><strong>Pasivos:</strong> <%= baseCurrency %> <%= Number(totals.pasivos || 0).toFixed(2) %></div>
+<div><strong>Capital:</strong> <%= baseCurrency %> <%= Number(totals.capital || 0).toFixed(2) %></div>
+<div><strong>Utilidad neta:</strong> <%= baseCurrency %> <%= Number(totals.utilidad_neta || 0).toFixed(2) %></div>
+</div>
+<div class="helper">Consulta el detalle en Estados financieros.</div>
+</section>
+
+<section class="panel">
+<h2>Reportes disponibles</h2>
+<div class="module-nav">
+<a href="/accounting/financials">Estados financieros</a>
+<a href="/accounting/reports/diario">Libro diario</a>
+<a href="/accounting/reports/mayor">Libro mayor</a>
+<a href="/accounting/reports/balance">Balance de comprobación</a>
+</div>
+</section>
+
+<section class="panel">
+<h2>Balance de comprobación (vista rápida)</h2>
+<div class="table">
+<div class="table-row header accounting-balance">
+<div>Cuenta</div>
+<div>Nombre</div>
+<div>Debe</div>
+<div>Haber</div>
+<div>Balance</div>
+</div>
+<% if (!balances.length) { %>
+<div class="table-row empty">No hay movimientos contables.</div>
+<% } %>
+<% balances.forEach(row => { %>
+<div class="table-row accounting-balance">
+<div><%= row.code %></div>
+<div><%= row.name %></div>
+<div><%= baseCurrency %> <%= Number(row.debit || 0).toFixed(2) %></div>
+<div><%= baseCurrency %> <%= Number(row.credit || 0).toFixed(2) %></div>
+<div><%= baseCurrency %> <%= Number(row.balance || 0).toFixed(2) %></div>
+</div>
+<% }) %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+

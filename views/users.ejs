@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('users.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container users-module">
+<div class="page-header">
+<div>
+<div class="eyebrow">
+<%= t('users.eyebrow') %>
+</div>
+<h1>
+<%= t('users.title') %>
+</h1>
+<p class="muted">
+<%= t('users.subtitle') %>
+</p>
+</div>
+<div class="actions">
+<a class="btn primary" href="#nuevo-usuario">
+<%= t('users.new_user') %>
+</a>
+<a class="btn" href="#lista-usuarios">
+<%= t('users.view_list') %>
+</a>
+</div>
+</div>
+<nav class="actions users-nav">
+<a class="btn" data-users-tab href="#lista-usuarios">
+<%= t('users.view_list') %>
+</a>
+<a class="btn" data-users-tab href="#nuevo-usuario">
+<%= t('users.new_user') %>
+</a>
+<a class="btn" data-users-tab href="#permisos">
+<%= t('users.permissions_title') %>
+</a>
+</nav>
+<% if (error) { %>
+<div class="alert error">
+<%= error %>
+</div>
+<% } %>
+<% if (createdUser) { %>
+<div class="modal-overlay" id="user-created-modal">
+<div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+<div class="modal-header">
+<div>
+<div class="eyebrow">
+<%= t('users.eyebrow') %>
+</div>
+<h2 id="modal-title">
+<%= t('users.created_success_title') %>
+</h2>
+<p class="muted">
+<%= t('users.created_subtitle') %>
+</p>
+</div>
+<button type="button" class="btn small" data-close-modal>?</button>
+</div>
+<div class="access-block">
+<h3>
+<%= t('users.access_title') %>
+</h3>
+<ul class="access-list">
+<li>
+<span class="access-label">
+<%= t('users.company_user') %>
+</span>
+<span class="access-value">
+<%= companyLabel %>
+</span>
+</li>
+<li>
+<span class="access-label">
+<%= t('users.username') %>
+</span>
+<span class="access-value" data-username>
+<%= createdUser.username %>
+</span>
+</li>
+<li>
+<span class="access-label">
+<%= t('users.temp_password') %>
+</span>
+<span class="access-value" data-temp-password>
+<%= createdUser.password %>
+</span>
+</li>
+</ul>
+<div class="note-box">
+<%= t('users.access_note') %>
+</div>
+</div>
+<div class="actions">
+<button type="button" class="btn" data-copy-access>
+<%= t('users.copy_access') %>
+</button>
+<button type="button" class="btn" data-copy-username>
+<%= t('users.copy_username') %>
+</button>
+<button type="button" class="btn" data-copy-password>
+<%= t('users.copy_password') %>
+</button>
+<button type="button" class="btn" data-close-modal>
+<%= t('users.back_to_list') %>
+</button>
+<a class="btn primary" href="#nuevo-usuario" data-close-modal>
+<%= t('users.create_another') %>
+</a>
+</div>
+</div>
+</div>
+<% } %>
+<div class="users-tabs-content">
+<section class="panel card-elevated users-section" id="nuevo-usuario" data-users-view>
+<div class="panel-header">
+<div>
+<h2>
+<%= t('users.create_user') %>
+</h2>
+<p class="muted">
+<%= t('users.create_desc') %>
+</p>
+</div>
+<span class="pill">
+<%= t('users.required_fields') %>
+</span>
+</div>
+<form method="POST" action="/users/create" class="form grid-2">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('users.username') %>
+<input type="text" name="username" placeholder="jlopez" required />
+<span class="helper">
+<%= t('users.username_helper') %>
+</span>
+</label>
+<label>
+<%= t('users.password') %>
+<input type="password" name="password" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" />
+<span class="helper">
+<%= t('users.password_helper') %>
+</span>
+</label>
+<label>
+<%= t('users.role') %>
+<select name="role">
+<option value="employee">
+<%= t('users.employee') %>
+</option>
+<option value="admin">
+<%= t('users.admin') %>
+</option>
+</select>
+<span class="helper">
+<%= t('users.role_helper') %>
+</span>
+</label>
+<label>
+<%= t('users.active') %>
+<div class="toggle-row">
+<input type="checkbox" name="is_active" checked />
+<span class="badge status active">
+<%= t('users.status_active') %>
+</span>
+</div>
+<span class="helper">
+<%= t('users.state_helper') %>
+</span>
+</label>
+<div class="form-section" style="grid-column: 1 / -1;">
+<div class="section-title">
+<%= t('users.permissions') %>
+</div>
+<div class="muted">
+<%= t('users.permissions_note') %>
+</div>
+</div>
+<div class="permission-grid" style="grid-column: 1 / -1;">
+<% if (modules && modules.length) { %>
+<% modules.forEach(m => { %>
+<div class="permission-card">
+<div class="permission-title">
+<%= m.name %>
+</div>
+<% if (m.actions.length === 0) { %>
+<div class="muted">
+<%= t('users.permissions_none') %>
+</div>
+<% } %>
+<% m.actions.forEach(a => { %>
+<label class="checkbox">
+<input type="checkbox" name="permissions[]" value="<%= m.id %>:<%= a.id %>" />
+<span>
+<%= a.name %>
+</span>
+</label>
+<% }) %>
+</div>
+<% }) %>
+<% } else { %>
+<div class="muted">
+<%= t('users.permissions_empty') %>
+</div>
+<% } %>
+</div>
+<div class="actions full-row">
+<button type="submit" class="btn primary">
+<%= t('users.create_user_button') %>
+</button>
+<button type="reset" class="btn">
+<%= t('common.cancel') %>
+</button>
+</div>
+</form>
+</section>
+<section class="panel card-elevated users-section" id="lista-usuarios" data-users-view>
+<div class="panel-header">
+<div>
+<h2>
+<%= t('users.list') %>
+</h2>
+<p class="muted">
+<%= t('users.list_desc') %>
+</p>
+</div>
+<span class="pill">
+<%= users.length %>
+<%= t('users.total_users') %>
+</span>
+</div>
+<div class="table users-table">
+<div class="table-row header users">
+<div>
+<%= t('users.table.username') %>
+</div>
+<div>
+<%= t('users.table.role') %>
+</div>
+<div>
+<%= t('users.table.active') %>
+</div>
+<div>
+<%= t('users.table.password') %>
+</div>
+<div>
+<%= t('users.table.created') %>
+</div>
+<div>
+<%= t('users.table.actions') %>
+</div>
+</div>
+<% if (users.length === 0) { %>
+<div class="table-row empty">
+<%= t('users.no_users') %>
+</div>
+<% } %>
+<% users.forEach(u => { %>
+<form method="POST" action="/users/<%= u.id %>/update" class="table-row users">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<div class="cell">
+<div class="cell-label">
+<%= t('users.table.username') %>
+</div>
+<input type="text" name="username" value="<%= u.username %>" required />
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('users.table.role') %>
+</div>
+<select name="role">
+<option value="employee" <%= u.role === 'employee' ? 'selected' : '' %>>
+<%= t('users.employee') %>
+</option>
+<option value="admin" <%= u.role === 'admin' ? 'selected' : '' %>>
+<%= t('users.admin') %>
+</option>
+</select>
+<div class="inline-meta">
+<span class="badge role <%= u.role === 'admin' ? 'admin' : 'employee' %>">
+<%= u.role === 'admin' ? t('users.admin') : t('users.employee') %>
+</span>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('users.table.active') %>
+</div>
+<label class="checkbox">
+<input type="checkbox" name="is_active" <%= u.is_active ? 'checked' : '' %> />
+<span>
+<%= t('users.active') %>
+</span>
+</label>
+<div class="inline-meta">
+<span class="badge status <%= u.is_active ? 'active' : 'inactive' %>">
+<%= u.is_active ? t('users.status_active') : t('users.status_inactive') %>
+</span>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('users.table.password') %>
+</div>
+<input type="password" name="password" placeholder="<%= t('users.new_password_optional') %>" />
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('users.table.created') %>
+</div>
+<input type="text" value="<%= new Date(u.created_at).toLocaleString() %>" disabled />
+</div>
+<div class="actions">
+<button type="submit" class="btn primary small">
+<%= t('common.save') %>
+</button>
+<a class="btn small" href="#permisos-<%= u.id %>">
+<%= t('users.permissions_short') %>
+</a>
+<button type="submit" class="btn danger small" formaction="/users/<%= u.id %>/delete" formmethod="POST">
+<%= t('common.delete') %>
+</button>
+</div>
+</form>
+<% }) %>
+</div>
+</section>
+<section class="panel card-elevated users-section" id="permisos" data-users-view>
+<div class="panel-header">
+<div>
+<h2>
+<%= t('users.permissions_title') %>
+</h2>
+<p class="muted">
+<%= t('users.permissions_desc') %>
+</p>
+</div>
+</div>
+<% if (!modules || modules.length === 0) { %>
+<div class="muted">
+<%= t('users.permissions_empty') %>
+</div>
+<% } %>
+<% users.forEach(u => { %>
+<div class="permission-user" id="permisos-<%= u.id %>">
+<div class="permission-user-header">
+<div>
+<h3>
+<%= t('users.permissions_for') %>
+<%= u.username %>
+</h3>
+<div class="inline-meta">
+<span class="badge role <%= u.role === 'admin' ? 'admin' : 'employee' %>">
+<%= u.role === 'admin' ? t('users.admin') : t('users.employee') %>
+</span>
+<span class="badge status <%= u.is_active ? 'active' : 'inactive' %>">
+<%= u.is_active ? t('users.status_active') : t('users.status_inactive') %>
+</span>
+</div>
+<% if (u.role === 'admin') { %>
+<div class="muted">
+<%= t('users.admin_full_access') %>
+</div>
+<% } %>
+</div>
+</div>
+<% if (u.role === 'admin') { %>
+<div class="alert info">
+<%= t('users.admin_permissions_locked') %>
+</div>
+<% } else { %>
+<form method="POST" action="/users/<%= u.id %>/permissions">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<% const assignedSet = userPermissionsMap && userPermissionsMap[u.id] ? userPermissionsMap[u.id] : new Set(); %>
+<div class="permission-grid">
+<% modules.forEach(m => { %>
+<div class="permission-card">
+<div class="permission-title">
+<%= m.name %>
+</div>
+<% if (m.actions.length === 0) { %>
+<div class="muted">
+<%= t('users.permissions_none') %>
+</div>
+<% } %>
+<% m.actions.forEach(a => { %>
+<% const key = `${m.id}:${a.id}`; %>
+<label class="checkbox">
+<input type="checkbox" name="permissions[]" value="<%= key %>" <%= assignedSet.has(key) ? 'checked' : '' %> />
+<span>
+<%= a.name %>
+</span>
+</label>
+<% }) %>
+</div>
+<% }) %>
+</div>
+<div class="actions full-row">
+<button type="submit" class="btn primary">
+<%= t('common.save') %>
+</button>
+</div>
+</form>
+<% } %>
+</div>
+<% }) %>
+</section>
+</div>
+</main>
+<% if (createdUser) { %>
+<script>      (function () {        const modal = document.getElementById('user-created-modal');        if (!modal) return;        const closeButtons = modal.querySelectorAll('[data-close-modal]');        closeButtons.forEach((btn) => {          btn.addEventListener('click', () => {            modal.classList.add('hidden');          });        });        const copyButton = modal.querySelector('[data-copy-access]');        if (copyButton) {          const originalText = copyButton.textContent;          copyButton.addEventListener('click', async () => {            const title = (modal.querySelector('#modal-title') || {}).textContent || '';            const sectionTitle = (modal.querySelector('.access-block h3') || {}).textContent || '';            const items = Array.from(modal.querySelectorAll('.access-list li')).map((li) => {              const label = (li.querySelector('.access-label') || {}).textContent || '';              const value = (li.querySelector('.access-value') || {}).textContent || '';              return `- ${label}: ${value}`;            });            const note = (modal.querySelector('.note-box') || {}).textContent || '';            const text = `${title}\n\n${sectionTitle}:\n${items.join('\n')}\n\n${note}`.trim();            try {              await navigator.clipboard.writeText(text);              copyButton.textContent = '<%= t('users.copied_access') %>';              setTimeout(() => {                copyButton.textContent = originalText;              }, 2000);            } catch (err) {              const textarea = document.createElement('textarea');              textarea.value = text;              textarea.setAttribute('readonly', '');              textarea.style.position = 'absolute';              textarea.style.left = '-9999px';              document.body.appendChild(textarea);              textarea.select();              document.execCommand('copy');              document.body.removeChild(textarea);              copyButton.textContent = '<%= t('users.copied_access') %>';              setTimeout(() => {                copyButton.textContent = originalText;              }, 2000);            }          });        }        const copyUsernameButton = modal.querySelector('[data-copy-username]');        if (copyUsernameButton) {          const originalText = copyUsernameButton.textContent;          copyUsernameButton.addEventListener('click', async () => {            const usernameNode = modal.querySelector('[data-username]');            const usernameText = (usernameNode || {}).textContent || '';            try {              await navigator.clipboard.writeText(usernameText.trim());              copyUsernameButton.textContent = '<%= t('users.copied_username') %>';              setTimeout(() => {                copyUsernameButton.textContent = originalText;              }, 2000);            } catch (err) {              const textarea = document.createElement('textarea');              textarea.value = usernameText.trim();              textarea.setAttribute('readonly', '');              textarea.style.position = 'absolute';              textarea.style.left = '-9999px';              document.body.appendChild(textarea);              textarea.select();              document.execCommand('copy');              document.body.removeChild(textarea);              copyUsernameButton.textContent = '<%= t('users.copied_username') %>';              setTimeout(() => {                copyUsernameButton.textContent = originalText;              }, 2000);            }          });        }        const copyPasswordButton = modal.querySelector('[data-copy-password]');        if (copyPasswordButton) {          const originalText = copyPasswordButton.textContent;          copyPasswordButton.addEventListener('click', async () => {            const passwordNode = modal.querySelector('[data-temp-password]');            const passwordText = (passwordNode || {}).textContent || '';            try {              await navigator.clipboard.writeText(passwordText.trim());              copyPasswordButton.textContent = '<%= t('users.copied_password') %>';              setTimeout(() => {                copyPasswordButton.textContent = originalText;              }, 2000);            } catch (err) {              const textarea = document.createElement('textarea');              textarea.value = passwordText.trim();              textarea.setAttribute('readonly', '');              textarea.style.position = 'absolute';              textarea.style.left = '-9999px';              document.body.appendChild(textarea);              textarea.select();              document.execCommand('copy');              document.body.removeChild(textarea);              copyPasswordButton.textContent = '<%= t('users.copied_password') %>';              setTimeout(() => {                copyPasswordButton.textContent = originalText;              }, 2000);            }          });        }      })();    </script>
+<% } %>
+<script>    (function () {      const sections = Array.from(document.querySelectorAll('[data-users-view]'));      const tabs = Array.from(document.querySelectorAll('[data-users-tab]'));      const show = (hash) => {        const targetId = hash && hash.length > 1 ? hash.substring(1) : 'lista-usuarios';        sections.forEach((section) => {          section.style.display = section.id === targetId ? '' : 'none';        });        tabs.forEach((tab) => {          const tabTarget = tab.getAttribute('href') ? tab.getAttribute('href').replace('#', '') : '';          if (tabTarget === targetId) {            tab.classList.add('is-active');          } else {            tab.classList.remove('is-active');          }        });      };      window.addEventListener('hashchange', () => show(window.location.hash));      show(window.location.hash);    })();  </script>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

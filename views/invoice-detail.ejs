@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('invoice_detail.title', { id: invoice.id }) %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<h1>
+<%= t('invoice_detail.heading', { id: invoice.id }) %>
+</h1>
+<section class="panel">
+<div class="invoice-meta">
+<div>
+<strong>
+<%= t('invoice_detail.customer') %>:</strong>
+<%= invoice.customer_code ? `${invoice.customer_code} - ` : '' %><%= invoice.customer_name || t('common.walk_in') %>
+</div>
+<div>
+<strong>
+<%= t('invoice_detail.created') %>:</strong>
+<%= new Date(invoice.created_at).toLocaleString() %>
+</div>
+</div>
+<% if (invoice.phone || invoice.email || invoice.address) { %>
+<div class="invoice-meta muted">
+<% if (invoice.phone) { %>
+<div>
+<%= t('invoice_detail.phone') %>: <%= invoice.phone %>
+</div>
+<% } %>
+<% if (invoice.email) { %>
+<div>
+<%= t('invoice_detail.email') %>: <%= invoice.email %>
+</div>
+<% } %>
+<% if (invoice.address) { %>
+<div>
+<%= t('invoice_detail.address') %>: <%= invoice.address %>
+</div>
+<% } %>
+</div>
+<% } %>
+</section>
+<section class="panel">
+<h2>
+<%= t('invoice_detail.line_items') %>
+</h2>
+<div class="table">
+<div class="table-row header invoice-detail">
+<div>
+<%= t('invoice_detail.table.product') %>
+</div>
+<div>
+<%= t('invoice_detail.table.sku') %>
+</div>
+<div>
+<%= t('invoice_detail.table.qty') %>
+</div>
+<div>
+<%= t('invoice_detail.table.unit_price') %>
+</div>
+<div>
+<%= t('invoice_detail.table.line_total') %>
+</div>
+</div>
+<% if (lineItems.length === 0) { %>
+<div class="table-row empty">
+<%= t('invoice_detail.no_items') %>
+</div>
+<% } %>
+<% lineItems.forEach(li => { %>
+<div class="table-row invoice-detail">
+<div>
+<%= li.item_name %>
+</div>
+<div class="muted">
+<%= li.sku %>
+</div>
+<div>
+<%= li.qty %>
+</div>
+<div><%= (invoice.currency || company.base_currency || company.currency || 'GTQ') %> <%= Number(li.unit_price || 0).toFixed(2) %>
+</div>
+<div><%= (invoice.currency || company.base_currency || company.currency || 'GTQ') %> <%= Number(li.line_total || 0).toFixed(2) %>
+</div>
+</div>
+<% }) %>
+</div>
+<div class="invoice-totals">
+<div>
+<%= t('invoice_detail.subtotal') %>
+</div>
+<div><%= (invoice.currency || company.base_currency || company.currency || 'GTQ') %> <%= Number(invoice.subtotal || 0).toFixed(2) %>
+</div>
+<div>
+<%= t('invoice_detail.tax') %> (<%= Number(invoice.tax_rate || 0).toFixed(2) %>%)</div>
+<div><%= (invoice.currency || company.base_currency || company.currency || 'GTQ') %> <%= Number(invoice.tax_amount || 0).toFixed(2) %>
+</div>
+<div>
+<%= t('invoice_detail.discount') %>
+<% if (invoice.discount_type === 'percent') { %>            (<%= Number(invoice.discount_value || 0).toFixed(2) %>%)          <% } else { %>            (<%= t('invoices.fixed') %>)          <% } %>
+</div>
+<div><%= (invoice.currency || company.base_currency || company.currency || 'GTQ') %> <%= Number(invoice.discount_amount || 0).toFixed(2) %>
+</div>
+<div>
+<%= t('invoice_detail.total') %>
+</div>
+<div><%= (invoice.currency || company.base_currency || company.currency || 'GTQ') %> <%= Number(invoice.total || 0).toFixed(2) %>
+</div>
+<% if (invoice.currency && (invoice.base_currency || company.base_currency) && invoice.currency !== (company.base_currency || invoice.base_currency)) { %>
+<div class="invoice-totals">
+<span><%= t('invoices.total_base') %> (<%= company.base_currency || invoice.base_currency %>)</span>
+<div><%= company.base_currency || invoice.base_currency %> <%= Number(invoice.total_base || 0).toFixed(2) %></div>
+</div>
+<% } %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

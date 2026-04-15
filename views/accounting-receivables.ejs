@@ -1,0 +1,49 @@
+﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cuentas por cobrar</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand"><%= t('common.brand') %></div>
+<nav class="nav">
+  <a href="/accounting/settings">Configuración contable</a>
+<a href="/logout"><%= t('nav.logout') %></a>
+</nav>
+</header>
+<main class="container">
+<h1>Cuentas por cobrar</h1>
+<section class="panel">
+<div class="table">
+<div class="table-row header accounting-receivables">
+<div>Factura</div>
+<div>Cliente</div>
+<div>Fecha</div>
+<div>Total</div>
+<div>Pagado</div>
+<div>Saldo</div>
+</div>
+<% if (!rows.length) { %>
+<div class="table-row empty">Sin cuentas por cobrar.</div>
+<% } %>
+<% rows.forEach(row => { %>
+<div class="table-row accounting-receivables">
+<div>#<%= row.id %></div>
+<div><%= row.customer_code ? `${row.customer_code} - ` : '' %><%= row.customer_name || t('common.walk_in') %></div>
+<div><%= new Date(row.created_at).toLocaleDateString() %></div>
+<div><%= row.currency || baseCurrency %> <%= Number(row.total || 0).toFixed(2) %></div>
+<div><%= baseCurrency %> <%= Number(row.paid_base || 0).toFixed(2) %></div>
+<div><%= baseCurrency %> <%= Number((row.total_base || 0) - (row.paid_base || 0)).toFixed(2) %></div>
+</div>
+<% }) %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+
+

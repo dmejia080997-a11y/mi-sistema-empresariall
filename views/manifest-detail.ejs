@@ -1,0 +1,298 @@
+<%  const statusLabel = manifest.status === 'closed' ? t('manifests.status.closed') : t('manifests.status.open');  const statusClass = manifest.status === 'closed' ? 'status-closed' : 'status-open';  const isClosed = manifest.status === 'closed';%>
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('manifests.detail') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container manifest-detail <%= isClosed ? 'manifest-closed' : '' %>">
+<div class="page-header manifest-header">
+<div>
+<h1>
+<%= t('manifests.detail') %>
+</h1>
+<div class="airway-block">
+<div class="airway-label">
+<%= t('manifests.airway_bill') %>
+</div>
+<div class="airway-value">
+<%= manifest.airway_bill_number || '-' %>
+</div>
+</div>
+</div>
+<div class="actions">
+<span class="status-badge <%= statusClass %>">
+<%= statusLabel %>
+</span>
+<a class="btn" href="/manifests">
+<%= t('manifests.list') %>
+</a>
+</div>
+</div>
+<% if (error) { %>
+<div class="alert error">
+<%= error %>
+</div>
+<% } %>
+<% if (success) { %>
+<div class="alert success">
+<%= success %>
+</div>
+<% } %>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('manifests.status') %>
+</h2>
+<div class="actions">
+<% if (can('manifests', 'export')) { %>
+<a class="btn" href="/manifests/<%= manifest.id %>/export/pdf">
+<%= t('manifests.download_pdf') %>
+</a>
+<a class="btn" href="/manifests/<%= manifest.id %>/export/excel">
+<%= t('manifests.download_excel') %>
+</a>
+<% } %>
+<% if (manifest.status === 'open' && canEditManifest) { %>
+<form method="POST" action="/manifests/<%= manifest.id %>/close">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn danger">
+<%= t('manifests.close') %>
+</button>
+</form>
+<% } %>
+<% if (manifest.status === 'closed' && isAdmin) { %>
+<form method="POST" action="/manifests/<%= manifest.id %>/reopen">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn">
+<%= t('manifests.reopen') %>
+</button>
+</form>
+<% } %>
+</div>
+</div>
+<div class="form grid-2">
+<form method="POST" action="/manifests/<%= manifest.id %>/airway-bill" class="form">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('manifests.airway_bill') %>
+<input type="text" name="airway_bill_number" value="<%= manifest.airway_bill_number || '' %>" <%= canEditManifest ? '' : 'disabled' %> />
+<small class="muted">
+<%= t('manifests.airway_hint') %>
+</small>
+</label>
+<% if (canEditManifest) { %>
+<button type="submit" class="btn small">
+<%= t('manifests.update_airway') %>
+</button>
+<% } %>
+</form>
+<form method="POST" action="/manifests/<%= manifest.id %>/notes" class="form">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('manifests.notes') %>
+<textarea name="notes" rows="3" <%= canEditManifest ? '' : 'disabled' %>>
+<%= manifest.notes || '' %>
+</textarea>
+</label>
+<% if (canEditManifest) { %>
+<button type="submit" class="btn small">
+<%= t('manifests.update_notes') %>
+</button>
+<% } %>
+</form>
+</div>
+</section>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('manifests.summary') %>
+</h2>
+</div>
+<div class="summary-strip">
+<div class="summary-item">
+<span class="summary-label">
+<%= t('manifests.total_pieces') %>
+</span>
+<span class="summary-value">
+<%= summary ? summary.totalPieces : 0 %>
+</span>
+</div>
+<div class="summary-item">
+<span class="summary-label">
+<%= t('manifests.total_packages') %>
+</span>
+<span class="summary-value">
+<%= summary ? summary.totalPackages : 0 %>
+</span>
+</div>
+<div class="summary-item">
+<span class="summary-label">
+<%= t('manifests.total_weight') %>
+</span>
+<span class="summary-value">
+<%= summary ? (Number(summary.totalWeight) || 0).toFixed(2) : '0.00' %>
+</span>
+</div>
+</div>
+</section>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('manifests.pieces') %>
+</h2>
+<% if (canEditManifest) { %>
+<div class="actions">
+<% if (pieces && pieces.length > 0) { %>
+<form method="POST" action="/manifests/<%= manifest.id %>/packages/scan" class="piece-action">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<select name="piece_id" required>
+<option value="">
+<%= t('manifests.scan_piece_select') %>
+</option>
+<% (pieces || []).forEach((piece) => { %>
+<option value="<%= piece.id %>" <%= lastScanPieceId === piece.id ? 'selected' : '' %>>
+<%= t('manifests.piece_number', { number: piece.piece_number }) %>
+</option>
+<% }) %>
+</select>
+<input                  type="text"                  name="scan_value"                  placeholder="<%= t('manifests.scan_placeholder') %>"                  autocomplete="off"                  autofocus                />
+<button type="submit" class="btn small">
+<%= t('manifests.scan_button') %>
+</button>
+</form>
+<% } %>
+<form method="POST" action="/manifests/<%= manifest.id %>/pieces">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn">
+<%= t('manifests.add_piece') %>
+</button>
+</form>
+</div>
+<% } %>
+</div>
+<% if (!pieces || pieces.length === 0) { %>
+<div class="alert info">
+<%= t('manifests.no_pieces') %>
+</div>
+<% } %>
+<% (pieces || []).forEach((piece) => { %>
+<div class="manifest-piece-card">
+<div class="piece-header">
+<div>
+<div class="piece-eyebrow">
+<%= t('manifests.pieces') %>
+</div>
+<h3>
+<%= t('manifests.piece_number', { number: piece.piece_number }) %>
+</h3>
+</div>
+<% if (canEditManifest) { %>
+<form method="POST" action="/manifests/<%= manifest.id %>/pieces/<%= piece.id %>/packages" class="piece-action">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<select name="package_id">
+<option value="">
+<%= t('manifests.package_select') %>
+</option>
+<% (availablePackages || []).forEach((pkg) => { %>
+<option value="<%= pkg.id %>">
+<%= pkg.internal_code || pkg.tracking_number || ('#' + pkg.id) %>
+<% if (pkg.customer_name) { %> - <%= pkg.customer_code ? `${pkg.customer_code} - ` : '' %><%= pkg.customer_name %>
+<% } %>
+</option>
+<% }) %>
+</select>
+<button type="submit" class="btn small">
+<%= t('manifests.add_package') %>
+</button>
+</form>
+<% } %>
+<a class="btn small" href="/manifests/<%= manifest.id %>/pieces/<%= piece.id %>/sticker/pdf">
+<%= t('manifests.piece_sticker') %>
+</a>
+</div>
+<div class="manifest-packages">
+<div class="package-row header">
+<div>
+<%= t('packages.table.internal_code') %>
+</div>
+<div>
+<%= t('packages.table.tracking') %>
+</div>
+<div>
+<%= t('packages.table.customer') %>
+</div>
+<div>
+<%= t('packages.table.status') %>
+</div>
+<div>
+<%= t('packages.table.weight') %>
+</div>
+<div>
+<%= t('manifests.actions') %>
+</div>
+</div>
+<% if (!piece.packages || piece.packages.length === 0) { %>
+<div class="package-row empty">
+<%= t('manifests.no_packages') %>
+</div>
+<% } %>
+<% (piece.packages || []).forEach((pkg) => { %>
+<div class="package-row">
+<div>
+<%= pkg.internal_code || '-' %>
+</div>
+<div>
+<%= pkg.tracking_number || '-' %>
+</div>
+<div>
+<%= pkg.customer_code ? `${pkg.customer_code} - ` : '' %><%= pkg.customer_name || '-' %>
+</div>
+<div>
+<span class="status-badge status-default">
+<%= pkg.status || '-' %>
+</span>
+</div>
+<div>
+<%= pkg.weight_lbs ? pkg.weight_lbs : '-' %>
+</div>
+<div class="actions">
+<% if (canEditManifest) { %>
+<form method="POST" action="/manifests/<%= manifest.id %>/pieces/<%= piece.id %>/packages/<%= pkg.id %>/delete">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn danger small">
+<%= t('common.delete') %>
+</button>
+</form>
+<% } else { %>
+<span class="muted">-</span>
+<% } %>
+</div>
+</div>
+<% }) %>
+</div>
+</div>
+<% }) %>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

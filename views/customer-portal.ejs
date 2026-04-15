@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('customer_portal.portal_title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page" style="<% if (companyBrand) { %>--accent:<%= companyBrand.primary_color || '#d97757' %>; --accent-2:<%= companyBrand.secondary_color || '#3d7b6f' %>;<% } %>">
+<header class="topbar">
+<div class="brand tracking-brand">
+<% if (companyBrand && companyBrand.logo) { %>
+<img src="<%= companyBrand.logo %>" alt="Logo" class="brand-logo" />
+<% } %>
+<span>
+<%= companyBrand && companyBrand.name ? companyBrand.name : t('common.brand') %>
+</span>
+</div>
+<nav class="nav">
+<span class="muted">
+<%= customer.name %>
+</span>
+<a href="/customer/logout">
+<%= t('customer_portal.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<div class="page-header">
+<div>
+<h1>
+<%= t('customer_portal.portal_heading') %>
+</h1>
+<p class="muted">
+<%= t('customer_portal.portal_subtitle') %>
+</p>
+</div>
+<a class="btn" href="/tracking">
+<%= t('customer_portal.track_one') %>
+</a>
+</div>
+<section class="panel">
+<h2>
+<%= t('customer_portal.packages_title') %>
+</h2>
+<div class="table">
+<div class="table-row header packages-extended">
+<div>
+<%= t('packages.internal_code') %>
+</div>
+<div>
+<%= t('packages.tracking') %>
+</div>
+<div>
+<%= t('packages.description') %>
+</div>
+<div>
+<%= t('packages.weight_lbs') %>
+</div>
+<div>
+<%= t('packages.carrier') %>
+</div>
+<div>
+<%= t('packages.status') %>
+</div>
+<div>
+<%= t('packages.received_at') %>
+</div>
+<div>
+<%= t('customer_portal.actions') %>
+</div>
+</div>
+<% if (packages.length === 0) { %>
+<div class="table-row empty">
+<%= t('customer_portal.no_packages') %>
+</div>
+<% } %>
+<% packages.forEach(pkg => { %>
+<div class="table-row packages-extended">
+<div>
+<%= pkg.internal_code || '-' %>
+</div>
+<div>
+<%= pkg.tracking_number || '-' %>
+</div>
+<div>
+<%= pkg.description || '-' %>
+</div>
+<div>
+<%= pkg.weight_lbs ? Number(pkg.weight_lbs).toFixed(2) + ' lbs' : '-' %>
+</div>
+<div>
+<%= pkg.carrier || '-' %>
+</div>
+<div>
+<span class="pill">
+<%= pkg.status %>
+</span>
+</div>
+<div>
+<%= pkg.received_at || '-' %>
+</div>
+<div class="actions">
+<a class="btn" href="/tracking?q=<%= encodeURIComponent(pkg.internal_code || pkg.tracking_number || '') %>">
+<%= t('customer_portal.view_tracking') %>
+</a>
+</div>
+</div>
+<% }) %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

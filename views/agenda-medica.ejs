@@ -1,0 +1,874 @@
+﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="csrf-token" content="<%= csrfToken %>" />
+<title><%= t('agenda_medica.title') %></title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page agenda-medica-page" style="<% if (companyBrand) { %>--accent:<%= companyBrand.primary_color || '#d97757' %>; --accent-2:<%= companyBrand.secondary_color || '#3d7b6f' %>;<% } %>">
+<header class="topbar">
+<a class="brand brand-link" href="/dashboard">
+<% if (companyBrand && companyBrand.logo) { %>
+<img src="<%= companyBrand.logo %>" alt="Logo" class="brand-logo" />
+<% } %>
+<span class="brand-name">
+<%= (companyBrand && companyBrand.name) ? companyBrand.name : t('common.brand') %>
+</span>
+</a>
+<nav class="nav">
+<a href="/dashboard"><%= t('nav.dashboard') %></a>
+<a href="/logout"><%= t('nav.logout') %></a>
+</nav>
+</header>
+<main class="container agenda-medica">
+<div class="page-header">
+<div>
+<h1><%= t('agenda_medica.title') %></h1>
+<p class="muted"><%= t('agenda_medica.subtitle') %></p>
+</div>
+<div class="actions">
+<button class="btn" type="button" data-doctors-open><%= t('agenda_medica.manage_doctors') %></button>
+<button class="btn primary" type="button" data-appointment-new><%= t('agenda_medica.new_appointment') %></button>
+</div>
+</div>
+
+<section class="agenda-controls">
+<div class="agenda-view-toggle" role="group" aria-label="<%= t('agenda_medica.view_toggle') %>">
+<button type="button" class="btn" data-view="day"><%= t('agenda_medica.view_day') %></button>
+<button type="button" class="btn" data-view="week"><%= t('agenda_medica.view_week') %></button>
+</div>
+
+<div class="agenda-date-control">
+<button type="button" class="btn" data-shift="-1"><%= t('agenda_medica.prev') %></button>
+<input type="date" class="agenda-date-input" data-date-input />
+<button type="button" class="btn" data-shift="1"><%= t('agenda_medica.next') %></button>
+<button type="button" class="btn" data-today><%= t('agenda_medica.today') %></button>
+</div>
+
+<label class="agenda-filter">
+<span><%= t('agenda_medica.filter_doctor') %></span>
+<select data-doctor-filter>
+<option value=""><%= t('agenda_medica.all_doctors') %></option>
+<% (doctors || []).forEach((doc) => { %>
+<option value="<%= doc.id %>"><%= doc.name %></option>
+<% }) %>
+</select>
+</label>
+</section>
+
+<section class="agenda-legend">
+<% (statuses || []).forEach((status) => { %>
+<span class="legend-item status-<%= status %>"><%= t(`agenda_medica.status.${status}`) %></span>
+<% }) %>
+</section>
+
+<section class="agenda-calendar" data-calendar>
+<div class="agenda-header" data-calendar-header></div>
+<div class="agenda-scroll" data-calendar-scroll>
+<div class="agenda-times" data-calendar-times></div>
+<div class="agenda-grid" data-calendar-grid></div>
+</div>
+</section>
+</main>
+
+<div class="modal hidden" id="doctor-modal" aria-hidden="true">
+<div class="modal-content doctor-modal">
+<div class="modal-header">
+<h2><%= t('agenda_medica.manage_doctors') %></h2>
+<button type="button" class="btn" data-doctor-close>&times;</button>
+</div>
+<form class="form" id="doctor-form">
+<input type="hidden" id="doctor-id" />
+<label>
+<span><%= t('agenda_medica.doctor_name') %></span>
+<input type="text" id="doctor-name" required />
+</label>
+<label>
+<span><%= t('agenda_medica.doctor_phone') %></span>
+<input type="text" id="doctor-phone" />
+</label>
+<label>
+<span><%= t('agenda_medica.doctor_specialty') %></span>
+<input type="text" id="doctor-specialty" />
+</label>
+<label class="doctor-active">
+<input type="checkbox" id="doctor-active" checked />
+<span><%= t('agenda_medica.doctor_active') %></span>
+</label>
+<div class="actions">
+<button type="button" class="btn" data-doctor-reset><%= t('agenda_medica.doctor_clear') %></button>
+<button type="submit" class="btn primary"><%= t('agenda_medica.doctor_save') %></button>
+</div>
+</form>
+<div class="doctor-list" data-doctor-list></div>
+</div>
+</div>
+<div class="modal hidden" id="appointment-modal" aria-hidden="true">
+<div class="modal-content">
+<div class="modal-header">
+<h2 id="appointment-modal-title"><%= t('agenda_medica.new_appointment') %></h2>
+<button type="button" class="btn" data-modal-close>&times;</button>
+</div>
+<form class="form" id="appointment-form">
+<input type="hidden" name="id" id="appointment-id" />
+<label>
+<span><%= t('agenda_medica.patient_name') %></span>
+<input type="text" name="paciente_nombre" id="appointment-paciente" required />
+</label>
+<label>
+<span><%= t('agenda_medica.phone') %></span>
+<input type="text" name="telefono" id="appointment-telefono" />
+</label>
+<label>
+<span><%= t('agenda_medica.reason') %></span>
+<textarea name="motivo" id="appointment-motivo" rows="2"></textarea>
+</label>
+<label>
+<span><%= t('agenda_medica.doctor') %></span>
+<select name="doctor_id" id="appointment-doctor" required>
+<option value="" disabled selected><%= t('agenda_medica.select_doctor') %></option>
+<% (doctors || []).forEach((doc) => { %>
+<option value="<%= doc.id %>"><%= doc.name %></option>
+<% }) %>
+</select>
+</label>
+<label>
+<span><%= t('agenda_medica.datetime') %></span>
+<input type="datetime-local" name="fecha_hora" id="appointment-fecha" required />
+</label>
+<label>
+<span><%= t('agenda_medica.duration') %></span>
+<input type="number" name="duration_min" id="appointment-duration" min="5" step="5" value="30" required />
+</label>
+<label>
+<span><%= t('agenda_medica.status') %></span>
+<select name="estado" id="appointment-estado" required>
+<% (statuses || []).forEach((status) => { %>
+<option value="<%= status %>"><%= t(`agenda_medica.status.${status}`) %></option>
+<% }) %>
+</select>
+</label>
+<div class="agenda-form-actions">
+<button type="button" class="btn danger" data-appointment-delete><%= t('agenda_medica.delete') %></button>
+<div class="actions">
+<button type="button" class="btn" data-modal-close><%= t('agenda_medica.cancel') %></button>
+<button type="submit" class="btn primary"><%= t('agenda_medica.save') %></button>
+</div>
+</div>
+</form>
+</div>
+</div>
+
+<script>
+  (function () {
+    const startHour = 8;
+    const endHour = 18;
+    const hourHeight = 60;
+    const slotMinutes = 30;
+    const roundMinutes = 15;
+
+    const calendar = document.querySelector('[data-calendar]');
+    const header = document.querySelector('[data-calendar-header]');
+    const grid = document.querySelector('[data-calendar-grid]');
+    const times = document.querySelector('[data-calendar-times]');
+    const dateInput = document.querySelector('[data-date-input]');
+    const viewButtons = document.querySelectorAll('[data-view]');
+    const shiftButtons = document.querySelectorAll('[data-shift]');
+    const todayButton = document.querySelector('[data-today]');
+    const doctorFilter = document.querySelector('[data-doctor-filter]');
+    const newButton = document.querySelector('[data-appointment-new]');
+
+        const modal = document.getElementById('appointment-modal');
+    const modalTitle = document.getElementById('appointment-modal-title');
+    const form = document.getElementById('appointment-form');
+    const deleteButton = document.querySelector('[data-appointment-delete]');
+    const closeButtons = document.querySelectorAll('[data-modal-close]');
+
+    const doctorModal = document.getElementById('doctor-modal');
+    const doctorOpen = document.querySelector('[data-doctors-open]');
+    const doctorClose = document.querySelector('[data-doctor-close]');
+    const doctorReset = document.querySelector('[data-doctor-reset]');
+    const doctorList = document.querySelector('[data-doctor-list]');
+    const doctorForm = document.getElementById('doctor-form');
+    const doctorIdField = document.getElementById('doctor-id');
+    const doctorNameField = document.getElementById('doctor-name');
+    const doctorPhoneField = document.getElementById('doctor-phone');
+    const doctorSpecialtyField = document.getElementById('doctor-specialty');
+    const doctorActiveField = document.getElementById('doctor-active');
+
+    const fieldId = document.getElementById('appointment-id');
+    const fieldPaciente = document.getElementById('appointment-paciente');
+    const fieldTelefono = document.getElementById('appointment-telefono');
+    const fieldMotivo = document.getElementById('appointment-motivo');
+    const fieldDoctor = document.getElementById('appointment-doctor');
+    const fieldFecha = document.getElementById('appointment-fecha');
+    const fieldEstado = document.getElementById('appointment-estado');
+    const fieldDuration = document.getElementById('appointment-duration');
+
+    const csrf = document.querySelector('meta[name="csrf-token"]');
+
+    const state = {
+      view: 'week',
+      date: new Date(),
+      appointments: [],
+      doctors: []
+    };
+
+    const dayFormatter = new Intl.DateTimeFormat(document.documentElement.lang || 'es', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short'
+    });
+
+    const timeFormatter = new Intl.DateTimeFormat(document.documentElement.lang || 'es', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const toIsoDate = (date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+
+    const toLocalInputValue = (date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      const h = String(date.getHours()).padStart(2, '0');
+      const min = String(date.getMinutes()).padStart(2, '0');
+      return `${y}-${m}-${d}T${h}:${min}`;
+    };
+
+    const parseDate = (value) => {
+      if (!value) return null;
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return null;
+      return parsed;
+    };
+
+    const getWeekStart = (date) => {
+      const copy = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const day = copy.getDay();
+      const diff = (day + 6) % 7;
+      copy.setDate(copy.getDate() - diff);
+      copy.setHours(0, 0, 0, 0);
+      return copy;
+    };
+
+    const addDays = (date, amount) => {
+      const next = new Date(date);
+      next.setDate(next.getDate() + amount);
+      return next;
+    };
+
+    const buildRange = () => {
+      if (state.view === 'day') {
+        const start = toIsoDate(state.date);
+        return { start, end: start, days: [new Date(state.date)] };
+      }
+      const weekStart = getWeekStart(state.date);
+      const days = Array.from({ length: 7 }, (_, idx) => addDays(weekStart, idx));
+      return { start: toIsoDate(days[0]), end: toIsoDate(days[6]), days };
+    };
+
+    const setActiveView = (view) => {
+      state.view = view === 'day' ? 'day' : 'week';
+      viewButtons.forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.view === state.view);
+      });
+      loadAppointments();
+    };
+
+    const applyDateInput = () => {
+      if (dateInput) dateInput.value = toIsoDate(state.date);
+    };
+
+    const shiftDate = (amount) => {
+      const days = state.view === 'day' ? amount : amount * 7;
+      state.date = addDays(state.date, days);
+      applyDateInput();
+      loadAppointments();
+    };
+
+    const getDoctorName = (id) => {
+      if (!id) return '';
+      const match = state.doctors.find((doc) => String(doc.id) === String(id));
+      if (!match) return '';
+      return match.is_active
+        ? match.name
+        : match.name + ' (<%= t('agenda_medica.doctor_inactive') %>)';
+    };
+
+    const renderDoctorOptions = () => {
+      const currentFilter = doctorFilter ? doctorFilter.value : '';
+      const currentDoctor = fieldDoctor ? fieldDoctor.value : '';
+
+      if (doctorFilter) {
+        doctorFilter.innerHTML = '';
+        const all = document.createElement('option');
+        all.value = '';
+        all.textContent = '<%= t('agenda_medica.all_doctors') %>';
+        doctorFilter.appendChild(all);
+        state.doctors.forEach((doc) => {
+          const option = document.createElement('option');
+          option.value = doc.id;
+          option.textContent = doc.is_active
+            ? doc.name
+            : doc.name + ' (<%= t('agenda_medica.doctor_inactive') %>)';
+          if (String(currentFilter) === String(doc.id)) option.selected = true;
+          doctorFilter.appendChild(option);
+        });
+      }
+
+      if (fieldDoctor) {
+        fieldDoctor.innerHTML = '';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.disabled = true;
+        placeholder.textContent = '<%= t('agenda_medica.select_doctor') %>';
+        fieldDoctor.appendChild(placeholder);
+        state.doctors.forEach((doc) => {
+          const option = document.createElement('option');
+          option.value = doc.id;
+          option.textContent = doc.is_active
+            ? doc.name
+            : doc.name + ' (<%= t('agenda_medica.doctor_inactive') %>)';
+          if (String(currentDoctor) === String(doc.id)) option.selected = true;
+          fieldDoctor.appendChild(option);
+        });
+        if (!currentDoctor) placeholder.selected = true;
+      }
+    };
+
+    const renderDoctorList = () => {
+      if (!doctorList) return;
+      doctorList.innerHTML = '';
+      if (!state.doctors.length) {
+        const empty = document.createElement('div');
+        empty.className = 'muted';
+        empty.textContent = '<%= t('agenda_medica.doctor_empty') %>';
+        doctorList.appendChild(empty);
+        return;
+      }
+      state.doctors.forEach((doc) => {
+        const row = document.createElement('div');
+        row.className = 'doctor-row';
+
+        const info = document.createElement('div');
+        info.className = 'doctor-info';
+        const name = document.createElement('div');
+        name.className = 'doctor-name';
+        name.textContent = doc.name;
+        const meta = document.createElement('div');
+        meta.className = 'doctor-meta';
+        const metaParts = [];
+        if (doc.specialty) metaParts.push(doc.specialty);
+        if (doc.phone) metaParts.push(doc.phone);
+        if (!doc.is_active) metaParts.push('<%= t('agenda_medica.doctor_inactive') %>');
+        meta.textContent = metaParts.join(' - ');
+        info.appendChild(name);
+        info.appendChild(meta);
+
+        const actions = document.createElement('div');
+        actions.className = 'doctor-actions';
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'btn';
+        edit.textContent = '<%= t('agenda_medica.doctor_edit') %>';
+        edit.addEventListener('click', () => {
+          doctorIdField.value = doc.id;
+          doctorNameField.value = doc.name || '';
+          doctorPhoneField.value = doc.phone || '';
+          doctorSpecialtyField.value = doc.specialty || '';
+          doctorActiveField.checked = !!doc.is_active;
+        });
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'btn danger';
+        remove.textContent = '<%= t('agenda_medica.doctor_delete') %>';
+        remove.addEventListener('click', () => {
+          deleteDoctor(doc.id);
+        });
+
+        actions.appendChild(edit);
+        actions.appendChild(remove);
+
+        row.appendChild(info);
+        row.appendChild(actions);
+        doctorList.appendChild(row);
+      });
+    };
+
+    const loadDoctors = async () => {
+      try {
+        const resp = await fetch('/agenda-medica/api/doctors', { headers: { 'Accept': 'application/json' } });
+        if (!resp.ok) throw new Error('failed');
+        const data = await resp.json();
+        state.doctors = Array.isArray(data.doctors)
+          ? data.doctors.map((doc) => ({
+              ...doc,
+              is_active: Number(doc.is_active || 0) === 1
+            }))
+          : [];
+      } catch (err) {
+        state.doctors = [];
+      }
+      renderDoctorOptions();
+      renderDoctorList();
+    };
+
+    const resetDoctorForm = () => {
+      if (doctorIdField) doctorIdField.value = '';
+      if (doctorNameField) doctorNameField.value = '';
+      if (doctorPhoneField) doctorPhoneField.value = '';
+      if (doctorSpecialtyField) doctorSpecialtyField.value = '';
+      if (doctorActiveField) doctorActiveField.checked = true;
+    };
+
+    const openDoctorModal = () => {
+      if (!doctorModal) return;
+      doctorModal.classList.remove('hidden');
+      doctorModal.setAttribute('aria-hidden', 'false');
+    };
+
+    const closeDoctorModal = () => {
+      if (!doctorModal) return;
+      doctorModal.classList.add('hidden');
+      doctorModal.setAttribute('aria-hidden', 'true');
+      resetDoctorForm();
+    };
+
+    const saveDoctor = async () => {
+      const payload = {
+        name: doctorNameField ? doctorNameField.value.trim() : '',
+        phone: doctorPhoneField ? doctorPhoneField.value.trim() : '',
+        specialty: doctorSpecialtyField ? doctorSpecialtyField.value.trim() : '',
+        is_active: doctorActiveField ? doctorActiveField.checked : true
+      };
+      if (!payload.name) {
+        alert('<%= t('agenda_medica.doctor_name_required') %>');
+        return;
+      }
+      const id = doctorIdField && doctorIdField.value ? doctorIdField.value : null;
+      const url = id ? `/agenda-medica/api/doctors/${id}` : '/agenda-medica/api/doctors';
+      const method = id ? 'PUT' : 'POST';
+      try {
+        const resp = await apiFetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!resp.ok) throw new Error('failed');
+        resetDoctorForm();
+        loadDoctors();
+      } catch (err) {
+        alert('<%= t('agenda_medica.doctor_save_error') %>');
+      }
+    };
+
+    const deleteDoctor = async (id) => {
+      if (!id) return;
+      if (!confirm('<%= t('agenda_medica.doctor_delete_confirm') %>')) return;
+      try {
+        const resp = await apiFetch(`/agenda-medica/api/doctors/${id}`, { method: 'DELETE' });
+        if (resp.status === 409) {
+          alert('<%= t('agenda_medica.doctor_delete_blocked') %>');
+          return;
+        }
+        if (!resp.ok) throw new Error('failed');
+        loadDoctors();
+      } catch (err) {
+        alert('<%= t('agenda_medica.doctor_delete_error') %>');
+      }
+    };
+
+    const openModal = (appointment) => {
+      const isEdit = appointment && appointment.id;
+      modalTitle.textContent = isEdit
+        ? '<%= t('agenda_medica.edit_appointment') %>'
+        : '<%= t('agenda_medica.new_appointment') %>';
+      fieldId.value = isEdit ? appointment.id : '';
+      fieldPaciente.value = appointment ? appointment.paciente_nombre || '' : '';
+      fieldTelefono.value = appointment ? appointment.telefono || '' : '';
+      fieldMotivo.value = appointment ? appointment.motivo || '' : '';
+      fieldDoctor.value = appointment ? String(appointment.doctor_id || '') : '';
+      fieldFecha.value = appointment && appointment.fecha_hora
+        ? String(appointment.fecha_hora).slice(0, 16)
+        : toLocalInputValue(state.date);
+      fieldEstado.value = appointment ? appointment.estado || 'pendiente' : 'pendiente';
+      if (fieldDuration) {
+        fieldDuration.value = appointment && appointment.duration_min ? appointment.duration_min : 30;
+      }
+      deleteButton.style.display = isEdit ? '' : 'none';
+      modal.classList.remove('hidden');
+      modal.setAttribute('aria-hidden', 'false');
+    };
+
+    const closeModal = () => {
+      modal.classList.add('hidden');
+      modal.setAttribute('aria-hidden', 'true');
+      form.reset();
+      fieldId.value = '';
+    };
+
+    const apiFetch = async (url, options) => {
+      const headers = Object.assign({}, options && options.headers ? options.headers : {});
+      if (csrf) headers['X-CSRF-Token'] = csrf.getAttribute('content') || '';
+      return fetch(url, { ...options, headers });
+    };
+
+    const loadAppointments = async () => {
+      const range = buildRange();
+      const params = new URLSearchParams({ start: range.start, end: range.end });
+      if (!state.doctors.length) {
+        await loadDoctors();
+      }
+      const doctorValue = doctorFilter && doctorFilter.value ? doctorFilter.value : '';
+      if (doctorValue) params.set('doctor_id', doctorValue);
+      try {
+        const resp = await fetch(`/agenda-medica/api/appointments?${params.toString()}`, {
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!resp.ok) throw new Error('failed');
+        const data = await resp.json();
+        state.appointments = Array.isArray(data.appointments) ? data.appointments : [];
+      } catch (err) {
+        state.appointments = [];
+      }
+      renderCalendar();
+    };
+
+    const renderTimes = () => {
+      times.innerHTML = '';
+      times.style.height = `${(endHour - startHour) * hourHeight}px`;
+      for (let hour = startHour; hour <= endHour; hour += 1) {
+        const label = document.createElement('div');
+        label.className = 'agenda-time-label';
+        label.style.top = `${(hour - startHour) * hourHeight}px`;
+        label.textContent = `${String(hour).padStart(2, '0')}:00`;
+        times.appendChild(label);
+      }
+    };
+
+    const buildColumn = (date) => {
+      const column = document.createElement('div');
+      column.className = 'agenda-day-column';
+      column.dataset.date = toIsoDate(date);
+      column.style.height = `${(endHour - startHour) * hourHeight}px`;
+
+      column.addEventListener('click', (event) => {
+        if (event.target.closest('.appointment')) return;
+        const rect = column.getBoundingClientRect();
+        const y = event.clientY - rect.top + column.scrollTop;
+        const minutesFromStart = Math.max(0, Math.min((endHour - startHour) * 60, (y / hourHeight) * 60));
+        const snapped = Math.round(minutesFromStart / roundMinutes) * roundMinutes;
+        const hour = startHour + Math.floor(snapped / 60);
+        const min = snapped % 60;
+        const base = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, min, 0, 0);
+        openModal({ fecha_hora: toLocalInputValue(base), duration_min: 30 });
+      });
+
+      column.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        column.classList.add('is-drop');
+      });
+
+      column.addEventListener('dragleave', () => {
+        column.classList.remove('is-drop');
+      });
+
+      column.addEventListener('drop', (event) => {
+        event.preventDefault();
+        column.classList.remove('is-drop');
+        const id = event.dataTransfer ? event.dataTransfer.getData('text/plain') : null;
+        if (!id) return;
+        const appointment = state.appointments.find((item) => String(item.id) === String(id));
+        if (!appointment) return;
+        const rect = column.getBoundingClientRect();
+        const y = event.clientY - rect.top + column.scrollTop;
+        const durationMin = Number(appointment.duration_min || slotMinutes);
+        const minutesFromStart = Math.max(0, Math.min((endHour - startHour) * 60 - durationMin, (y / hourHeight) * 60));
+        const snapped = Math.round(minutesFromStart / roundMinutes) * roundMinutes;
+        const hour = startHour + Math.floor(snapped / 60);
+        const min = snapped % 60;
+        const base = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, min, 0, 0);
+        saveAppointment({
+          ...appointment,
+          fecha_hora: toLocalInputValue(base)
+        });
+      });
+
+      return column;
+    };
+
+    const renderHeader = (days) => {
+      header.innerHTML = '';
+      const spacer = document.createElement('div');
+      spacer.className = 'agenda-header-spacer';
+      header.appendChild(spacer);
+      days.forEach((day) => {
+        const cell = document.createElement('div');
+        cell.className = 'agenda-header-cell';
+        cell.textContent = dayFormatter.format(day);
+        header.appendChild(cell);
+      });
+    };
+
+    const renderAppointments = (columnsMap) => {
+      const pxPerMinute = hourHeight / 60;
+      const grouped = new Map();
+      state.appointments.forEach((appointment) => {
+        const when = parseDate(appointment.fecha_hora);
+        if (!when) return;
+        const key = toIsoDate(when);
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key).push({ ...appointment, _date: when });
+      });
+
+      grouped.forEach((items, dateKey) => {
+        const column = columnsMap.get(dateKey);
+        if (!column) return;
+        items.forEach((appointment) => {
+          const startMinutes = ((appointment._date.getHours() - startHour) * 60) + appointment._date.getMinutes();
+          const durationMin = Number(appointment.duration_min || slotMinutes);
+          if (startMinutes < 0 || startMinutes >= (endHour - startHour) * 60) return;
+          const card = document.createElement('div');
+          card.className = `appointment status-${appointment.estado || 'pendiente'}`;
+          card.setAttribute('draggable', 'true');
+          card.dataset.id = appointment.id;
+          card.style.top = `${startMinutes * pxPerMinute}px`;
+          card.style.height = `${slotMinutes * pxPerMinute}px`;
+
+          const title = document.createElement('div');
+          title.className = 'appointment-title';
+          title.textContent = appointment.paciente_nombre || '<%= t('agenda_medica.patient') %>';
+
+          const meta = document.createElement('div');
+          meta.className = 'appointment-meta';
+          const timeLabel = timeFormatter.format(appointment._date);
+          const doctorLabel = appointment.doctor_name || getDoctorName(appointment.doctor_id) || '';
+          meta.textContent = doctorLabel ? `${timeLabel} - ${doctorLabel}` : timeLabel;
+
+          card.appendChild(title);
+          card.appendChild(meta);
+
+          card.addEventListener('click', (event) => {
+            event.stopPropagation();
+            openModal(appointment);
+          });
+
+          card.addEventListener('dragstart', (event) => {
+            if (event.dataTransfer) {
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', appointment.id);
+            }
+          });
+
+          column.appendChild(card);
+        });
+      });
+    };
+
+    const renderCalendar = () => {
+      if (!calendar) return;
+      const range = buildRange();
+      renderHeader(range.days);
+      renderTimes();
+
+      grid.innerHTML = '';
+      grid.style.gridTemplateColumns = `repeat(${range.days.length}, 1fr)`;
+      const columnsMap = new Map();
+
+      range.days.forEach((day) => {
+        const column = buildColumn(day);
+        columnsMap.set(toIsoDate(day), column);
+        grid.appendChild(column);
+      });
+
+      renderAppointments(columnsMap);
+    };
+
+    const saveAppointment = async (payload) => {
+      const isEdit = payload && payload.id;
+      const url = isEdit
+        ? `/agenda-medica/api/appointments/${payload.id}`
+        : '/agenda-medica/api/appointments';
+      const method = isEdit ? 'PUT' : 'POST';
+      const body = JSON.stringify({
+        paciente_nombre: payload.paciente_nombre,
+        telefono: payload.telefono,
+        motivo: payload.motivo,
+        doctor_id: payload.doctor_id,
+        fecha_hora: payload.fecha_hora,
+        estado: payload.estado,
+        duration_min: payload.duration_min
+      });
+      try {
+        const resp = await apiFetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body
+        });
+        if (!resp.ok) throw new Error('save failed');
+        closeModal();
+        loadAppointments();
+      } catch (err) {
+        alert('<%= t('agenda_medica.save_error') %>');
+      }
+    };
+
+    const deleteAppointment = async (id) => {
+      if (!id) return;
+      if (!confirm('<%= t('agenda_medica.delete_confirm') %>')) return;
+      try {
+        const resp = await apiFetch(`/agenda-medica/api/appointments/${id}`, { method: 'DELETE' });
+        if (!resp.ok) throw new Error('delete failed');
+        closeModal();
+        loadAppointments();
+      } catch (err) {
+        alert('<%= t('agenda_medica.delete_error') %>');
+      }
+    };
+
+    if (dateInput) {
+      dateInput.addEventListener('change', () => {
+        const selected = parseDate(dateInput.value);
+        if (selected) {
+          state.date = selected;
+          loadAppointments();
+        }
+      });
+    }
+
+    if (doctorFilter) {
+      doctorFilter.addEventListener('change', () => {
+        loadAppointments();
+      });
+    }
+
+    viewButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        setActiveView(btn.dataset.view);
+      });
+    });
+
+    shiftButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const amount = Number(btn.dataset.shift || 0);
+        if (!Number.isFinite(amount)) return;
+        shiftDate(amount);
+      });
+    });
+
+    if (todayButton) {
+      todayButton.addEventListener('click', () => {
+        state.date = new Date();
+        applyDateInput();
+        loadAppointments();
+      });
+    }
+
+    if (newButton) {
+      newButton.addEventListener('click', () => openModal(null));
+    }
+
+    closeButtons.forEach((btn) => btn.addEventListener('click', closeModal));
+    if (modal) {
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeModal();
+      });
+    }
+
+    if (form) {
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const payload = {
+          id: fieldId.value || null,
+          paciente_nombre: fieldPaciente.value.trim(),
+          telefono: fieldTelefono.value.trim(),
+          motivo: fieldMotivo.value.trim(),
+          doctor_id: fieldDoctor.value ? Number(fieldDoctor.value) : null,
+          fecha_hora: fieldFecha.value,
+          estado: fieldEstado.value,
+          duration_min: fieldDuration ? Number(fieldDuration.value || 30) : 30
+        };
+        saveAppointment(payload);
+      });
+    }
+
+    if (deleteButton) {
+      deleteButton.addEventListener('click', () => {
+        deleteAppointment(fieldId.value);
+      });
+    }
+
+    if (doctorOpen) {
+      doctorOpen.addEventListener('click', async () => {
+        await loadDoctors();
+        openDoctorModal();
+      });
+    }
+
+    if (doctorClose) {
+      doctorClose.addEventListener('click', closeDoctorModal);
+    }
+
+    if (doctorReset) {
+      doctorReset.addEventListener('click', resetDoctorForm);
+    }
+
+    if (doctorForm) {
+      doctorForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        saveDoctor();
+      });
+    }
+
+    if (doctorModal) {
+      doctorModal.addEventListener('click', (event) => {
+        if (event.target === doctorModal) closeDoctorModal();
+      });
+    }
+
+    applyDateInput();
+    setActiveView('week');
+  })();
+</script>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,249 @@
+<style>
+  .master-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 32px 28px 50px;
+  }
+  .master-hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 20px;
+    margin-bottom: 12px;
+  }
+  .master-eyebrow {
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+    color: #7b8794;
+    margin: 0 0 8px;
+    font-weight: 700;
+  }
+  .master-hero h1 {
+    margin: 0 0 6px;
+    font-size: 2.1rem;
+  }
+  .master-sub {
+    margin: 0;
+    color: #5b6472;
+    font-size: 0.98rem;
+    max-width: 640px;
+  }
+  .master-hero-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .master-hero-actions.master-tabs {
+    margin-bottom: 0;
+  }
+  .master-page .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+  }
+  .master-tabs {
+    display: inline-flex;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 999px;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    margin-bottom: 18px;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+  }
+  .master-tabs a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    text-decoration: none;
+    color: #4b5563;
+    font-weight: 600;
+    font-size: 0.92rem;
+  }
+  .master-tabs a.is-active {
+    background: #eef2ff;
+    color: #3730a3;
+  }
+  .alert {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #1f2937;
+    margin: 12px 0;
+  }
+  .alert.success {
+    background: #ecfdf3;
+    border-color: #c6f6d5;
+    color: #166534;
+  }
+  .alert.error {
+    background: #fff0ed;
+    border-color: #f0b3a9;
+    color: #8a2a1c;
+  }
+  .master-card {
+    padding: 16px;
+    border-radius: 16px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+  }
+  .master-card form {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    align-items: end;
+  }
+  .master-card input {
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    font-family: inherit;
+    background: #ffffff;
+  }
+  .master-table-wrap {
+    margin-top: 18px;
+    overflow-x: auto;
+    border-radius: 18px;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  }
+  .master-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+    min-width: 960px;
+    background: #ffffff;
+  }
+  .master-table th, .master-table td {
+    border-bottom: 1px solid #edf0f4;
+    padding: 8px;
+    vertical-align: top;
+  }
+  .master-table th {
+    background: #f8fafc;
+    text-align: left;
+    font-weight: 600;
+    color: #3a4453;
+  }
+  .master-table tr:last-child td {
+    border-bottom: none;
+  }
+  .module-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 8px;
+  }
+  .module-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 6px 8px;
+    background: #f8fafc;
+  }
+  .activity-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+</style>
+
+<div class="master-page">
+  <div class="master-hero">
+    <div>
+      <p class="master-eyebrow">Panel master</p>
+      <h1>Actividad</h1>
+      <p class="master-sub">Define los giros del negocio y los módulos habilitados para cada uno.</p>
+    </div>
+    <div class="master-hero-actions master-tabs">
+      <a href="/master/logout">Cerrar sesión</a>
+    </div>
+  </div>
+
+  <nav class="master-tabs">
+    <a href="/master">Empresas</a>
+    <a href="/master/activities" class="is-active">Actividad</a>
+  </nav>
+
+  <% if (flash && flash.message) { %>
+  <div class="alert <%= flash.type || '' %>">
+    <%= flash.message %>
+  </div>
+  <% } %>
+
+  <div class="master-card">
+    <h3>Crear actividad</h3>
+    <form action="/master/activities/create" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <input type="text" name="name" placeholder="Nombre de la actividad" required>
+      <div style="grid-column: 1 / -1;">
+        <div class="module-grid">
+          <% (modules || []).forEach(m => { %>
+            <label class="module-item">
+              <input type="checkbox" name="modules" value="<%= m.code %>">
+              <span><%= m.name %></span>
+            </label>
+          <% }) %>
+        </div>
+      </div>
+      <button class="btn primary">Guardar actividad</button>
+    </form>
+  </div>
+
+  <div class="master-table-wrap">
+    <table class="master-table">
+      <tr>
+        <th>Actividad</th>
+        <th>Módulos habilitados</th>
+        <th>Acciones</th>
+      </tr>
+      <% if (!activities || activities.length === 0) { %>
+      <tr>
+        <td colspan="3">No hay actividades registradas.</td>
+      </tr>
+      <% } %>
+      <% (activities || []).forEach(activity => { %>
+      <tr>
+        <td style="min-width: 200px;">
+          <strong><%= activity.name %></strong>
+        </td>
+        <td>
+          <div style="margin-bottom: 6px; color: #4b5563;">
+            <%= activity.module_labels && activity.module_labels.length ? activity.module_labels.join(', ') : '-' %>
+          </div>
+          <form action="/master/activities/<%= activity.id %>/update" method="POST">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <input type="text" name="name" value="<%= activity.name %>" style="max-width: 240px; margin-bottom: 8px;">
+            <div class="module-grid">
+              <% (modules || []).forEach(m => { %>
+                <label class="module-item">
+                  <input type="checkbox" name="modules" value="<%= m.code %>" <%= activity.modules && activity.modules.includes(m.code) ? 'checked' : '' %>>
+                  <span><%= m.name %></span>
+                </label>
+              <% }) %>
+            </div>
+            <div class="activity-actions" style="margin-top: 8px;">
+              <button class="btn">Actualizar</button>
+            </div>
+          </form>
+        </td>
+        <td style="min-width: 140px;">
+          <form action="/master/activities/<%= activity.id %>/delete" method="POST">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <button class="btn danger">Eliminar</button>
+          </form>
+        </td>
+      </tr>
+      <% }) %>
+    </table>
+  </div>
+</div>

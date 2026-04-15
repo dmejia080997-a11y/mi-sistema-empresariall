@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('manifests.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<div class="page-header">
+<div>
+<h1>
+<%= t('manifests.title') %>
+</h1>
+<p class="muted">
+<%= t('manifests.subtitle') %>
+</p>
+</div>
+<div class="actions">
+<% if (can('manifests', 'create')) { %>
+<a class="btn primary" href="/manifests/new">
+<%= t('manifests.new') %>
+</a>
+<% } %>
+</div>
+</div>
+<% if (error) { %>
+<div class="alert error">
+<%= error %>
+</div>
+<% } %>
+<% if (success) { %>
+<div class="alert success">
+<%= success %>
+</div>
+<% } %>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('manifests.list') %>
+</h2>
+</div>
+<div class="table">
+<div class="table-row header">
+<div>
+<%= t('manifests.airway_bill') %>
+</div>
+<div>
+<%= t('manifests.status') %>
+</div>
+<div>
+<%= t('manifests.pieces') %>
+</div>
+<div>
+<%= t('manifests.packages') %>
+</div>
+<div>
+<%= t('manifests.created_at') %>
+</div>
+<div>
+<%= t('manifests.actions') %>
+</div>
+</div>
+<% if (!manifests || manifests.length === 0) { %>
+<div class="table-row empty">
+<%= t('manifests.no_manifests') %>
+</div>
+<% } %>
+<% (manifests || []).forEach((manifest) => { %>
+<div class="table-row">
+<div>
+<%= manifest.airway_bill_number || '-' %>
+</div>
+<div>
+<span class="status-badge <%= manifest.status === 'closed' ? 'status-closed' : 'status-open' %>">
+<%= manifest.status === 'closed' ? t('manifests.status.closed') : t('manifests.status.open') %>
+</span>
+</div>
+<div>
+<%= manifest.piece_count || 0 %>
+</div>
+<div>
+<%= manifest.package_count || 0 %>
+</div>
+<div>
+<%= manifest.created_at ? manifest.created_at : '-' %>
+</div>
+<div class="actions">
+<a class="btn small" href="/manifests/<%= manifest.id %>">
+<%= t('manifests.view') %>
+</a>
+</div>
+</div>
+<% }) %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

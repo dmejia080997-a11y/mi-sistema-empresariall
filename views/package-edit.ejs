@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('package_edit.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<div class="page-header">
+<div>
+<h1>
+<%= t('package_edit.title') %>
+</h1>
+<p class="muted">
+<%= pkg.internal_code || '-' %> · <%= pkg.tracking_number || '-' %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/packages/<%= pkg.id %>">
+<%= t('package_edit.back_detail') %>
+</a>
+</div>
+</div>
+<% if (error) { %>
+<div class="alert">
+<%= error %>
+</div>
+<% } %>
+<section class="panel">
+<h2>
+<%= t('package_edit.edit_heading') %>
+</h2>
+<form method="POST" action="/packages/<%= pkg.id %>/update" class="form grid-2" style="<%= can('packages', 'edit') ? '' : 'display:none' %>">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('packages.consignatario') %>
+<select name="consignatario_id" id="consignatario-select">
+<option value="">
+<%= t('packages.select_consignatario') %>
+</option>
+<% consignatarios.forEach(consignatario => { %>
+<option value="<%= consignatario.id %>" <%= String(pkg.consignatario_id) === String(consignatario.id) ? 'selected' : '' %>>
+<%= consignatario.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('packages.description') %>
+<textarea name="description" rows="3">
+<%= pkg.description || '' %>
+</textarea>
+</label>
+<label>
+<%= t('packages.declared_value') %>
+<input type="number" name="declared_value" step="0.01" min="0" value="<%= (pkg.declared_value === 0 ? 0 : (pkg.declared_value || '')) %>" />
+</label>
+<label>
+<%= t('packages.weight_lbs') %>
+<input type="number" name="weight_lbs" step="0.01" min="0" value="<%= (pkg.weight_lbs === 0 ? 0 : (pkg.weight_lbs || '')) %>" />
+</label>
+<label>
+<%= t('packages.length_cm') %>
+<input type="number" name="length_cm" step="0.01" min="0" value="<%= pkg.length_cm || '' %>" />
+</label>
+<label>
+<%= t('packages.width_cm') %>
+<input type="number" name="width_cm" step="0.01" min="0" value="<%= pkg.width_cm || '' %>" />
+</label>
+<label>
+<%= t('packages.height_cm') %>
+<input type="number" name="height_cm" step="0.01" min="0" value="<%= pkg.height_cm || '' %>" />
+</label>
+<label>
+<%= t('packages.shipping_type') %>
+<select name="shipping_type">
+<option value="">
+<%= t('common.reset') %>
+</option>
+<option value="air" <%= pkg.shipping_type === 'air' ? 'selected' : '' %>>
+<%= t('packages.shipping_air') %>
+</option>
+<option value="sea" <%= pkg.shipping_type === 'sea' ? 'selected' : '' %>>
+<%= t('packages.shipping_sea') %>
+</option>
+<option value="land" <%= pkg.shipping_type === 'land' ? 'selected' : '' %>>
+<%= t('packages.shipping_land') %>
+</option>
+</select>
+</label>
+<label>
+<%= t('packages.branch_destination') %>
+<input type="text" name="branch_destination" value="<%= pkg.branch_destination || '' %>" />
+</label>
+<label>
+<%= t('packages.delivery_type') %>
+<select name="delivery_type">
+<option value="">
+<%= t('common.reset') %>
+</option>
+<option value="pickup" <%= pkg.delivery_type === 'pickup' ? 'selected' : '' %>>
+<%= t('packages.delivery_pickup') %>
+</option>
+<option value="delivery" <%= pkg.delivery_type === 'delivery' ? 'selected' : '' %>>
+<%= t('packages.delivery_delivery') %>
+</option>
+</select>
+</label>
+<label>
+<%= t('packages.payment_status') %>
+<select name="payment_status">
+<option value="pending" <%= pkg.payment_status !== 'paid' ? 'selected' : '' %>>
+<%= t('packages.payment_pending') %>
+</option>
+<option value="paid" <%= pkg.payment_status === 'paid' ? 'selected' : '' %>>
+<%= t('packages.payment_paid') %>
+</option>
+</select>
+</label>
+<label>
+<%= t('packages.invoice_status') %>
+<select name="invoice_status">
+<option value="pending" <%= pkg.invoice_status !== 'uploaded' ? 'selected' : '' %>>
+<%= t('packages.invoice_pending') %>
+</option>
+<option value="uploaded" <%= pkg.invoice_status === 'uploaded' ? 'selected' : '' %>>
+<%= t('packages.invoice_uploaded') %>
+</option>
+</select>
+</label>
+<label>
+<%= t('packages.carrier') %>
+<input type="text" name="carrier" value="<%= pkg.carrier || '' %>" />
+</label>
+<label>
+<%= t('packages.tracking') %>
+<input type="text" name="tracking_number" required value="<%= pkg.tracking_number || '' %>" />
+</label>
+<label>
+<%= t('packages.received_at') %>
+<input type="date" name="received_at" value="<%= pkg.received_at ? pkg.received_at.substring(0, 10) : '' %>" />
+</label>
+<label>
+<%= t('packages.notes') %>
+<textarea name="notes" rows="3">
+<%= pkg.notes || '' %>
+</textarea>
+</label>
+<div>
+<button type="submit" class="btn primary">
+<%= t('package_edit.save_button') %>
+</button>
+</div>
+</form>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

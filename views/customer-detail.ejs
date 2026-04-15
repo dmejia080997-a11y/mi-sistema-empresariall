@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('customers.detail_title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<div class="page-header">
+<div>
+<div class="eyebrow">
+<%= t('customers.detail_header') %>
+</div>
+<h1>
+<%= customer.name %>
+</h1>
+<div class="muted">
+<%= customer.document_type || '-' %> ? <%= customer.document_number || '-' %>
+</div>
+</div>
+<div class="actions">
+<% if (customer.is_voided) { %>
+<span class="pill danger">
+<%= t('customers.status_voided') %>
+</span>
+<% } %>
+  <span class="btn">
+    <%= t('consignatarios.title') %> (<%= consignatariosCount || 0 %>)
+  </span>
+<form method="POST" action="/customers/<%= customer.id %>/void" class="inline-form" style="<%= !customer.is_voided && can('customers', 'void') ? '' : 'display:none' %>" onsubmit="return confirm('<%= t('customers.void_confirm') %>');">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn danger">
+<%= t('customers.void_button') %>
+</button>
+</form>
+<a class="btn" href="/customers">
+<%= t('common.back') %>
+</a>
+</div>
+</div>
+<section class="panel" id="editar" style="<%= can('customers', 'edit') ? '' : 'display:none' %>">
+<h2>
+<%= t('customers.detail_info') %>
+</h2>
+<% if (flash) { %>
+<div class="alert <%= flash.type %>">
+<%= flash.message %>
+</div>
+<% } %>
+<div class="detail-grid">
+<div>
+<strong>
+<%= t('customers.customer_code') %>:</strong>
+<%= customer.customer_code || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.first_name') %>:</strong>
+<%= customer.first_name || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.last_name') %>:</strong>
+<%= customer.last_name || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.document_type') %>:</strong>
+<%= customer.document_type || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.document_number') %>:</strong>
+<%= customer.document_number || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.payment_method') %>:</strong>
+<%= customer.payment_method || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.communication_type') %>:</strong>
+<%= customer.communication_type || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.advisor') %>:</strong>
+<%= customer.advisor || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.phone') %>:</strong>
+<%= customer.phone || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.mobile') %>:</strong>
+<%= customer.mobile || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.email') %>:</strong>
+<%= customer.email || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.full_address') %>:</strong>
+<%= customer.full_address || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.house_number') %>:</strong>
+<%= customer.house_number || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.street_number') %>:</strong>
+<%= customer.street_number || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.zone') %>:</strong>
+<%= customer.zone || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.municipality') %>:</strong>
+<%= customer.municipality || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.department') %>:</strong>
+<%= customer.department || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.country') %>:</strong>
+<%= customer.country || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.notes') %>:</strong>
+<%= customer.notes || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.sat_status') %>:</strong>
+<%= customer.sat_verified ? t('customers.sat_verified') : t('customers.sat_manual') %>
+</div>
+<div>
+<strong>
+<%= t('customers.sat_name') %>:</strong>
+<%= customer.sat_name || '-' %>
+</div>
+<div>
+<strong>
+<%= t('customers.sat_checked_at') %>:</strong>
+<%= customer.sat_checked_at || '-' %>
+</div>
+</div>
+</section>
+<section class="panel">
+<h2>
+<%= t('customers.edit_customer') %>
+</h2>
+<form method="POST" action="/customers/<%= customer.id %>/update" class="form grid-2" data-sat-form data-gt-address-form>
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('customers.document_type') %>
+<select name="document_type" data-sat-type>
+<% documentTypes.forEach(type => { %>
+<option value="<%= type %>" <%= customer.document_type === type ? 'selected' : '' %>>
+<%= type %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('customers.document_number') %>
+<input type="text" name="document_number" value="<%= customer.document_number || '' %>" data-sat-number />
+</label>
+<div class="actions full-row">
+<button type="button" class="btn" data-sat-verify>
+<%= t('customers.verify_sat') %>
+</button>
+<button type="button" class="btn" data-sat-manual>
+<%= t('customers.sat_manual_action') %>
+</button>
+<span class="helper" data-sat-status>
+<%= customer.sat_verified ? t('customers.sat_verified') : t('customers.sat_hint') %>
+</span>
+<span class="helper" data-sat-warning>
+</span>
+<input type="hidden" name="sat_verified" value="<%= customer.sat_verified ? '1' : '0' %>" data-sat-verified />
+<input type="hidden" name="sat_name" value="<%= customer.sat_name || '' %>" data-sat-name />
+<input type="hidden" name="sat_checked_at" value="<%= customer.sat_checked_at || '' %>" data-sat-checked-at />
+</div>
+<label>
+<%= t('customers.first_name') %>
+<input type="text" name="first_name" required value="<%= customer.first_name || '' %>" data-sat-name-target />
+</label>
+<label>
+<%= t('customers.last_name') %>
+<input type="text" name="last_name" required value="<%= customer.last_name || '' %>" />
+</label>
+<label>
+<%= t('customers.email') %>
+<input type="email" name="email" value="<%= customer.email || '' %>" />
+</label>
+<label>
+<%= t('customers.portal_code') %>
+<input type="text" name="portal_code" value="<%= customer.portal_code || '' %>" />
+<span class="helper">
+<%= t('customers.portal_code_hint') %>
+</span>
+</label>
+<label>
+<%= t('customers.portal_password') %>
+<div class="password-wrapper">
+<input type="password" name="portal_password" data-password-input placeholder="<%= t('customers.portal_password_auto_hint') %>" />
+<button type="button" class="password-toggle" data-password-toggle>
+<%= t('common.show') %>
+</button>
+</div>
+<span class="helper">
+<%= t('customers.portal_password_auto_hint') %>
+</span>
+</label>
+<label>
+<%= t('customers.phone') %>
+<input type="text" name="phone" value="<%= customer.phone || '' %>" />
+</label>
+<label>
+<%= t('customers.mobile') %>
+<input type="text" name="mobile" value="<%= customer.mobile || '' %>" />
+</label>
+<label>
+<%= t('customers.country') %>
+<select name="country" data-country data-selected="<%= customer.country || '' %>" class="address-country">
+<option value="Guatemala" <%= customer.country === 'Guatemala' ? 'selected' : '' %>>Guatemala</option>
+</select>
+</label>
+<label>
+<%= t('customers.department') %>
+<select name="department" data-department data-selected="<%= customer.department || '' %>" data-placeholder="<%= t('customers.select_department') %>">
+<option value=""><%= t('customers.select_department') %></option>
+</select>
+</label>
+<label>
+<%= t('customers.municipality') %>
+<select name="municipality" data-municipality data-selected="<%= customer.municipality || '' %>" data-placeholder="<%= t('customers.select_municipality') %>">
+<option value=""><%= t('customers.select_municipality') %></option>
+</select>
+</label>
+<label>
+<%= t('customers.zone') %>
+<input type="text" name="zone" placeholder="<%= t('customers.zone') %>" value="<%= customer.zone || '' %>" />
+</label>
+<label>
+<%= t('customers.house_number') %>
+<input type="text" name="house_number" value="<%= customer.house_number || '' %>" />
+</label>
+<label>
+<%= t('customers.street_number') %>
+<input type="text" name="street_number" value="<%= customer.street_number || '' %>" />
+</label>
+<label>
+<%= t('customers.full_address') %>
+<textarea name="full_address" rows="2" placeholder="<%= t('customers.full_address') %>">
+<%= customer.full_address || '' %>
+</textarea>
+</label>
+<label>
+<%= t('customers.payment_method') %>
+<select name="payment_method">
+<option value="">
+<%= t('common.choose') %>
+</option>
+<% paymentMethods.forEach(method => { %>
+<% const paymentKey = `customers.payment_method.${method}`; %>
+<% const paymentLabel = t(paymentKey); %>
+<option value="<%= method %>" <%= customer.payment_method === method ? 'selected' : '' %>>
+<%= paymentLabel === paymentKey ? method : paymentLabel %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('customers.communication_type') %>
+<select name="communication_type">
+<option value="">
+<%= t('common.choose') %>
+</option>
+<% communicationTypes.forEach(type => { %>
+<% const commKey = `customers.communication_type.${type}`; %>
+<% const commLabel = t(commKey); %>
+<option value="<%= type %>" <%= customer.communication_type === type ? 'selected' : '' %>>
+<%= commLabel === commKey ? type : commLabel %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('customers.advisor') %>
+<input type="text" name="advisor" value="<%= customer.advisor || '' %>" />
+</label>
+<label>
+<%= t('customers.notes') %>
+<textarea name="notes" rows="2">
+<%= customer.notes || '' %>
+</textarea>
+</label>
+<div class="actions full-row">
+<button type="submit" class="btn primary">
+<%= t('common.save') %>
+</button>
+</div>
+</form>
+</section>
+<section class="panel">
+<h2>
+<%= t('customers.route_title') %>
+</h2>
+<div class="muted">
+<%= t('customers.route_hint') %>
+</div>
+<div class="actions" id="route-actions"
+  data-full-address="<%= customer.full_address || '' %>"
+  data-municipality="<%= customer.municipality || '' %>"
+  data-department="<%= customer.department || '' %>"
+  data-country="<%= customer.country || '' %>">
+<a class="btn" href="#" data-route-provider="google">
+<%= t('customers.route_google') %>
+</a>
+<a class="btn" href="#" data-route-provider="waze">
+<%= t('customers.route_waze') %>
+</a>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+<script>
+  (function () {
+    const routeActions = document.getElementById('route-actions');
+    if (!routeActions) return;
+    const dataset = routeActions.dataset || {};
+    function buildDestination() {
+      const parts = [
+        dataset.fullAddress,
+        dataset.municipality,
+        dataset.department,
+        dataset.country
+      ].filter(Boolean);
+      return parts.join(', ');
+    }
+    function googleUrl(destination) {
+      const params = new URLSearchParams({
+        api: '1',
+        destination: destination,
+        travelmode: 'driving'
+      });
+      return `https://www.google.com/maps/dir/?${params.toString()}`;
+    }
+    function wazeUrl(destination) {
+      const params = new URLSearchParams({
+        q: destination,
+        navigate: 'yes'
+      });
+      return `https://www.waze.com/ul?${params.toString()}`;
+    }
+    function openRoute(provider) {
+      const destination = buildDestination();
+      if (!destination) return;
+      const url = provider === 'waze' ? wazeUrl(destination) : googleUrl(destination);
+      window.location.href = url;
+    }
+    routeActions.querySelectorAll('[data-route-provider]').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        openRoute(button.getAttribute('data-route-provider'));
+      });
+    });
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('route') === '1') {
+      openRoute(params.get('provider') || 'google');
+    }
+  })();
+</script>
+<script src="/gt-locations.js">
+</script>
+<script src="/address-gt.js">
+</script>
+<script>
+  (function () {
+    function initSatForm(form) {
+      const typeSelect = form.querySelector('[data-sat-type]');
+      const numberInput = form.querySelector('[data-sat-number]');
+      const nameInput = form.querySelector('[data-sat-name-target]');
+      const verifyBtn = form.querySelector('[data-sat-verify]');
+      const manualBtn = form.querySelector('[data-sat-manual]');
+      const statusEl = form.querySelector('[data-sat-status]');
+      const warningEl = form.querySelector('[data-sat-warning]');
+      const satVerified = form.querySelector('[data-sat-verified]');
+      const satName = form.querySelector('[data-sat-name]');
+      const satCheckedAt = form.querySelector('[data-sat-checked-at]');
+
+      function setManualStatus(message, portalUrl) {
+        if (statusEl) statusEl.textContent = '<%= t('customers.sat_manual_action') %>';
+        if (warningEl) {
+          if (portalUrl) {
+            warningEl.innerHTML = `${message || '<%= t('customers.sat_unavailable') %>'} <a href="${portalUrl}" target="_blank" rel="noopener">${'<%= t('customers.sat_portal_link') %>'}</a>`;
+          } else {
+            warningEl.textContent = message || '<%= t('customers.sat_unavailable') %>';
+          }
+        }
+        if (satVerified) satVerified.value = '0';
+        if (satName) satName.value = '';
+        if (satCheckedAt) satCheckedAt.value = '';
+      }
+
+      function clearWarning() {
+        if (warningEl) warningEl.textContent = '';
+      }
+
+      function toggleSatControls() {
+        const isNit = typeSelect && typeSelect.value === 'NIT';
+        if (verifyBtn) verifyBtn.disabled = !isNit;
+        if (manualBtn) manualBtn.disabled = !isNit;
+        if (!isNit) {
+          if (statusEl) statusEl.textContent = '<%= t('customers.sat_manual') %>';
+          clearWarning();
+          if (satVerified) satVerified.value = '0';
+          if (satName) satName.value = '';
+          if (satCheckedAt) satCheckedAt.value = '';
+        }
+      }
+
+      async function verifySat() {
+        if (!numberInput || !statusEl) return;
+        statusEl.textContent = '<%= t('customers.sat_checking') %>';
+        clearWarning();
+        try {
+          const response = await fetch('/sat/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '<%= csrfToken %>' },
+            body: JSON.stringify({ document_number: numberInput.value })
+          });
+          const data = await response.json();
+          if (data && data.ok) {
+            statusEl.textContent = '<%= t('customers.sat_verified') %>';
+            if (nameInput && data.name) {
+              nameInput.value = data.name;
+            }
+            if (satVerified) satVerified.value = '1';
+            if (satName) satName.value = data.name || '';
+            if (satCheckedAt) satCheckedAt.value = new Date().toISOString();
+            return;
+          }
+          setManualStatus(data && data.message ? data.message : '<%= t('customers.sat_unavailable') %>', data && data.portal_url);
+        } catch (err) {
+          setManualStatus('<%= t('customers.sat_unavailable') %>');
+        }
+      }
+
+      if (typeSelect) typeSelect.addEventListener('change', toggleSatControls);
+      if (verifyBtn) verifyBtn.addEventListener('click', verifySat);
+      if (manualBtn) manualBtn.addEventListener('click', () => setManualStatus('<%= t('customers.sat_manual_action') %>'));
+      toggleSatControls();
+    }
+
+    function initPasswordToggles(root) {
+      root.querySelectorAll('[data-password-toggle]').forEach((button) => {
+        const wrapper = button.closest('.password-wrapper');
+        const input = wrapper ? wrapper.querySelector('[data-password-input]') : null;
+        if (!input) return;
+        button.addEventListener('click', () => {
+          const isPassword = input.getAttribute('type') === 'password';
+          input.setAttribute('type', isPassword ? 'text' : 'password');
+          button.textContent = isPassword ? '<%= t('common.hide') %>' : '<%= t('common.show') %>';
+        });
+      });
+    }
+
+    document.querySelectorAll('[data-sat-form]').forEach(initSatForm);
+    initPasswordToggles(document);
+  })();
+</script>
+</body>
+</html>

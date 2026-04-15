@@ -1,0 +1,112 @@
+<% var currentPackagesNav = typeof packagesNav !== 'undefined' ? packagesNav : 'statuses'; %>
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('packages.status_manifest.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container packages-module">
+<div class="page-header">
+<div>
+<h1>
+<%= t('packages.status_manifest.title') %>
+</h1>
+<p class="muted">
+<%= t('packages.status_manifest.subtitle', { status }) %>
+</p>
+</div>
+</div>
+<% if (flash) { %>
+<div class="alert <%= flash.type %>">
+<%= flash.message %>
+</div>
+<% } %>
+<div class="alert info">
+<strong><%= t('packages.status_manifest.status_label') %>:</strong> <%= status %>
+</div>
+<div class="grid-2">
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('packages.status_manifest.manifest_select') %>
+</h2>
+</div>
+<form method="POST" action="/packages/status-by-manifest/manifest" class="form">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<input type="hidden" name="status" value="<%= status %>" />
+<label>
+<%= t('packages.status_manifest.manifest_select') %>
+<select name="manifest_id" required>
+<option value="">
+<%= t('packages.status_manifest.manifest_placeholder') %>
+</option>
+<% (manifests || []).forEach((manifest) => { %>
+<% const manifestLabel = manifest.airway_bill_number || ('#' + manifest.id); %>
+<% const statusLabel = manifest.status === 'closed' ? t('manifests.status.closed') : t('manifests.status.open'); %>
+<option value="<%= manifest.id %>">
+<%= manifestLabel %> - <%= statusLabel %> (<%= manifest.package_count || 0 %> <%= t('manifests.packages') %>)
+</option>
+<% }) %>
+</select>
+</label>
+<span class="helper">
+<%= t('packages.status_manifest.manifest_hint') %>
+</span>
+<div class="actions">
+<button class="btn primary" type="submit">
+<%= t('packages.status_manifest.apply_manifest') %>
+</button>
+</div>
+<% if (!manifests || manifests.length === 0) { %>
+<div class="alert">
+<%= t('packages.status_manifest.no_manifests') %>
+</div>
+<% } %>
+</form>
+</section>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('packages.status_manifest.scan_label') %>
+</h2>
+</div>
+<form method="POST" action="/packages/status-by-manifest/scan" class="form">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<input type="hidden" name="status" value="<%= status %>" />
+<label>
+<%= t('packages.status_manifest.scan_label') %>
+<input type="text" name="scan_value" placeholder="<%= t('packages.status_manifest.scan_placeholder') %>" autocomplete="off" autofocus />
+</label>
+<span class="helper">
+<%= t('packages.status_manifest.scan_hint') %>
+</span>
+<div class="actions">
+<button class="btn primary" type="submit">
+<%= t('packages.status_manifest.scan_button') %>
+</button>
+</div>
+</form>
+</section>
+</div>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

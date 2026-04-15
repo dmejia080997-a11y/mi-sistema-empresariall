@@ -1,0 +1,581 @@
+<% const statusLabels = { draft: t('cuscar.status.draft'), closed: t('cuscar.status.closed'), ready_to_generate: t('cuscar.status.ready_to_generate'), generated: t('cuscar.status.generated'), transmitted: t('cuscar.status.transmitted'), error: t('cuscar.status.error') }; %>
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('cuscar.manifest.detail') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<div class="page-header">
+<div>
+<h1>
+<%= t('cuscar.manifest.detail') %>
+</h1>
+<p class="muted">
+<%= manifest.internal_number %>
+</p>
+</div>
+<div class="actions">
+<span class="status-badge status-<%= manifest.status %>">
+<%= statusLabels[manifest.status] || manifest.status %>
+</span>
+<a class="btn" href="/cuscar/manifests">
+<%= t('cuscar.manifests.list') %>
+</a>
+<% if (canPreview) { %>
+<a class="btn" href="/cuscar/manifests/<%= manifest.id %>/preview">
+<%= t('cuscar.manifest.preview') %>
+</a>
+<% if (manifest.status !== 'draft') { %>
+<form method="POST" action="/cuscar/manifests/<%= manifest.id %>/preview/generate">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn">
+<%= t('cuscar.manifest.generate_preview') %>
+</button>
+</form>
+<% } %>
+<% } %>
+<% if (canTransmit) { %>
+<form method="POST" action="/cuscar/manifests/<%= manifest.id %>/transmit">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn <%= satEnv === 'simulation' ? '' : 'primary' %>" <%= manifest.status === 'draft' ? 'disabled' : '' %>>
+<%= satEnv === 'simulation' ? t('cuscar.transmit.simulate') : t('cuscar.transmit.send') %>
+</button>
+</form>
+<% } %>
+<% if (isEditable && canClose) { %>
+<form method="POST" action="/cuscar/manifests/<%= manifest.id %>/close">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn danger">
+<%= t('cuscar.actions.close') %>
+</button>
+</form>
+<% } %>
+<% if (!isEditable && isAdmin) { %>
+<form method="POST" action="/cuscar/manifests/<%= manifest.id %>/reopen">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn">
+<%= t('cuscar.actions.reopen') %>
+</button>
+</form>
+<% } %>
+</div>
+</div>
+<div class="subnav">
+<a href="/cuscar">
+<%= t('cuscar.nav.dashboard') %>
+</a>
+<a class="active" href="/cuscar/manifests">
+<%= t('cuscar.nav.manifests') %>
+</a>
+<a href="/cuscar/catalogs/transporters">
+<%= t('cuscar.nav.catalogs') %>
+</a>
+</div>
+<% if (flash) { %>
+<div class="alert <%= flash.type %>">
+<%= flash.message %>
+</div>
+<% } %>
+<% const missingCatalogs = []; %>
+<% if (!(catalogs.airlines || []).length) missingCatalogs.push(t('cuscar.catalog.airlines.title')); %>
+<% if (!(catalogs.transporters || []).length) missingCatalogs.push(t('cuscar.catalog.transporters.title')); %>
+<% if (!(catalogs.countries || []).length) missingCatalogs.push(t('cuscar.catalog.countries.title')); %>
+<% if (!(catalogs.customsOffices || []).length) missingCatalogs.push(t('cuscar.catalog.customs_offices.title')); %>
+<% if (!(catalogs.airports || []).length) missingCatalogs.push(t('cuscar.catalog.airports.title')); %>
+<% if (!(catalogs.ports || []).length) missingCatalogs.push(t('cuscar.catalog.ports.title')); %>
+<% if (!(catalogs.transportModes || []).length) missingCatalogs.push(t('cuscar.catalog.transport_modes.title')); %>
+<% if (!(catalogs.transportMeans || []).length) missingCatalogs.push(t('cuscar.catalog.transport_means.title')); %>
+<% if (!(catalogs.messageTypes || []).length) missingCatalogs.push(t('cuscar.catalog.message_types.title')); %>
+<% if (!(catalogs.messageFunctions || []).length) missingCatalogs.push(t('cuscar.catalog.message_functions.title')); %>
+<% if (!(catalogs.referenceQualifiers || []).length) missingCatalogs.push(t('cuscar.catalog.reference_qualifiers.title')); %>
+<% if (!(catalogs.messageResponsibles || []).length) missingCatalogs.push(t('cuscar.catalog.message_responsibles.title')); %>
+<% if (!(catalogs.transportIdAgencies || []).length) missingCatalogs.push(t('cuscar.catalog.transport_id_agencies.title')); %>
+<% if (!(catalogs.packageTypes || []).length) missingCatalogs.push(t('cuscar.catalog.package_types.title')); %>
+<% if (!(catalogs.units || []).length) missingCatalogs.push(t('cuscar.catalog.units.title')); %>
+<% if (missingCatalogs.length) { %>
+<div class="alert warning">
+<%= t('cuscar.catalogs.missing', { list: missingCatalogs.join(', ') }) %>
+</div>
+<% } %>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('cuscar.fields.status') %>
+</h2>
+</div>
+<form method="POST" action="/cuscar/manifests/<%= manifest.id %>/update" class="form grid-2">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('cuscar.fields.internal_number') %>
+<input type="text" name="internal_number" value="<%= manifest.internal_number || '' %>" <%= isEditable && canEdit ? '' : 'disabled' %> required />
+</label>
+<label>
+<%= t('cuscar.fields.master_airway_bill') %>
+<input type="text" name="master_airway_bill" value="<%= manifest.master_airway_bill || '' %>" <%= isEditable && canEdit ? '' : 'disabled' %> required />
+</label>
+<label>
+<%= t('cuscar.fields.flight_number') %>
+<input type="text" name="flight_number" value="<%= manifest.flight_number || '' %>" <%= isEditable && canEdit ? '' : 'disabled' %> required />
+</label>
+<label>
+<%= t('cuscar.fields.flight_date') %>
+<input type="date" name="flight_date" value="<%= manifest.flight_date || '' %>" <%= isEditable && canEdit ? '' : 'disabled' %> required />
+</label>
+<label>
+<%= t('cuscar.fields.airline') %>
+<select name="airline_id" <%= isEditable && canEdit ? '' : 'disabled' %> required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.airlines || []).forEach((airline) => { %>
+<option value="<%= airline.id %>" <%= Number(manifest.airline_id) === airline.id ? 'selected' : '' %>>
+<%= airline.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.transport_mode') %>
+<select name="transport_mode_id" <%= isEditable && canEdit ? '' : 'disabled' %> required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.transportModes || []).forEach((mode) => { %>
+<option value="<%= mode.id %>" <%= Number(manifest.transport_mode_id) === mode.id ? 'selected' : '' %>>
+<%= mode.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.transport_means') %>
+<select name="transport_means_id" <%= isEditable && canEdit ? '' : 'disabled' %> required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.transportMeans || []).forEach((means) => { %>
+<option value="<%= means.id %>" <%= Number(manifest.transport_means_id) === means.id ? 'selected' : '' %>>
+<%= means.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.message_type') %>
+<select name="message_type_id" <%= isEditable && canEdit ? '' : 'disabled' %> required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.messageTypes || []).forEach((msg) => { %>
+<option value="<%= msg.id %>" <%= Number(manifest.message_type_id) === msg.id ? 'selected' : '' %>>
+<%= msg.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.message_function') %>
+<select name="message_function_id" <%= isEditable && canEdit ? '' : 'disabled' %> required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.messageFunctions || []).forEach((func) => { %>
+<option value="<%= func.id %>" <%= Number(manifest.message_function_id) === func.id ? 'selected' : '' %>>
+<%= func.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.message_responsible') %>
+<select name="message_responsible_id" <%= isEditable && canEdit ? '' : 'disabled' %> required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.messageResponsibles || []).forEach((resp) => { %>
+<option value="<%= resp.id %>" <%= Number(manifest.message_responsible_id) === resp.id ? 'selected' : '' %>>
+<%= resp.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.reference_qualifier') %>
+<select name="reference_qualifier_id" <%= isEditable && canEdit ? '' : 'disabled' %> required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.referenceQualifiers || []).forEach((ref) => { %>
+<option value="<%= ref.id %>" <%= Number(manifest.reference_qualifier_id) === ref.id ? 'selected' : '' %>>
+<%= ref.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.transport_id_agency') %>
+<select name="transport_id_agency_id" <%= isEditable && canEdit ? '' : 'disabled' %> required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.transportIdAgencies || []).forEach((agency) => { %>
+<option value="<%= agency.id %>" <%= Number(manifest.transport_id_agency_id) === agency.id ? 'selected' : '' %>>
+<%= agency.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.origin_airport') %>
+<select name="origin_airport_id" <%= isEditable && canEdit ? '' : 'disabled' %>>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.airports || []).forEach((airport) => { %>
+<option value="<%= airport.id %>" <%= Number(manifest.origin_airport_id) === airport.id ? 'selected' : '' %>>
+<%= airport.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.origin_port') %>
+<select name="origin_port_id" <%= isEditable && canEdit ? '' : 'disabled' %>>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.ports || []).forEach((port) => { %>
+<option value="<%= port.id %>" <%= Number(manifest.origin_port_id) === port.id ? 'selected' : '' %>>
+<%= port.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.destination_airport') %>
+<select name="destination_airport_id" <%= isEditable && canEdit ? '' : 'disabled' %>>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.airports || []).forEach((airport) => { %>
+<option value="<%= airport.id %>" <%= Number(manifest.destination_airport_id) === airport.id ? 'selected' : '' %>>
+<%= airport.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.destination_port') %>
+<select name="destination_port_id" <%= isEditable && canEdit ? '' : 'disabled' %>>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.ports || []).forEach((port) => { %>
+<option value="<%= port.id %>" <%= Number(manifest.destination_port_id) === port.id ? 'selected' : '' %>>
+<%= port.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.customs_office') %>
+<select name="customs_office_id" <%= isEditable && canEdit ? '' : 'disabled' %> required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.customsOffices || []).forEach((office) => { %>
+<option value="<%= office.id %>" <%= Number(manifest.customs_office_id) === office.id ? 'selected' : '' %>>
+<%= office.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.fields.transporter') %>
+<select name="transporter_id" <%= isEditable && canEdit ? '' : 'disabled' %> required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.transporters || []).forEach((transporter) => { %>
+<option value="<%= transporter.id %>" <%= Number(manifest.transporter_id) === transporter.id ? 'selected' : '' %>>
+<%= transporter.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label style="grid-column: 1 / -1;">
+<%= t('cuscar.fields.observations') %>
+<textarea name="observations" rows="3" <%= isEditable && canEdit ? '' : 'disabled' %>><%= manifest.observations || '' %></textarea>
+</label>
+<% if (isEditable && canEdit) { %>
+<div style="grid-column: 1 / -1;">
+<button type="submit" class="btn primary">
+<%= t('common.save') %>
+</button>
+</div>
+<% } %>
+</form>
+</section>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('cuscar.manifest.items') %>
+</h2>
+</div>
+<% if (isEditable && canEdit) { %>
+<form method="POST" action="/cuscar/manifests/<%= manifest.id %>/items/create" class="form grid-2">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('cuscar.item.hawb_number') %>
+<input type="text" name="hawb_number" required />
+</label>
+<label>
+<%= t('cuscar.item.shipper') %>
+<select name="shipper_id" required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.remitentes || []).forEach((shipper) => { %>
+<option value="<%= shipper.id %>">
+<%= shipper.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.item.consignee') %>
+<select name="consignee_id" required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.consignatarios || []).forEach((consignee) => { %>
+<option value="<%= consignee.id %>">
+<%= consignee.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.item.goods_description') %>
+<input type="text" name="goods_description" required />
+</label>
+<label>
+<%= t('cuscar.item.package_qty') %>
+<input type="number" name="package_qty" min="0" step="1" value="0" />
+</label>
+<label>
+<%= t('cuscar.item.package_type') %>
+<select name="package_type_id" required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.packageTypes || []).forEach((pkg) => { %>
+<option value="<%= pkg.id %>">
+<%= pkg.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.item.weight_unit') %>
+<select name="weight_unit_id" required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.units || []).forEach((unit) => { %>
+<option value="<%= unit.id %>">
+<%= unit.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('cuscar.item.gross_weight') %>
+<input type="number" name="gross_weight" min="0" step="0.01" value="0" />
+</label>
+<label>
+<%= t('cuscar.item.net_weight') %>
+<input type="number" name="net_weight" min="0" step="0.01" value="0" />
+</label>
+<label>
+<%= t('cuscar.item.declared_value') %>
+<input type="number" name="declared_value" min="0" step="0.01" value="0" />
+</label>
+<label>
+<%= t('cuscar.item.origin_country') %>
+<select name="origin_country_id" required>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.countries || []).forEach((country) => { %>
+<option value="<%= country.id %>">
+<%= country.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label style="grid-column: 1 / -1;">
+<%= t('cuscar.fields.observations') %>
+<textarea name="observations" rows="2"></textarea>
+</label>
+<div style="grid-column: 1 / -1;">
+<button type="submit" class="btn">
+<%= t('cuscar.manifest.add_item') %>
+</button>
+</div>
+</form>
+<% } %>
+<div class="table">
+<div class="table-row cuscar-items header">
+<div><%= t('cuscar.item.hawb_number') %></div>
+<div><%= t('cuscar.item.shipper') %></div>
+<div><%= t('cuscar.item.consignee') %></div>
+<div><%= t('cuscar.item.goods_description') %></div>
+<div><%= t('cuscar.item.package_qty') %></div>
+<div><%= t('cuscar.item.package_type') %></div>
+<div><%= t('cuscar.item.weight_unit') %></div>
+<div><%= t('cuscar.item.gross_weight') %></div>
+<div><%= t('cuscar.item.net_weight') %></div>
+<div><%= t('cuscar.item.declared_value') %></div>
+<div><%= t('cuscar.item.origin_country') %></div>
+<div><%= t('cuscar.fields.observations') %></div>
+<div><%= t('cuscar.fields.actions') %></div>
+</div>
+<% if (!items || items.length === 0) { %>
+<div class="table-row empty">
+<%= t('cuscar.errors.items_required') %>
+</div>
+<% } %>
+<% (items || []).forEach((item) => { %>
+<form method="POST" action="/cuscar/manifests/<%= manifest.id %>/items/<%= item.id %>/update" class="table-row cuscar-items">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<input type="text" name="hawb_number" value="<%= item.hawb_number || '' %>" <%= isEditable && canEdit ? '' : 'disabled' %> />
+<select name="shipper_id" <%= isEditable && canEdit ? '' : 'disabled' %>>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.remitentes || []).forEach((shipper) => { %>
+<option value="<%= shipper.id %>" <%= Number(item.shipper_id) === shipper.id ? 'selected' : '' %>>
+<%= shipper.name %>
+</option>
+<% }) %>
+</select>
+<select name="consignee_id" <%= isEditable && canEdit ? '' : 'disabled' %>>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.consignatarios || []).forEach((consignee) => { %>
+<option value="<%= consignee.id %>" <%= Number(item.consignee_id) === consignee.id ? 'selected' : '' %>>
+<%= consignee.name %>
+</option>
+<% }) %>
+</select>
+<input type="text" name="goods_description" value="<%= item.goods_description || '' %>" <%= isEditable && canEdit ? '' : 'disabled' %> />
+<input type="number" name="package_qty" min="0" step="1" value="<%= item.package_qty || 0 %>" <%= isEditable && canEdit ? '' : 'disabled' %> />
+<select name="package_type_id" <%= isEditable && canEdit ? '' : 'disabled' %>>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.packageTypes || []).forEach((pkg) => { %>
+<option value="<%= pkg.id %>" <%= Number(item.package_type_id) === pkg.id ? 'selected' : '' %>>
+<%= pkg.name %>
+</option>
+<% }) %>
+</select>
+<select name="weight_unit_id" <%= isEditable && canEdit ? '' : 'disabled' %>>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.units || []).forEach((unit) => { %>
+<option value="<%= unit.id %>" <%= Number(item.weight_unit_id) === unit.id ? 'selected' : '' %>>
+<%= unit.name %>
+</option>
+<% }) %>
+</select>
+<input type="number" name="gross_weight" min="0" step="0.01" value="<%= item.gross_weight || 0 %>" <%= isEditable && canEdit ? '' : 'disabled' %> />
+<input type="number" name="net_weight" min="0" step="0.01" value="<%= item.net_weight || 0 %>" <%= isEditable && canEdit ? '' : 'disabled' %> />
+<input type="number" name="declared_value" min="0" step="0.01" value="<%= item.declared_value || 0 %>" <%= isEditable && canEdit ? '' : 'disabled' %> />
+<select name="origin_country_id" <%= isEditable && canEdit ? '' : 'disabled' %>>
+<option value="">
+<%= t('common.select') %>
+</option>
+<% (catalogs.countries || []).forEach((country) => { %>
+<option value="<%= country.id %>" <%= Number(item.origin_country_id) === country.id ? 'selected' : '' %>>
+<%= country.name %>
+</option>
+<% }) %>
+</select>
+<input type="text" name="observations" value="<%= item.observations || '' %>" <%= isEditable && canEdit ? '' : 'disabled' %> />
+<div class="actions">
+<% if (isEditable && canEdit) { %>
+<button type="submit" class="btn small">
+<%= t('common.save') %>
+</button>
+<button type="submit" class="btn danger small" formaction="/cuscar/manifests/<%= manifest.id %>/items/<%= item.id %>/delete" formmethod="POST">
+<%= t('common.delete') %>
+</button>
+<% } else { %>
+<span class="muted">-</span>
+<% } %>
+</div>
+</form>
+<% }) %>
+</div>
+</section>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('cuscar.transmit.history') %>
+</h2>
+</div>
+<div class="table">
+<div class="table-row header">
+<div><%= t('cuscar.transmit.status') %></div>
+<div><%= t('cuscar.transmit.mode') %></div>
+<div><%= t('cuscar.transmit.endpoint') %></div>
+<div><%= t('cuscar.transmit.response') %></div>
+<div><%= t('cuscar.fields.created_at') %></div>
+</div>
+<% if (!transmissions || transmissions.length === 0) { %>
+<div class="table-row empty">
+<%= t('cuscar.transmit.empty') %>
+</div>
+<% } %>
+<% (transmissions || []).forEach((tx) => { %>
+<div class="table-row">
+<div>
+<span class="status-badge status-<%= tx.status === 'success' ? 'transmitted' : (tx.status === 'error' ? 'error' : 'ready_to_generate') %>">
+<%= tx.status %>
+</span>
+</div>
+<div><%= tx.mode || '-' %></div>
+<div><%= tx.endpoint || '-' %></div>
+<div><%= tx.response_code || tx.error_message || '-' %></div>
+<div><%= tx.created_at || '-' %></div>
+</div>
+<% }) %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

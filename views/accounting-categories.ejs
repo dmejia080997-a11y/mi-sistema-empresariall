@@ -1,0 +1,126 @@
+﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Categorías contables</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand"><%= t('common.brand') %></div>
+<nav class="nav">
+<a href="/dashboard">Dashboard</a>
+<a href="/logout"><%= t('nav.logout') %></a>
+</nav>
+</header>
+<main class="container">
+<h1>Categorías contables</h1>
+<nav class="subnav">
+<a href="/accounting/accounts">Catálogo</a>
+<a href="/accounting/categories" class="<%= active === 'accounts' ? 'active' : '' %>">Categorías</a>
+<a href="/accounting/categories/rules">Reglas</a>
+<a href="/accounting/journal">Pólizas</a>
+<a href="/accounting/reports">Reportes</a>
+<a href="/accounting/settings">Configuración</a>
+</nav>
+
+<% if (flash) { %>
+<div class="alert <%= flash.type %>"><%= flash.message %></div>
+<% } %>
+
+<section class="panel">
+<form class="form" method="get" action="/accounting/categories">
+<label>
+Marco contable
+<select name="framework">
+<% (frameworks || ['NIF','NIIF']).forEach(fr => { %>
+<option value="<%= fr %>" <%= fr === framework ? 'selected' : '' %>><%= fr %></option>
+<% }) %>
+</select>
+</label>
+<button class="btn primary" type="submit">Ver</button>
+</form>
+</section>
+
+<section class="panel">
+<div class="panel-header">
+<h2>Listado</h2>
+</div>
+<div class="table">
+<div class="table-row header accounting-categories">
+<div>Código</div>
+<div>Nombre</div>
+<div>Tipo</div>
+<div>Orden</div>
+<div></div>
+</div>
+<% if (!categories.length) { %>
+<div class="table-row empty">No hay categorías registradas.</div>
+<% } %>
+<% categories.forEach(cat => { %>
+<form id="update-<%= cat.id %>" method="post" action="/accounting/categories/<%= cat.id %>/update"></form>
+<form id="delete-<%= cat.id %>" method="post" action="/accounting/categories/<%= cat.id %>/delete"></form>
+<div class="table-row accounting-categories accounting-row">
+<div>
+<input form="update-<%= cat.id %>" type="hidden" name="framework" value="<%= framework %>" />
+<input form="update-<%= cat.id %>" type="text" name="code" value="<%= cat.code %>" required />
+</div>
+<div>
+<input form="update-<%= cat.id %>" type="text" name="name" value="<%= cat.name %>" required />
+</div>
+<div>
+<select form="update-<%= cat.id %>" name="type">
+<% ['ACTIVO','PASIVO','CAPITAL','INGRESO','GASTO'].forEach(t => { %>
+<option value="<%= t %>" <%= t === cat.type ? 'selected' : '' %>><%= t %></option>
+<% }) %>
+</select>
+</div>
+<div>
+<input form="update-<%= cat.id %>" type="number" name="sort_order" value="<%= cat.sort_order || 0 %>" />
+</div>
+<div class="actions">
+<button class="btn" type="submit" form="update-<%= cat.id %>">Guardar</button>
+<input form="delete-<%= cat.id %>" type="hidden" name="framework" value="<%= framework %>" />
+<button class="btn danger" type="submit" form="delete-<%= cat.id %>">Eliminar</button>
+</div>
+</div>
+<% }) %>
+</div>
+</section>
+
+<section class="panel">
+<h2>Crear categoría</h2>
+<form class="form" method="post" action="/accounting/categories/create">
+<input type="hidden" name="framework" value="<%= framework %>" />
+<label>
+Código
+<input type="text" name="code" placeholder="Ej. ACT-CIRC" required />
+</label>
+<label>
+Nombre
+<input type="text" name="name" placeholder="Ej. Activos corrientes" required />
+</label>
+<label>
+Tipo
+<select name="type" required>
+<option value="">Selecciona</option>
+<option value="ACTIVO">ACTIVO</option>
+<option value="PASIVO">PASIVO</option>
+<option value="CAPITAL">CAPITAL</option>
+<option value="INGRESO">INGRESO</option>
+<option value="GASTO">GASTO</option>
+</select>
+</label>
+<label>
+Orden
+<input type="number" name="sort_order" value="0" />
+</label>
+<button class="btn primary" type="submit">Crear categoría</button>
+</form>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+

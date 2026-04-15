@@ -1,0 +1,215 @@
+<% var currentPackagesNav = typeof packagesNav !== 'undefined' ? packagesNav : 'new'; %>
+<% var prefillData = typeof prefill !== 'undefined' && prefill ? prefill : {}; %>
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('packages.new_package') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container packages-module">
+<div class="page-header">
+<div>
+<h1>
+<%= t('packages.new_package') %>
+</h1>
+<p class="muted">
+<%= t('packages.subtitle') %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/packages/home">
+<%= t('packages.module.home') %>
+</a>
+<a class="btn" href="/packages">
+<%= t('packages.module.list') %>
+</a>
+</div>
+</div>
+<div class="module-nav">
+<a href="/packages/dashboard" class="<%= currentPackagesNav === 'dashboard' ? 'active' : '' %>">
+<%= t('packages.module.dashboard') %>
+</a>
+<a href="/packages" class="<%= currentPackagesNav === 'list' ? 'active' : '' %>">
+<%= t('packages.module.list') %>
+</a>
+<a href="/packages/pending-invoice" class="<%= currentPackagesNav === 'pending_invoice' ? 'active' : '' %>">
+<%= t('packages.module.pending_invoice') %>
+</a>
+<a href="/packages/new" class="<%= currentPackagesNav === 'new' ? 'active' : '' %>">
+<%= t('packages.module.new') %>
+</a>
+<a href="/packages/statuses" class="<%= currentPackagesNav === 'statuses' ? 'active' : '' %>">
+<%= t('packages.module.statuses') %>
+</a>
+<a href="/packages/tracking" class="<%= currentPackagesNav === 'tracking' ? 'active' : '' %>">
+<%= t('packages.module.tracking') %>
+</a>
+</div>
+<section class="panel">
+<h2>
+<%= t('packages.new_package') %>
+</h2>
+<% if (error) { %>
+<div class="alert">
+<%= error %>
+</div>
+<% } %>
+<% if (prefillData && prefillData.reception_id) { %>
+<div class="alert info">
+<%= t('packages.reception_prefill') %>
+</div>
+<% } %>
+<form method="POST" action="/packages/new" enctype="multipart/form-data" class="form grid-2" style="<%= can('packages', 'create') ? '' : 'display:none' %>">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<% if (prefillData && prefillData.reception_id) { %>
+<input type="hidden" name="reception_id" value="<%= prefillData.reception_id %>" />
+<% } %>
+<label>
+<%= t('packages.consignatario') %>
+<select name="consignatario_id" id="consignatario-select" required>
+<option value="">
+<%= t('packages.select_consignatario') %>
+</option>
+<% consignatarios.forEach(consignatario => { %>
+<option value="<%= consignatario.id %>">
+<%= consignatario.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('packages.declared_value') %>
+<input type="number" name="declared_value" step="0.01" min="0" />
+</label>
+<label>
+<%= t('packages.description') %>
+<textarea name="description" rows="3">
+</textarea>
+</label>
+<label>
+<%= t('packages.weight_lbs') %>
+<input type="number" name="weight_lbs" step="0.01" min="0" />
+</label>
+<label>
+<%= t('packages.length_cm') %>
+<input type="number" name="length_cm" step="0.01" min="0" />
+</label>
+<label>
+<%= t('packages.width_cm') %>
+<input type="number" name="width_cm" step="0.01" min="0" />
+</label>
+<label>
+<%= t('packages.height_cm') %>
+<input type="number" name="height_cm" step="0.01" min="0" />
+</label>
+<label>
+<%= t('packages.shipping_type') %>
+<select name="shipping_type">
+<option value="">
+<%= t('common.reset') %>
+</option>
+<option value="air">
+<%= t('packages.shipping_air') %>
+</option>
+<option value="sea">
+<%= t('packages.shipping_sea') %>
+</option>
+<option value="land">
+<%= t('packages.shipping_land') %>
+</option>
+</select>
+</label>
+<label>
+<%= t('packages.branch_destination') %>
+<input type="text" name="branch_destination" />
+</label>
+<label>
+<%= t('packages.delivery_type') %>
+<select name="delivery_type">
+<option value="">
+<%= t('common.reset') %>
+</option>
+<option value="pickup">
+<%= t('packages.delivery_pickup') %>
+</option>
+<option value="delivery">
+<%= t('packages.delivery_delivery') %>
+</option>
+</select>
+</label>
+<label>
+<%= t('packages.payment_status') %>
+<select name="payment_status">
+<option value="pending" selected>
+<%= t('packages.payment_pending') %>
+</option>
+<option value="paid">
+<%= t('packages.payment_paid') %>
+</option>
+</select>
+</label>
+<label>
+<%= t('packages.invoice_status') %>
+<select name="invoice_status">
+<option value="pending" selected>
+<%= t('packages.invoice_pending') %>
+</option>
+<option value="uploaded">
+<%= t('packages.invoice_uploaded') %>
+</option>
+</select>
+</label>
+<label>
+<%= t('packages.carrier') %>
+<input type="text" name="carrier" value="<%= prefillData.carrier || '' %>" />
+</label>
+<label>
+<%= t('packages.tracking') %>
+<input type="text" name="tracking_number" required value="<%= prefillData.tracking_number || '' %>" />
+</label>
+<label>
+<%= t('packages.received_at') %>
+<input type="date" name="received_at" value="<%= prefillData.received_at || '' %>" />
+</label>
+<label>
+<%= t('packages.invoice_file') %>
+<input type="file" name="invoice_file" accept="application/pdf,image/*" />
+</label>
+<label>
+<%= t('packages.photos') %>
+<input type="file" name="photos" accept="image/*" multiple />
+</label>
+<label>
+<%= t('packages.notes') %>
+<textarea name="notes" rows="3">
+</textarea>
+</label>
+<div>
+<button type="submit" class="btn primary">
+<%= t('packages.create_button') %>
+</button>
+</div>
+</form>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

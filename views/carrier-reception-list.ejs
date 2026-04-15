@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('reception.list_title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container reception-module">
+<div class="page-header">
+<div>
+<h1>
+<%= t('reception.list_title') %>
+</h1>
+<p class="muted">
+<%= t('reception.subtitle') %>
+</p>
+</div>
+</div>
+<div class="module-nav reception-module-nav">
+<a class="<%= activeReceptionTab === 'summary' ? 'active' : '' %>" href="/carrier-reception/summary">
+<%= t('reception.summary_title') %>
+</a>
+<a class="<%= activeReceptionTab === 'quick' ? 'active' : '' %>" href="/carrier-reception/quick">
+<%= t('reception.quick_title') %>
+</a>
+<a class="<%= activeReceptionTab === 'list' ? 'active' : '' %>" href="/carrier-reception/list">
+<%= t('reception.list_title') %>
+</a>
+</div>
+<% if (message && message.text) { %>
+<div class="alert <%= message.type || '' %>">
+<%= message.text %>
+</div>
+<% } %>
+<div class="reception-layout reception-layout-single">
+<div class="reception-column reception-column-list">
+<section class="panel">
+<h2>
+<%= t('reception.list_title') %>
+</h2>
+<% const canReceptionExport = can('carrier_reception', 'export'); %>
+<div class="filters-bar">
+<form method="GET" action="/carrier-reception/list" class="filters-form">
+<label class="filters-field">
+<span>
+<%= t('reception.filters.tracking') %>
+</span>
+<input type="text" name="tracking" value="<%= filters.tracking || '' %>" />
+</label>
+<label class="filters-field">
+<span>
+<%= t('reception.filters.carrier') %>
+</span>
+<input type="text" name="carrier" value="<%= filters.carrier || '' %>" />
+</label>
+<label class="filters-field">
+<span>
+<%= t('reception.filters.status') %>
+</span>
+<select name="status">
+<option value="" <%= !filters.status ? 'selected' : '' %>>
+<%= t('reception.filters.default_pending') %>
+</option>
+<option value="pending" <%= filters.status === 'pending' ? 'selected' : '' %>>
+<%= t('reception.status.pending') %>
+</option>
+<option value="processed" <%= filters.status === 'processed' ? 'selected' : '' %>>
+<%= t('reception.status.processed') %>
+</option>
+<option value="cancelled" <%= filters.status === 'cancelled' ? 'selected' : '' %>>
+<%= t('reception.status.cancelled') %>
+</option>
+<option value="all" <%= filters.status === 'all' ? 'selected' : '' %>>
+<%= t('reception.filters.all_status') %>
+</option>
+</select>
+</label>
+<label class="filters-field">
+<span>
+<%= t('reception.filters.date') %>
+</span>
+<input type="date" name="date" value="<%= filters.date || '' %>" />
+</label>
+<div class="filters-actions">
+<button type="submit" class="btn small">
+<%= t('reception.filters.apply') %>
+</button>
+<a class="btn small" href="/carrier-reception/list">
+<%= t('reception.filters.reset') %>
+</a>
+<a class="btn small" href="<%= exportUrl %>" style="<%= canReceptionExport ? '' : 'display:none' %>">
+<%= t('reception.actions.export') %>
+</a>
+</div>
+</form>
+</div>
+<% const statusClassMap = { pending: 'status-pending', processed: 'status-processed', cancelled: 'status-cancelled' }; %>
+<div class="table compact reception-table">
+<div class="table-row header reception-row">
+<div>
+<%= t('reception.table.tracking') %>
+</div>
+<div>
+<%= t('reception.table.carrier') %>
+</div>
+<div>
+<%= t('reception.table.received_at') %>
+</div>
+<div>
+<%= t('reception.table.status') %>
+</div>
+<div>
+<%= t('reception.table.actions') %>
+</div>
+</div>
+<% if (!receptions || receptions.length === 0) { %>
+<div class="table-row empty">
+<%= t('reception.empty_list') %>
+</div>
+<% } %>
+<% receptions.forEach((rec) => { %>
+<div class="table-row reception-row <%= rec.status === 'pending' ? 'pending' : '' %>">
+<div class="cell-ellipsis" title="<%= rec.tracking_number %>">
+<%= rec.tracking_number %>
+</div>
+<div class="cell-ellipsis" title="<%= rec.carrier %>">
+<%= rec.carrier %>
+</div>
+<div>
+<%= rec.received_at ? new Date(rec.received_at).toLocaleString() : '-' %>
+</div>
+<div>
+<span class="status-badge <%= statusClassMap[rec.status] || 'status-default' %>">
+<%= t('reception.status.' + rec.status) %>
+</span>
+</div>
+<div class="actions actions-compact">
+<% if (rec.status === 'pending' && can('packages', 'create')) { %>
+<% const recDate = rec.received_at ? new Date(rec.received_at).toISOString().slice(0, 10) : ''; %>
+<a class="btn small" href="/packages/new?tracking=<%= encodeURIComponent(rec.tracking_number) %>&carrier=<%= encodeURIComponent(rec.carrier) %>&reception_id=<%= rec.id %>&received_at=<%= encodeURIComponent(recDate) %>">
+<%= t('reception.actions.record') %>
+</a>
+<% } else { %>
+<button class="btn small" disabled>
+<%= t('reception.actions.record') %>
+</button>
+<% } %>
+<a class="btn small" href="/carrier-reception/<%= rec.id %>">
+<%= t('reception.actions.view') %>
+</a>
+<% if (rec.status === 'pending' && can('carrier_reception', 'edit')) { %>
+<form method="POST" action="/carrier-reception/<%= rec.id %>/cancel" class="inline-form" onsubmit="return confirm('<%= t('reception.actions.cancel_confirm') %>');">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn small danger">
+<%= t('reception.actions.cancel') %>
+</button>
+</form>
+<% } else { %>
+<button class="btn small" disabled>
+<%= t('reception.actions.cancel') %>
+</button>
+<% } %>
+</div>
+</div>
+<% }) %>
+</div>
+</section>
+</div>
+</div>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

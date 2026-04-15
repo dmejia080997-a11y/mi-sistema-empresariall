@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('awb.detail') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container awb-detail">
+<div class="page-header">
+<div>
+<h1>
+<%= t('awb.detail') %>
+</h1>
+<div class="muted">
+<%= t('awb.awb_number') %>: <strong>
+<%= awb.awb_number || '-' %>
+</strong>
+</div>
+</div>
+<div class="actions">
+<span class="status-badge status-<%= awb.status %>">
+<%= t(`awb.status.${awb.status || 'draft'}`) %>
+</span>
+<a class="btn" href="/airway-bills">
+<%= t('awb.list') %>
+</a>
+<a class="btn" href="/airway-bills/<%= awb.id %>/preview" target="_blank">
+<%= t('awb.preview') %>
+</a>
+<a class="btn" href="/airway-bills/<%= awb.id %>/print" target="_blank">
+<%= t('awb.print') %>
+</a>
+<% if (can('airway_bills', 'export')) { %>
+<a class="btn" href="/airway-bills/<%= awb.id %>/export/pdf/view" target="_blank">
+<%= t('awb.view_iata_pdf') %>
+</a>
+<a class="btn" href="/airway-bills/<%= awb.id %>/export/pdf?download=1">
+<%= t('awb.download_iata_pdf') %>
+</a>
+<% } %>
+<% if (canEdit) { %>
+<a class="btn primary" href="/airway-bills/<%= awb.id %>/edit">
+<%= t('awb.edit') %>
+</a>
+<% } %>
+<% if (canEdit && awb.status === 'draft') { %>
+<form method="POST" action="/airway-bills/<%= awb.id %>/close">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn danger">
+<%= t('awb.close') %>
+</button>
+</form>
+<% } %>
+<% if (canEdit && awb.status !== 'issued') { %>
+<form method="POST" action="/airway-bills/<%= awb.id %>/issue">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn">
+<%= t('awb.issue') %>
+</button>
+</form>
+<% } %>
+<% if (isAdmin && awb.status !== 'draft') { %>
+<form method="POST" action="/airway-bills/<%= awb.id %>/reopen">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn">
+<%= t('awb.reopen') %>
+</button>
+</form>
+<% } %>
+</div>
+</div>
+<% if (error) { %>
+<div class="alert error">
+<%= error %>
+</div>
+<% } %>
+<% if (success) { %>
+<div class="alert success">
+<%= success %>
+</div>
+<% } %>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('awb.sections.header') %>
+</h2>
+</div>
+<div class="detail-grid">
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.awb_type') %>
+</div>
+<div>
+<%= awb.awb_type || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.awb_date') %>
+</div>
+<div>
+<%= awb.awb_date || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.issuing_carrier') %>
+</div>
+<div>
+<%= awb.issuing_carrier || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.agent_name') %>
+</div>
+<div>
+<%= awb.agent_name || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.agent_iata_code') %>
+</div>
+<div>
+<%= awb.agent_iata_code || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.agent_cass_code') %>
+</div>
+<div>
+<%= awb.agent_cass_code || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.reference_number') %>
+</div>
+<div>
+<%= awb.reference_number || '-' %>
+</div>
+</div>
+</div>
+</section>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('awb.sections.parties') %>
+</h2>
+</div>
+<div class="detail-grid">
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.shipper_name') %>
+</div>
+<div>
+<%= awb.shipper_name || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.consignee_name') %>
+</div>
+<div>
+<%= awb.consignee_name || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.shipper_address') %>
+</div>
+<div>
+<%= awb.shipper_address || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.consignee_address') %>
+</div>
+<div>
+<%= awb.consignee_address || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.accounting_information') %>
+</div>
+<div>
+<%= awb.accounting_information || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.optional_shipping_info_1') %>
+</div>
+<div>
+<%= awb.optional_shipping_info_1 || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.optional_shipping_info_2') %>
+</div>
+<div>
+<%= awb.optional_shipping_info_2 || '-' %>
+</div>
+</div>
+</div>
+</section>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('awb.sections.routing') %>
+</h2>
+</div>
+<div class="detail-grid">
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.airport_of_departure') %>
+</div>
+<div>
+<%= awb.airport_of_departure || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.airport_of_destination') %>
+</div>
+<div>
+<%= awb.airport_of_destination || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.carrier_code') %>
+</div>
+<div>
+<%= awb.carrier_code || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.flight_number') %>
+</div>
+<div>
+<%= awb.flight_number || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.departure_airport') %>
+</div>
+<div>
+<%= awb.departure_airport || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.departure_date') %>
+</div>
+<div>
+<%= awb.departure_date || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.arrival_airport') %>
+</div>
+<div>
+<%= awb.arrival_airport || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.arrival_date') %>
+</div>
+<div>
+<%= awb.arrival_date || '-' %>
+</div>
+</div>
+</div>
+</section>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('awb.manifests.section') %>
+</h2>
+</div>
+<div class="summary-strip awb-summary-strip">
+<div class="summary-item">
+<span class="summary-label">
+<%= t('awb.manifests.total_pieces') %>
+</span>
+<span class="summary-value">
+<%= manifestTotals ? manifestTotals.totalPieces : 0 %>
+</span>
+</div>
+<div class="summary-item">
+<span class="summary-label">
+<%= t('awb.manifests.total_packages') %>
+</span>
+<span class="summary-value">
+<%= manifestTotals ? manifestTotals.totalPackages : 0 %>
+</span>
+</div>
+<div class="summary-item">
+<span class="summary-label">
+<%= t('awb.manifests.total_weight') %>
+</span>
+<span class="summary-value">
+<%= manifestTotals ? (Number(manifestTotals.totalWeight) || 0).toFixed(2) : '0.00' %>
+</span>
+</div>
+</div>
+<div class="awb-manifest-list">
+<% if (!linkedManifests || linkedManifests.length === 0) { %>
+<div class="muted">
+<%= t('awb.manifests.none') %>
+</div>
+<% } %>
+<% (linkedManifests || []).forEach((manifest) => { %>
+<div class="awb-manifest-row">
+<div>
+<strong>
+<%= manifest.airway_bill_number || ('#' + manifest.id) %>
+</strong>
+<span class="status-badge <%= manifest.status === 'closed' ? 'status-closed' : 'status-open' %>">
+<%= manifest.status === 'closed' ? t('manifests.status.closed') : t('manifests.status.open') %>
+</span>
+</div>
+<div class="muted">
+<%= t('awb.manifests.pieces') %>: <strong>
+<%= manifest.piece_count || 0 %>
+</strong>
+<%= t('awb.manifests.packages') %>: <strong>
+<%= manifest.package_count || 0 %>
+</strong>
+<%= t('awb.manifests.weight') %>: <strong>
+<%= manifest.total_weight != null ? Number(manifest.total_weight).toFixed(2) : '0.00' %>
+</strong>
+</div>
+</div>
+<% }) %>
+</div>
+</section>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('awb.sections.charges') %>
+</h2>
+</div>
+<div class="detail-grid">
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.currency') %>
+</div>
+<div>
+<%= awb.currency || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.charges_code') %>
+</div>
+<div>
+<%= awb.charges_code || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.weight_valuation_charge_type') %>
+</div>
+<div>
+<%= awb.weight_valuation_charge_type || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.other_charges_type') %>
+</div>
+<div>
+<%= awb.other_charges_type || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.declared_value_carriage') %>
+</div>
+<div>
+<%= awb.declared_value_carriage || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.declared_value_customs') %>
+</div>
+<div>
+<%= awb.declared_value_customs || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.insurance_amount') %>
+</div>
+<div>
+<%= awb.insurance_amount != null ? awb.insurance_amount : '-' %>
+</div>
+</div>
+</div>
+</section>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('awb.sections.cargo') %>
+</h2>
+</div>
+<%        const cargoTotals = manifestTotals && (manifestTotals.totalPieces || manifestTotals.totalWeight)          ? { totalPieces: manifestTotals.totalPieces, totalWeight: manifestTotals.totalWeight }          : { totalPieces: awb.total_pieces || 0, totalWeight: awb.gross_weight || 0 };      %>
+<div class="detail-grid">
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.total_pieces') %>
+</div>
+<div>
+<%= cargoTotals.totalPieces != null ? cargoTotals.totalPieces : '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.gross_weight') %>
+</div>
+<div>
+<%= cargoTotals.totalWeight != null ? Number(cargoTotals.totalWeight).toFixed(2) : '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.chargeable_weight') %>
+</div>
+<div>
+<%= awb.chargeable_weight != null ? awb.chargeable_weight : '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.goods_description') %>
+</div>
+<div>
+<%= awb.goods_description || '-' %>
+</div>
+</div>
+</div>
+<div class="awb-items">
+<div class="awb-items-header">
+<span>
+<%= t('awb.items.title') %>
+</span>
+</div>
+<div class="awb-items-grid header">
+<div>
+<%= t('awb.items.pieces') %>
+</div>
+<div>
+<%= t('awb.items.gross_weight') %>
+</div>
+<div>
+<%= t('awb.items.dimensions') %>
+</div>
+<div>
+<%= t('awb.items.goods_description') %>
+</div>
+<div>
+<%= t('awb.items.rate_class') %>
+</div>
+<div>
+<%= t('awb.items.chargeable_weight') %>
+</div>
+<div>
+<%= t('awb.items.rate') %>
+</div>
+<div>
+<%= t('awb.items.total') %>
+</div>
+</div>
+<% if (!items || items.length === 0) { %>
+<div class="awb-items-empty">
+<%= t('awb.items.empty') %>
+</div>
+<% } %>
+<% (items || []).forEach((item) => { %>
+<div class="awb-items-grid">
+<div>
+<%= item.pieces != null ? item.pieces : '-' %>
+</div>
+<div>
+<%= item.gross_weight != null ? item.gross_weight : '-' %>
+</div>
+<div>
+<%= item.dimensions || '-' %>
+</div>
+<div>
+<%= item.goods_description || '-' %>
+</div>
+<div>
+<%= item.rate_class || '-' %>
+</div>
+<div>
+<%= item.chargeable_weight != null ? item.chargeable_weight : '-' %>
+</div>
+<div>
+<%= item.rate != null ? item.rate : '-' %>
+</div>
+<div>
+<%= item.total != null ? item.total : '-' %>
+</div>
+</div>
+<% }) %>
+</div>
+</section>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('awb.sections.handling') %>
+</h2>
+</div>
+<div class="detail-grid">
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.handling_information') %>
+</div>
+<div>
+<%= awb.handling_information || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.special_handling_details') %>
+</div>
+<div>
+<%= awb.special_handling_details || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.ssr') %>
+</div>
+<div>
+<%= awb.ssr || '-' %>
+</div>
+</div>
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.osi') %>
+</div>
+<div>
+<%= awb.osi || '-' %>
+</div>
+</div>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+﻿﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Contabilidad</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand"><%= t('common.brand') %></div>
+<nav class="nav">
+<a href="/dashboard"><%= t('nav.dashboard') %></a>
+<a href="/logout"><%= t('nav.logout') %></a>
+</nav>
+</header>
+<main class="container">
+<h1>Configuración contable</h1>
+<section class="panel">
+<form method="POST" action="/accounting/settings" class="form grid-2">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+País
+<select name="country">
+<option value="Guatemala" <%= company.country === 'Guatemala' ? 'selected' : '' %>>Guatemala</option>
+<option value="United States" <%= company.country === 'United States' ? 'selected' : '' %>>United States</option>
+</select>
+</label>
+<label>
+Moneda base
+<select name="base_currency">
+<option value="GTQ" <%= company.base_currency === 'GTQ' ? 'selected' : '' %>>GTQ</option>
+<option value="USD" <%= company.base_currency === 'USD' ? 'selected' : '' %>>USD</option>
+</select>
+</label>
+<label>
+Monedas permitidas
+<input type="text" name="allowed_currencies" value="<%= Array.isArray(company.allowed_currencies) ? company.allowed_currencies.join(',') : (company.allowed_currencies || '') %>" placeholder="GTQ,USD" />
+</label>
+<label>
+Impuesto base (%)
+<input type="number" name="tax_rate" step="0.01" value="<%= company.tax_rate != null ? company.tax_rate : '' %>" />
+</label>
+<label>
+Nombre impuesto
+<input type="text" name="tax_name" value="<%= company.tax_name || '' %>" />
+</label>
+<label>
+Cuenta IVA trasladado (pasivo)
+<select name="tax_payable_account_id">
+<option value="">Seleccionar</option>
+<% (accounts || []).forEach(acc => { %>
+<option value="<%= acc.id %>" <%= String(company.tax_payable_account_id || '') === String(acc.id) ? 'selected' : '' %>><%= acc.code %> - <%= acc.name %></option>
+<% }) %>
+</select>
+<span class="helper">Cuenta de pasivo para IVA por pagar.</span>
+</label>
+<label>
+Cuenta IVA acreditable (activo)
+<select name="tax_credit_account_id">
+<option value="">Seleccionar</option>
+<% (accounts || []).forEach(acc => { %>
+<option value="<%= acc.id %>" <%= String(company.tax_credit_account_id || '') === String(acc.id) ? 'selected' : '' %>><%= acc.code %> - <%= acc.name %></option>
+<% }) %>
+</select>
+<span class="helper">Cuenta de activo para IVA a favor.</span>
+</label>
+<label>
+Método de costeo
+<select name="costing_method">
+<option value="">Seleccionar</option>
+<option value="average" <%= company.costing_method === 'average' ? 'selected' : '' %>>Promedio</option>
+<option value="fifo" <%= company.costing_method === 'fifo' ? 'selected' : '' %>>FIFO</option>
+</select>
+</label>
+<label>
+Marco contable
+<select name="accounting_framework">
+<% (frameworks || ['NIF','NIIF']).forEach(fr => { %>
+<option value="<%= fr %>" <%= String(company.accounting_framework || 'NIF') === fr ? 'selected' : '' %>><%= fr %></option>
+<% }) %>
+</select>
+<span class="helper">Define la estructura base para reportes y catálogo.</span>
+</label>
+<label>
+Multi-moneda activa
+<input type="checkbox" name="multi_currency_enabled" value="1" <%= company.multi_currency_enabled ? 'checked' : '' %> />
+</label>
+<div class="actions full-row">
+<button type="submit" class="btn primary"><%= t('common.save') %></button>
+</div>
+</form>
+</section>
+<section class="panel">
+<h2>Reportes</h2>
+<div class="actions">
+<a class="btn" href="/accounting/receivables">Cuentas por cobrar</a>
+<a class="btn" href="/accounting/payables">Cuentas por pagar</a>
+<a class="btn" href="/accounting/reports">Estados financieros</a>
+</div>
+</section>
+<section class="panel">
+<h2>Integración bancaria</h2>
+<p class="helper">Próximamente podrás conectar bancos para importar movimientos automáticamente.</p>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+
+
+
+

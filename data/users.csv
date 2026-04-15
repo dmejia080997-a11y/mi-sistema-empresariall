@@ -1,0 +1,4 @@
+id,username,password_hash,role,company_id,created_at
+3,admin,admin123,admin,1,2026-03-16 15:30:41
+4,admin,$2a$10$btUEenyeycQosu6I2vS8Uek.9XmM4qZfULZll6fz1uiBCglCLR4jK,admin,2,2026-03-16 15:45:57
+5,admin,$2a$10$1yAa.ZZUJeimURbosXy3ZuswO9K6ug7eNY.7KXpWY1VyAkDMJeLCq,admin,3,2026-03-16 15:53:45

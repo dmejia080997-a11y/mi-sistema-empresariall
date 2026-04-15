@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AWB PDF</title>
+<link rel="stylesheet" href="/styles.css" />
+<style>    body { margin: 0; }    .pdf-frame { width: 100vw; height: 100vh; border: 0; }  </style>
+</head>
+<body>
+<iframe class="pdf-frame" src="/airway-bills/<%= awb.id %>/export/pdf">
+</iframe>
+<script>    setTimeout(function () {      window.location.href = '/airway-bills/<%= awb.id %>/export/pdf?download=1';    }, 1200);  </script>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

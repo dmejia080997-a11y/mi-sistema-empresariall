@@ -1,0 +1,35 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Acceso Master</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">Panel Master</div>
+</header>
+<div class="card">
+<h1>Acceso Master</h1>
+<p class="muted">Ingresa las credenciales maestras para administrar empresas.</p>
+<% if (error) { %>
+<div class="alert">
+<%= error %>
+</div>
+<% } %>
+<form method="POST" action="/master/login" class="form">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>Usuario
+  <input type="text" name="username" required />
+</label>
+<label>Contraseña
+  <input type="password" name="password" required />
+</label>
+<button type="submit" class="btn primary">Ingresar</button>
+</form>
+</div>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('manifests.new') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<div class="page-header">
+<div>
+<h1>
+<%= t('manifests.new') %>
+</h1>
+<p class="muted">
+<%= t('manifests.subtitle') %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/manifests">
+<%= t('manifests.list') %>
+</a>
+</div>
+</div>
+<% if (error) { %>
+<div class="alert error">
+<%= error %>
+</div>
+<% } %>
+<% if (success) { %>
+<div class="alert success">
+<%= success %>
+</div>
+<% } %>
+<section class="panel">
+<h2>
+<%= t('manifests.create') %>
+</h2>
+<form method="POST" action="/manifests/create" class="form grid-2">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+<%= t('manifests.airway_bill') %>
+<input type="text" name="airway_bill_number" placeholder="AWB-001" />
+<small class="muted">
+<%= t('manifests.airway_hint') %>
+</small>
+</label>
+<label>
+<%= t('manifests.notes') %>
+<textarea name="notes" rows="3">
+</textarea>
+</label>
+<div>
+<button type="submit" class="btn primary">
+<%= t('manifests.create') %>
+</button>
+</div>
+</form>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

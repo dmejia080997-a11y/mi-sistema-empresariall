@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('cuscar.manifest.preview') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<div class="page-header">
+<div>
+<h1>
+<%= t('cuscar.manifest.preview') %>
+</h1>
+<p class="muted">
+<%= manifest.internal_number %> - <%= manifest.master_airway_bill %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/cuscar/manifests/<%= manifest.id %>">
+<%= t('cuscar.manifest.back') %>
+</a>
+<form method="POST" action="/cuscar/manifests/<%= manifest.id %>/preview/generate">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn">
+<%= t('cuscar.manifest.generate_preview') %>
+</button>
+</form>
+</div>
+</div>
+<% if (flash) { %>
+<div class="alert <%= flash.type %>">
+<%= flash.message %>
+</div>
+<% } %>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('cuscar.manifest.preview') %>
+</h2>
+</div>
+<pre style="white-space: pre-wrap; font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 0.95rem; line-height: 1.45; margin: 0;">
+<%= previewText || '-' %>
+</pre>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

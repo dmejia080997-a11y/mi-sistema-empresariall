@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('launcher.settings.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page launcher-page" style="<% if (companyBrand) { %>--accent:<%= companyBrand.primary_color || '#d97757' %>; --accent-2:<%= companyBrand.secondary_color || '#3d7b6f' %>;<% } %>">
+<header class="topbar">
+<a class="brand brand-link" href="/dashboard">
+<% if (companyBrand && companyBrand.logo) { %>
+<img src="<%= companyBrand.logo %>" alt="Logo" class="brand-logo" />
+<% } %>
+<span class="brand-name">
+<%= (companyBrand && companyBrand.name) ? companyBrand.name : t('common.brand') %>
+</span>
+</a>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container launcher-settings">
+<div class="page-header">
+<div>
+<h1>
+<%= t('launcher.settings.title') %>
+</h1>
+<p class="muted">
+<%= t('launcher.settings.subtitle') %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/dashboard">
+<%= t('launcher.settings.back') %>
+</a>
+</div>
+</div>
+<% if (message) { %>
+<div class="alert <%= message.type %>">
+<%= message.message %>
+</div>
+<% } %>
+<form method="POST" action="/launcher/settings" class="form">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<section class="launcher-settings-grid" data-launcher-grid>
+<% (modules || []).forEach((mod) => { %>
+<label class="launcher-settings-card" style="--app-color:<%= mod.color %>" draggable="true" data-module-key="<%= mod.key %>">
+<input class="launcher-settings-checkbox" type="checkbox" name="modules" value="<%= mod.key %>" <%= mod.checked ? 'checked' : '' %> />
+<div class="launcher-settings-icon">
+<%- icons[mod.icon || mod.key] || icons.default %>
+</div>
+<div class="launcher-settings-name">
+<%= mod.name %>
+</div>
+<% if (mod.desc) { %>
+<div class="launcher-settings-desc">
+<%= mod.desc %>
+</div>
+<% } %>
+</label>
+<% }) %>
+</section>
+<div class="actions">
+<a class="btn" href="/dashboard">
+<%= t('launcher.settings.back') %>
+</a>
+<button class="btn primary" type="submit">
+<%= t('launcher.settings.save') %>
+</button>
+</div>
+</form>
+</main>
+<script>
+  (function () {
+    const grid = document.querySelector('[data-launcher-grid]');
+    if (!grid) return;
+    let dragging = null;
+
+    const getCard = (event) => event.target.closest('.launcher-settings-card');
+
+    grid.addEventListener('dragstart', (event) => {
+      const card = getCard(event);
+      if (!card) return;
+      dragging = card;
+      card.classList.add('dragging');
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', card.dataset.moduleKey || '');
+      }
+    });
+
+    grid.addEventListener('dragend', () => {
+      if (!dragging) return;
+      dragging.classList.remove('dragging');
+      dragging = null;
+    });
+
+    grid.addEventListener('dragover', (event) => {
+      if (!dragging) return;
+      event.preventDefault();
+      const target = getCard(event);
+      if (!target || target === dragging) return;
+      const rect = target.getBoundingClientRect();
+      const shouldInsertAfter =
+        event.clientY > rect.top + rect.height / 2 ||
+        event.clientX > rect.left + rect.width / 2;
+      if (shouldInsertAfter) {
+        grid.insertBefore(dragging, target.nextSibling);
+      } else {
+        grid.insertBefore(dragging, target);
+      }
+    });
+  })();
+</script>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+

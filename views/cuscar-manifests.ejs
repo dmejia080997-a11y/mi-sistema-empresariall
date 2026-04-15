@@ -1,0 +1,126 @@
+<% const statusLabels = { draft: t('cuscar.status.draft'), closed: t('cuscar.status.closed'), ready_to_generate: t('cuscar.status.ready_to_generate'), generated: t('cuscar.status.generated'), transmitted: t('cuscar.status.transmitted'), error: t('cuscar.status.error') }; %>
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('cuscar.manifests.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<div class="page-header">
+<div>
+<h1>
+<%= t('cuscar.manifests.title') %>
+</h1>
+<p class="muted">
+<%= t('cuscar.subtitle') %>
+</p>
+</div>
+<div class="actions">
+<a class="btn" href="/cuscar">
+<%= t('cuscar.nav.dashboard') %>
+</a>
+<% if (can('cuscar', 'create')) { %>
+<a class="btn primary" href="/cuscar/manifests/new">
+<%= t('cuscar.manifests.new') %>
+</a>
+<% } %>
+</div>
+</div>
+<div class="subnav">
+<a href="/cuscar">
+<%= t('cuscar.nav.dashboard') %>
+</a>
+<a class="active" href="/cuscar/manifests">
+<%= t('cuscar.nav.manifests') %>
+</a>
+<a href="/cuscar/catalogs/transporters">
+<%= t('cuscar.nav.catalogs') %>
+</a>
+</div>
+<% if (flash) { %>
+<div class="alert <%= flash.type %>">
+<%= flash.message %>
+</div>
+<% } %>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('cuscar.manifests.list') %>
+</h2>
+</div>
+<div class="table">
+<div class="table-row header">
+<div>
+<%= t('cuscar.fields.internal_number') %>
+</div>
+<div>
+<%= t('cuscar.fields.master_airway_bill') %>
+</div>
+<div>
+<%= t('cuscar.fields.flight_date') %>
+</div>
+<div>
+<%= t('cuscar.fields.status') %>
+</div>
+<div>
+<%= t('cuscar.manifest.items') %>
+</div>
+<div>
+<%= t('cuscar.fields.actions') %>
+</div>
+</div>
+<% if (!manifests || manifests.length === 0) { %>
+<div class="table-row empty">
+<%= t('cuscar.manifests.empty') %>
+</div>
+<% } %>
+<% (manifests || []).forEach((manifest) => { %>
+<div class="table-row">
+<div>
+<%= manifest.internal_number || '-' %>
+</div>
+<div>
+<%= manifest.master_airway_bill || '-' %>
+</div>
+<div>
+<%= manifest.flight_date || '-' %>
+</div>
+<div>
+<span class="status-badge status-<%= manifest.status %>">
+<%= statusLabels[manifest.status] || manifest.status || '-' %>
+</span>
+</div>
+<div>
+<%= manifest.item_count || 0 %>
+</div>
+<div class="actions">
+<a class="btn small" href="/cuscar/manifests/<%= manifest.id %>">
+<%= t('cuscar.actions.view') %>
+</a>
+</div>
+</div>
+<% }) %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

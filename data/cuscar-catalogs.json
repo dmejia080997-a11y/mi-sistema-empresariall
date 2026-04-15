@@ -1,0 +1,107 @@
+﻿{
+  "countries": [
+    { "code": "GT", "name": "Guatemala" },
+    { "code": "US", "name": "United States" },
+    { "code": "MX", "name": "Mexico" },
+    { "code": "SV", "name": "El Salvador" },
+    { "code": "HN", "name": "Honduras" },
+    { "code": "NI", "name": "Nicaragua" },
+    { "code": "CR", "name": "Costa Rica" },
+    { "code": "PA", "name": "Panama" },
+    { "code": "CO", "name": "Colombia" },
+    { "code": "EC", "name": "Ecuador" },
+    { "code": "PE", "name": "Peru" },
+    { "code": "CL", "name": "Chile" },
+    { "code": "BR", "name": "Brazil" },
+    { "code": "AR", "name": "Argentina" },
+    { "code": "ES", "name": "Spain" },
+    { "code": "CN", "name": "China" }
+  ],
+  "customs_offices": [
+    { "code": "GUA", "name": "Aduana Central" },
+    { "code": "AER", "name": "Aduana Aerea La Aurora" },
+    { "code": "PQZ", "name": "Aduana Puerto Quetzal" },
+    { "code": "STC", "name": "Aduana Santo Tomas de Castilla" },
+    { "code": "PBR", "name": "Aduana Puerto Barrios" },
+    { "code": "TEC", "name": "Aduana Tecun Uman" },
+    { "code": "AGU", "name": "Aduana Agua Caliente" }
+  ],
+  "airports": [
+    { "code": "GUA", "name": "Aeropuerto Internacional La Aurora" },
+    { "code": "FRS", "name": "Aeropuerto Internacional Mundo Maya" }
+  ],
+  "ports": [
+    { "code": "PQZ", "name": "Puerto Quetzal" },
+    { "code": "STC", "name": "Santo Tomas de Castilla" },
+    { "code": "PBR", "name": "Puerto Barrios" }
+  ],
+  "transport_modes": [
+    { "code": "1", "name": "Maritimo" },
+    { "code": "2", "name": "Ferroviario" },
+    { "code": "3", "name": "Carretero" },
+    { "code": "4", "name": "Aereo" },
+    { "code": "5", "name": "Postal" },
+    { "code": "6", "name": "Multimodal" },
+    { "code": "7", "name": "Instalaciones fijas" },
+    { "code": "8", "name": "Fluvial" }
+  ],
+  "transport_means": [
+    { "code": "1", "name": "Buque" },
+    { "code": "2", "name": "Tren" },
+    { "code": "3", "name": "Camion" },
+    { "code": "4", "name": "Aeronave" },
+    { "code": "5", "name": "Correo" },
+    { "code": "6", "name": "Multimodal" },
+    { "code": "7", "name": "Instalaciones fijas" },
+    { "code": "8", "name": "Barcaza" }
+  ],
+  "message_types": [
+    { "code": "CUSCAR", "name": "CUSCAR" },
+    { "code": "CUSRES", "name": "CUSRES" }
+  ],
+  "message_functions": [
+    { "code": "1", "name": "Cancelacion" },
+    { "code": "2", "name": "Adicion" },
+    { "code": "3", "name": "Eliminacion" },
+    { "code": "4", "name": "Cambio" },
+    { "code": "5", "name": "Reemplazo" },
+    { "code": "9", "name": "Original" }
+  ],
+  "reference_qualifiers": [
+    { "code": "BM", "name": "Bill of lading" },
+    { "code": "CN", "name": "Referencia del transportista" },
+    { "code": "ON", "name": "Orden del cliente" },
+    { "code": "ZZZ", "name": "Referencia acordada" }
+  ],
+  "message_responsibles": [
+    { "code": "CAR", "name": "Transportista" },
+    { "code": "AGT", "name": "Agente" },
+    { "code": "CNS", "name": "Consignatario" }
+  ],
+  "transport_id_agencies": [
+    { "code": "11", "name": "Lloyd's Register" }
+  ],
+  "package_types": [
+    { "code": "PK", "name": "Paquete" },
+    { "code": "CT", "name": "Carton" },
+    { "code": "BX", "name": "Caja" },
+    { "code": "BG", "name": "Saco" },
+    { "code": "PL", "name": "Pallet" },
+    { "code": "DR", "name": "Tambor" },
+    { "code": "CS", "name": "Cajon" }
+  ],
+  "units": [
+    { "code": "KGM", "name": "Kilogramo" },
+    { "code": "LBR", "name": "Libra" },
+    { "code": "MTQ", "name": "Metro cubico" }
+  ],
+  "airlines": [
+    { "code": "AV", "name": "Avianca" },
+    { "code": "AA", "name": "American Airlines" },
+    { "code": "DL", "name": "Delta Air Lines" },
+    { "code": "UA", "name": "United Airlines" }
+  ],
+  "transporters": [
+    { "code": "GEN", "name": "Transportista por definir" }
+  ]
+}

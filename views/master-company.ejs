@@ -1,0 +1,496 @@
+﻿<style>
+  .company-detail-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 24px 48px;
+  }
+  .company-detail-hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+  .company-detail-hero h1 {
+    margin: 0 0 6px;
+    font-size: 2.1rem;
+  }
+  .company-detail-sub {
+    margin: 0;
+    color: #5b6472;
+  }
+  .company-detail-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .company-detail-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    padding: 16px 18px;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+    margin-bottom: 18px;
+  }
+  .company-detail-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .company-detail-table th,
+  .company-detail-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #edf0f4;
+    text-align: left;
+    vertical-align: top;
+    font-size: 0.95rem;
+  }
+  .company-detail-table th {
+    width: 220px;
+    color: #3a4453;
+    background: #f8fafc;
+    font-weight: 600;
+  }
+  .company-detail-table tr:last-child td,
+  .company-detail-table tr:last-child th {
+    border-bottom: none;
+  }
+  .company-detail-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    background: #eef2ff;
+    color: #4338ca;
+  }
+  .company-detail-section-title {
+    margin: 0 0 12px;
+    font-size: 1.1rem;
+  }
+  .company-detail-input {
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    padding: 6px 8px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    background: #ffffff;
+    color: inherit;
+  }
+  .company-detail-input[readonly] {
+    border-color: transparent;
+    background: transparent;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .company-detail-input[disabled] {
+    border-color: transparent;
+    background: transparent;
+    padding-left: 0;
+    padding-right: 0;
+    color: inherit;
+  }
+  .company-detail-actions .btn[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .alert {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #1f2937;
+    margin: 12px 0;
+  }
+  .alert.success {
+    background: #ecfdf3;
+    border-color: #c6f6d5;
+    color: #166534;
+  }
+  .alert.error {
+    background: #fff0ed;
+    border-color: #f0b3a9;
+    color: #8a2a1c;
+  }
+</style>
+
+<div class="company-detail-page">
+<form action="/companies/<%= company.id %>/update" method="POST" data-company-form>
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<div class="company-detail-hero">
+  <div>
+    <h1>Detalle de empresa</h1>
+    <p class="company-detail-sub">Informacion general y contactos asociados a la empresa.</p>
+  </div>
+  <div class="company-detail-actions">
+    <a href="/master" class="btn">Volver al master</a>
+    <button type="button" class="btn" data-company-edit>Editar</button>
+    <button type="button" class="btn" data-company-cancel disabled>Cancelar</button>
+    <button type="submit" class="btn primary" data-company-save disabled>Guardar</button>
+  </div>
+</div>
+<% if (flash && flash.message) { %>
+<div class="alert <%= flash.type || '' %>">
+  <%= flash.message %>
+</div>
+<% } %>
+
+<div class="company-detail-card">
+<h2 class="company-detail-section-title">Estado de la empresa</h2>
+<div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+  <span class="company-detail-badge">
+    <%= status === 'inactive' ? 'Inactiva' : (status === 'expired' ? 'Vencida' : 'Activa') %>
+  </span>
+</div>
+</div>
+
+<div class="company-detail-card">
+<h2 class="company-detail-section-title">Datos generales</h2>
+<table class="company-detail-table">
+<tr>
+<th>ID</th>
+<td>
+<%= company.id %>
+</td>
+</tr>
+<tr>
+<th>Nombre</th>
+<td>
+<input class="company-detail-input" type="text" name="name" value="<%= company.name || '' %>" required readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>Nombre legal</th>
+<td>
+<input class="company-detail-input" type="text" name="legal_name" value="<%= company.legal_name || '' %>" readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>Usuario</th>
+<td>
+<input class="company-detail-input" type="text" name="username" value="<%= company.username || '' %>" required readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>Direccion</th>
+<td>
+<input class="company-detail-input" type="text" name="address" value="<%= company.address || '' %>" readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>Domicilio fiscal</th>
+<td>
+<input class="company-detail-input" type="text" name="tax_address" value="<%= company.tax_address || '' %>" readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>Telefono</th>
+<td>
+<input class="company-detail-input" type="text" name="phone" value="<%= company.phone || '' %>" readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>NIT</th>
+<td>
+<input class="company-detail-input" type="text" name="nit" value="<%= company.nit || '' %>" readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>Empleados</th>
+<td>
+<input class="company-detail-input" type="number" name="employees" value="<%= company.employees || '' %>" readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>Tipo de negocio</th>
+<td>
+<input class="company-detail-input" type="text" name="business_type" value="<%= company.business_type || '' %>" readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>Actividad</th>
+<td>
+<select class="company-detail-input" name="activity_id" disabled data-editable data-lock="disabled">
+  <option value="" disabled <%= !company.activity_id ? 'selected' : '' %>>Selecciona una actividad</option>
+  <% (activities || []).forEach(activity => { %>
+    <option value="<%= activity.id %>" <%= String(company.activity_id || '') === String(activity.id) ? 'selected' : '' %>>
+      <%= activity.name %>
+    </option>
+  <% }) %>
+</select>
+</td>
+</tr>
+<tr>
+<th>Pais</th>
+<td>
+<input class="company-detail-input" type="text" name="country" value="<%= company.country || '' %>" readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>Moneda base</th>
+<td>
+<input class="company-detail-input" type="text" name="base_currency" value="<%= company.base_currency || company.currency || '' %>" readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>Monedas permitidas</th>
+<td>
+<input class="company-detail-input" type="text" name="allowed_currencies" value="<%= company.allowed_currencies || '' %>" readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>Impuesto base</th>
+<td>
+<input class="company-detail-input" type="number" name="tax_rate" value="<%= company.tax_rate || '' %>" readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>Nombre del impuesto</th>
+<td>
+<input class="company-detail-input" type="text" name="tax_name" value="<%= company.tax_name || '' %>" readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>Costeo</th>
+<td>
+<input class="company-detail-input" type="text" name="costing_method" value="<%= company.costing_method || '' %>" readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>Moneda (anterior)</th>
+<td>
+<input class="company-detail-input" type="text" name="currency" value="<%= company.currency || '' %>" readonly data-editable>
+</td>
+</tr>
+<tr>
+<th>Color primario</th>
+<td>
+<input class="company-detail-input" type="color" name="primary_color" value="<%= company.primary_color || '#000000' %>" disabled data-editable data-lock="disabled">
+</td>
+</tr>
+<tr>
+<th>Color secundario</th>
+<td>
+<input class="company-detail-input" type="color" name="secondary_color" value="<%= company.secondary_color || '#ffffff' %>" disabled data-editable data-lock="disabled">
+</td>
+</tr>
+<tr>
+<th>Creada</th>
+<td>
+<%= company.created_at || '-' %>
+</td>
+</tr>
+<tr>
+<th>Activo desde</th>
+<td>
+<input class="company-detail-input" type="date" name="active_from" value="<%= company.active_from ? String(company.active_from).slice(0,10) : '' %>" disabled data-editable data-lock="disabled">
+</td>
+</tr>
+<tr>
+<th>Activo hasta</th>
+<td>
+<input class="company-detail-input" type="date" name="active_until" value="<%= company.active_until ? String(company.active_until).slice(0,10) : '' %>" disabled data-editable data-lock="disabled">
+</td>
+</tr>
+<tr>
+<th>Estado</th>
+<td>
+<span class="company-detail-badge">
+  <%= status === 'inactive' ? 'Inactiva' : (status === 'expired' ? 'Vencida' : 'Activa') %>
+</span>
+</td>
+</tr>
+<tr>
+<th>Total usuarios</th>
+<td>
+<%= usersCount %>
+</td>
+</tr>
+</table>
+</div>
+
+<div class="company-detail-card">
+<h2 class="company-detail-section-title">Contactos</h2>
+<table class="company-detail-table">
+<tr>
+<th colspan="2">Contacto general</th>
+</tr>
+<tr>
+<th>Nombre</th>
+<td><input class="company-detail-input" type="text" name="contact_general_first_name" value="<%= company.contact_general_first_name || '' %>" readonly data-editable></td>
+</tr>
+<tr>
+<th>Apellido</th>
+<td><input class="company-detail-input" type="text" name="contact_general_last_name" value="<%= company.contact_general_last_name || '' %>" readonly data-editable></td>
+</tr>
+<tr>
+<th>Telefono</th>
+<td><input class="company-detail-input" type="text" name="contact_general_phone" value="<%= company.contact_general_phone || '' %>" readonly data-editable></td>
+</tr>
+<tr>
+<th>Celular</th>
+<td><input class="company-detail-input" type="text" name="contact_general_mobile" value="<%= company.contact_general_mobile || '' %>" readonly data-editable></td>
+</tr>
+<tr>
+<th>Correo</th>
+<td><input class="company-detail-input" type="email" name="contact_general_email" value="<%= company.contact_general_email || '' %>" readonly data-editable></td>
+</tr>
+<tr>
+<th>Puesto</th>
+<td><input class="company-detail-input" type="text" name="contact_general_position" value="<%= company.contact_general_position || '' %>" readonly data-editable></td>
+</tr>
+</table>
+<table class="company-detail-table" style="margin-top: 10px;">
+<tr>
+<th colspan="2">Contacto de pagos</th>
+</tr>
+<tr>
+<th>Nombre</th>
+<td><input class="company-detail-input" type="text" name="contact_payments_first_name" value="<%= company.contact_payments_first_name || '' %>" readonly data-editable></td>
+</tr>
+<tr>
+<th>Apellido</th>
+<td><input class="company-detail-input" type="text" name="contact_payments_last_name" value="<%= company.contact_payments_last_name || '' %>" readonly data-editable></td>
+</tr>
+<tr>
+<th>Telefono</th>
+<td><input class="company-detail-input" type="text" name="contact_payments_phone" value="<%= company.contact_payments_phone || '' %>" readonly data-editable></td>
+</tr>
+<tr>
+<th>Celular</th>
+<td><input class="company-detail-input" type="text" name="contact_payments_mobile" value="<%= company.contact_payments_mobile || '' %>" readonly data-editable></td>
+</tr>
+<tr>
+<th>Correo</th>
+<td><input class="company-detail-input" type="email" name="contact_payments_email" value="<%= company.contact_payments_email || '' %>" readonly data-editable></td>
+</tr>
+<tr>
+<th>Puesto</th>
+<td><input class="company-detail-input" type="text" name="contact_payments_position" value="<%= company.contact_payments_position || '' %>" readonly data-editable></td>
+</tr>
+</table>
+<table class="company-detail-table" style="margin-top: 10px;">
+<tr>
+<th colspan="2">Contacto operativo</th>
+</tr>
+<tr>
+<th>Nombre</th>
+<td><input class="company-detail-input" type="text" name="contact_ops_first_name" value="<%= company.contact_ops_first_name || '' %>" readonly data-editable></td>
+</tr>
+<tr>
+<th>Apellido</th>
+<td><input class="company-detail-input" type="text" name="contact_ops_last_name" value="<%= company.contact_ops_last_name || '' %>" readonly data-editable></td>
+</tr>
+<tr>
+<th>Telefono</th>
+<td><input class="company-detail-input" type="text" name="contact_ops_phone" value="<%= company.contact_ops_phone || '' %>" readonly data-editable></td>
+</tr>
+<tr>
+<th>Celular</th>
+<td><input class="company-detail-input" type="text" name="contact_ops_mobile" value="<%= company.contact_ops_mobile || '' %>" readonly data-editable></td>
+</tr>
+<tr>
+<th>Correo</th>
+<td><input class="company-detail-input" type="email" name="contact_ops_email" value="<%= company.contact_ops_email || '' %>" readonly data-editable></td>
+</tr>
+<tr>
+<th>Puesto</th>
+<td><input class="company-detail-input" type="text" name="contact_ops_position" value="<%= company.contact_ops_position || '' %>" readonly data-editable></td>
+</tr>
+</table>
+</div>
+
+<div class="company-detail-card">
+<h2 class="company-detail-section-title">Usuarios</h2>
+<table class="company-detail-table">
+<tr>
+<th>ID</th>
+<th>Usuario</th>
+<th>Rol</th>
+<th>Creado</th>
+</tr>
+<% users.forEach(user => { %>
+<tr>
+<td>
+<%= user.id %>
+</td>
+<td>
+<%= user.username %>
+</td>
+<td>
+<%= user.role %>
+</td>
+<td>
+<%= user.created_at || '-' %>
+</td>
+</tr>
+<% }) %>
+</table>
+</div>
+
+</form>
+
+<div class="company-detail-card">
+<h2 class="company-detail-section-title">Renovar suscripción</h2>
+<form action="/master/companies/<%= company.id %>/renew" method="POST" style="display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end;">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+  <label>
+    <div style="font-size: 0.85rem; color: #5b6472; margin-bottom: 4px;">Activo desde</div>
+    <input class="company-detail-input" type="date" name="active_from" value="<%= company.active_from ? String(company.active_from).slice(0,10) : '' %>" required>
+  </label>
+  <label>
+    <div style="font-size: 0.85rem; color: #5b6472; margin-bottom: 4px;">Activo hasta</div>
+    <input class="company-detail-input" type="date" name="active_until" value="<%= company.active_until ? String(company.active_until).slice(0,10) : '' %>" required>
+  </label>
+  <button class="btn">Renovar</button>
+</form>
+</div>
+
+<div class="company-detail-card">
+<h2 class="company-detail-section-title">Historial de anulaciones</h2>
+<% if (inactiveNotes && inactiveNotes.length) { %>
+  <% inactiveNotes.forEach(note => { %>
+    <div style="padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 8px; background: #f8fafc;">
+      <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 4px;">
+        <%= note.created_at ? new Date(note.created_at).toLocaleString() : '-' %>
+      </div>
+      <div style="color: #111827; white-space: pre-wrap;"><%= note.note_text %></div>
+    </div>
+  <% }) %>
+<% } else { %>
+  <div style="color: #3a4453; font-size: 0.98rem;">-</div>
+<% } %>
+</div>
+</div>
+
+<script>
+  (function () {
+    const form = document.querySelector('[data-company-form]');
+    const editBtn = document.querySelector('[data-company-edit]');
+    const saveBtn = document.querySelector('[data-company-save]');
+    const cancelBtn = document.querySelector('[data-company-cancel]');
+    if (!form || !editBtn || !saveBtn || !cancelBtn) return;
+
+    const inputs = Array.from(form.querySelectorAll('[data-editable]'));
+
+    function setEditing(isEditing) {
+      inputs.forEach((input) => {
+        if (input.dataset.lock === 'disabled') {
+          input.disabled = !isEditing;
+        } else {
+          input.readOnly = !isEditing;
+        }
+      });
+      saveBtn.disabled = !isEditing;
+      cancelBtn.disabled = !isEditing;
+      editBtn.disabled = isEditing;
+    }
+
+    editBtn.addEventListener('click', () => setEditing(true));
+    cancelBtn.addEventListener('click', () => {
+      form.reset();
+      setEditing(false);
+    });
+  })();
+</script>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('awb.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<div class="page-header">
+<div>
+<h1>
+<%= t('awb.title') %>
+</h1>
+<p class="muted">
+<%= t('awb.subtitle') %>
+</p>
+</div>
+<div class="actions">
+<% if (can('airway_bills', 'create')) { %>
+<a class="btn primary" href="/airway-bills/new">
+<%= t('awb.new') %>
+</a>
+<% } %>
+</div>
+</div>
+<% if (error) { %>
+<div class="alert error">
+<%= error %>
+</div>
+<% } %>
+<% if (success) { %>
+<div class="alert success">
+<%= success %>
+</div>
+<% } %>
+<section class="panel">
+<div class="panel-header">
+<h2>
+<%= t('awb.list') %>
+</h2>
+</div>
+<div class="table">
+<div class="table-row header awbs">
+<div>
+<%= t('awb.awb_number') %>
+</div>
+<div>
+<%= t('awb.awb_type') %>
+</div>
+<div>
+<%= t('awb.shipper') %>
+</div>
+<div>
+<%= t('awb.consignee') %>
+</div>
+<div>
+<%= t('awb.status') %>
+</div>
+<div>
+<%= t('awb.created_at') %>
+</div>
+<div>
+<%= t('awb.actions') %>
+</div>
+</div>
+<% if (!awbs || awbs.length === 0) { %>
+<div class="table-row empty awbs">
+<%= t('awb.no_awbs') %>
+</div>
+<% } %>
+<% (awbs || []).forEach((awb) => { %>
+<div class="table-row awbs">
+<div>
+<%= awb.awb_number || '-' %>
+</div>
+<div>
+<%= awb.awb_type || '-' %>
+</div>
+<div>
+<%= awb.shipper_name || '-' %>
+</div>
+<div>
+<%= awb.consignee_name || '-' %>
+</div>
+<div>
+<span class="status-badge status-<%= awb.status %>">
+<%= t(`awb.status.${awb.status || 'draft'}`) %>
+</span>
+</div>
+<div>
+<%= awb.created_at || '-' %>
+</div>
+<div class="actions">
+<a class="btn small" href="/airway-bills/<%= awb.id %>">
+<%= t('awb.view') %>
+</a>
+</div>
+</div>
+<% }) %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

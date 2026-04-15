@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('invoices.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container">
+<h1>
+<%= t('invoices.title') %>
+</h1>
+<section class="panel">
+<h2>
+<%= t('invoices.create_invoice') %>
+</h2>
+<% if (error) { %>
+<div class="alert">
+<%= error %>
+</div>
+<% } %>
+<form method="POST" action="/invoices/create" class="form" id="invoice-form" data-base-currency="<%= companySettings.baseCurrency %>">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<div class="grid-2">
+<label>
+<%= t('invoices.customer') %>
+<select name="customer_id">
+<option value="">
+<%= t('invoices.walk_in_unassigned') %>
+</option>
+<% customers.forEach(c => { %>
+<option value="<%= c.id %>">
+<%= c.customer_code ? `${c.customer_code} - ` : '' %><%= c.name %>
+</option>
+<% }) %>
+</select>
+</label>
+<label>
+<%= t('invoices.currency') %>
+<select name="currency" id="invoice-currency">
+<% companySettings.allowedCurrencies.forEach(curr => { %>
+<option value="<%= curr %>" <%= curr === companySettings.baseCurrency ? 'selected' : '' %>>
+<%= curr %>
+</option>
+<% }) %>
+</select>
+</label>
+<label id="exchange-rate-field">
+<%= t('invoices.exchange_rate') %> (<%= companySettings.baseCurrency %>)
+<input type="number" name="exchange_rate" min="0" step="0.0001" value="1" id="exchange-rate" />
+</label>
+<label>
+<%= t('invoices.tax_default') %>
+<input type="number" name="tax_rate" min="0" step="0.01" value="<%= companySettings.taxRate != null ? Number(companySettings.taxRate).toFixed(2) : 0 %>" id="tax-rate" />
+</label>
+<label>
+<%= t('invoices.discount_type') %>
+<select name="discount_type" id="discount-type">
+<option value="amount">
+<%= t('invoices.fixed_amount') %>
+</option>
+<option value="percent">
+<%= t('invoices.percentage') %>
+</option>
+</select>
+</label>
+<label>
+<%= t('invoices.discount_value') %>
+<input type="number" name="discount_value" min="0" step="0.01" value="0" id="discount-value" />
+</label>
+</div>
+<div class="table">
+<div class="table-row header invoice-items">
+<div>
+<%= t('invoices.table.product') %>
+</div>
+<div>
+<%= t('invoices.table.qty') %>
+</div>
+<div>
+<%= t('invoices.table.unit_price') %>
+</div>
+<div>
+<%= t('invoices.table.line_total') %>
+</div>
+<div>
+<%= t('invoices.table.actions') %>
+</div>
+</div>
+<div id="invoice-lines">
+<div class="table-row invoice-items">
+<select name="item_id" class="line-item">
+<option value="">
+<%= t('invoices.select_product') %>
+</option>
+<% items.forEach(item => { %>
+<option value="<%= item.id %>" data-price="<%= Number(item.price || 0).toFixed(2) %>">
+<%= item.name %> (<%= companySettings.baseCurrency %> <%= Number(item.price || 0).toFixed(2) %>)                  </option>
+<% }) %>
+</select>
+<input type="number" name="qty" min="0" value="1" class="line-qty" />
+<input type="number" name="unit_price" min="0" step="0.01" value="0" class="line-price" />
+<input type="text" class="line-total" value="<%= companySettings.baseCurrency %> 0.00" disabled />
+<div class="actions">
+<button type="button" class="btn danger line-remove">
+<%= t('invoices.remove') %>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="invoice-actions">
+<button type="button" class="btn" id="add-line">
+<%= t('invoices.add_line') %>
+</button>
+<div class="invoice-summary">
+<span>
+<%= t('invoices.subtotal') %>
+</span>
+<strong id="invoice-subtotal"><%= companySettings.baseCurrency %> 0.00</strong>
+<span>
+<%= t('invoices.tax') %>
+</span>
+<strong id="invoice-tax"><%= companySettings.baseCurrency %> 0.00</strong>
+<span>
+<%= t('invoices.discount') %>
+</span>
+<strong id="invoice-discount"><%= companySettings.baseCurrency %> 0.00</strong>
+<span>
+<%= t('invoices.total') %>
+</span>
+<strong id="invoice-total"><%= companySettings.baseCurrency %> 0.00</strong>
+</div>
+<button type="submit" class="btn primary">
+<%= t('invoices.create_invoice_button') %>
+</button>
+</div>
+</form>
+</section>
+<section class="panel">
+<h2>
+<%= t('invoices.history') %>
+</h2>
+<div class="table">
+<div class="table-row header invoices">
+<div>
+<%= t('invoices.table.invoice') %>
+</div>
+<div>
+<%= t('invoices.table.customer') %>
+</div>
+<div>
+<%= t('invoices.table.subtotal') %>
+</div>
+<div>
+<%= t('invoices.table.tax') %>
+</div>
+<div>
+<%= t('invoices.table.discount') %>
+</div>
+<div>
+<%= t('invoices.table.total') %>
+</div>
+<div>
+<%= t('invoices.table.created') %>
+</div>
+<div>
+<%= t('invoices.table.actions_header') %>
+</div>
+</div>
+<% if (invoices.length === 0) { %>
+<div class="table-row empty">
+<%= t('invoices.no_invoices') %>
+</div>
+<% } %>
+<% invoices.forEach(inv => { %>
+<div class="table-row invoices">
+<div>#<%= inv.id %>
+</div>
+<div>
+<%= inv.customer_code ? `${inv.customer_code} - ` : '' %><%= inv.customer_name || t('common.walk_in') %>
+</div>
+<div><%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.subtotal || 0).toFixed(2) %>
+</div>
+<div><%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.tax_amount || 0).toFixed(2) %> (<%= Number(inv.tax_rate || 0).toFixed(2) %>%)</div>
+<div>              <%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.discount_amount || 0).toFixed(2) %>
+<% if (inv.discount_type === 'percent') { %>                (<%= Number(inv.discount_value || 0).toFixed(2) %>%)              <% } else { %>                (<%= t('invoices.fixed') %>)              <% } %>
+</div>
+<div><%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.total || 0).toFixed(2) %>
+</div>
+<div>
+<%= new Date(inv.created_at).toLocaleString() %>
+</div>
+<div class="actions">
+<a class="btn" href="/invoices/<%= inv.id %>">
+<%= t('common.view') %>
+</a>
+</div>
+</div>
+<div class="table-row invoices-mobile">
+<div class="invoice-mobile-main">
+<div>
+<strong>#<%= inv.id %>
+</strong>
+<span class="muted">&bull; <%= inv.customer_code ? `${inv.customer_code} - ` : '' %><%= inv.customer_name || t('common.walk_in') %>
+</span>
+</div>
+<div class="invoice-mobile-total"><%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.total || 0).toFixed(2) %>
+</div>
+</div>
+<details class="invoice-mobile-details">
+<summary class="btn">
+<%= t('invoices.view_breakdown') %>
+</summary>
+<div class="invoice-mobile-grid">
+<div>
+<%= t('invoices.subtotal') %>
+</div>
+<div><%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.subtotal || 0).toFixed(2) %>
+</div>
+<div>
+<%= t('invoices.tax') %>
+</div>
+<div><%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.tax_amount || 0).toFixed(2) %> (<%= Number(inv.tax_rate || 0).toFixed(2) %>%)</div>
+<div>
+<%= t('invoices.discount') %>
+</div>
+<div>                  <%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.discount_amount || 0).toFixed(2) %>
+<% if (inv.discount_type === 'percent') { %>                    (<%= Number(inv.discount_value || 0).toFixed(2) %>%)                  <% } else { %>                    (<%= t('invoices.fixed') %>)                  <% } %>
+</div>
+<div>
+<%= t('invoices.total') %>
+</div>
+<div><%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.total || 0).toFixed(2) %>
+</div>
+<div>
+<%= t('invoices.table.created') %>
+</div>
+<div>
+<%= new Date(inv.created_at).toLocaleString() %>
+</div>
+</div>
+<div class="actions">
+<a class="btn" href="/invoices/<%= inv.id %>">
+<%= t('invoices.view_invoice') %>
+</a>
+</div>
+</details>
+</div>
+<% }) %>
+</div>
+</section>
+</main>
+<template id="invoice-line-template">
+<div class="table-row invoice-items">
+<select name="item_id" class="line-item">
+<option value="">
+<%= t('invoices.select_product') %>
+</option>
+<% items.forEach(item => { %>
+<option value="<%= item.id %>" data-price="<%= Number(item.price || 0).toFixed(2) %>">
+<%= item.name %> (<%= companySettings.baseCurrency %> <%= Number(item.price || 0).toFixed(2) %>)          </option>
+<% }) %>
+</select>
+<input type="number" name="qty" min="0" value="1" class="line-qty" />
+<input type="number" name="unit_price" min="0" step="0.01" value="0" class="line-price" />
+<input type="text" class="line-total" value="<%= companySettings.baseCurrency %> 0.00" disabled />
+<div class="actions">
+<button type="button" class="btn danger line-remove">
+<%= t('invoices.remove') %>
+</button>
+</div>
+</div>
+</template>
+<script>    (function () {      const linesContainer = document.getElementById('invoice-lines');      const addBtn = document.getElementById('add-line');      const template = document.getElementById('invoice-line-template');      const subtotalEl = document.getElementById('invoice-subtotal');      const taxEl = document.getElementById('invoice-tax');      const discountEl = document.getElementById('invoice-discount');      const totalEl = document.getElementById('invoice-total');      const taxRateInput = document.getElementById('tax-rate');      const discountTypeInput = document.getElementById('discount-type');      const discountValueInput = document.getElementById('discount-value');      const currencySelect = document.getElementById('invoice-currency');      const exchangeRateField = document.getElementById('exchange-rate-field');      const exchangeRateInput = document.getElementById('exchange-rate');      const baseCurrency = document.getElementById('invoice-form').dataset.baseCurrency;      const parseNumber = (value) => {        const parsed = Number(value);        return Number.isFinite(parsed) ? parsed : 0;      };      const formatAmount = (value) => {        const currency = currencySelect ? currencySelect.value : baseCurrency;        return `${currency} ${value.toFixed(2)}`;      };      const updateExchangeRateVisibility = () => {        if (!currencySelect || !exchangeRateField || !exchangeRateInput) return;        const currency = currencySelect.value;        const show = currency !== baseCurrency;        exchangeRateField.style.display = show ? '' : 'none';        if (!show) {          exchangeRateInput.value = '1';        }      };      const updateLineTotal = (row) => {        const qtyInput = row.querySelector('.line-qty');        const priceInput = row.querySelector('.line-price');        const totalInput = row.querySelector('.line-total');        const qty = parseNumber(qtyInput.value);        const price = parseNumber(priceInput.value);        const total = qty * price;        totalInput.value = formatAmount(total);        return total;      };      const updateTotals = () => {        let subtotal = 0;        linesContainer.querySelectorAll('.table-row.invoice-items').forEach((row) => {          subtotal += updateLineTotal(row);        });        const taxRate = parseNumber(taxRateInput.value);        const discountValue = parseNumber(discountValueInput.value);        const discountType = discountTypeInput.value === 'percent' ? 'percent' : 'amount';        const taxAmount = subtotal * (taxRate / 100);        const discountAmount =          discountType === 'percent'            ? subtotal * (discountValue / 100)            : discountValue;        const total = Math.max(0, subtotal + taxAmount - discountAmount);        subtotalEl.textContent = formatAmount(subtotal);        taxEl.textContent = formatAmount(taxAmount);        discountEl.textContent = formatAmount(discountAmount);        totalEl.textContent = formatAmount(total);      };      const handleProductChange = (event) => {        if (!event.target.classList.contains('line-item')) return;        const selected = event.target.options[event.target.selectedIndex];        const price = selected ? selected.dataset.price : '0';        const row = event.target.closest('.table-row.invoice-items');        const priceInput = row.querySelector('.line-price');        priceInput.value = parseNumber(price).toFixed(2);        updateTotals();      };      const handleInputChange = (event) => {        if (!event.target.classList.contains('line-qty') && !event.target.classList.contains('line-price')) {          return;        }        updateTotals();      };      const handleRemove = (event) => {        if (!event.target.classList.contains('line-remove')) return;        const rows = linesContainer.querySelectorAll('.table-row.invoice-items');        if (rows.length <= 1) {          return;        }        event.target.closest('.table-row.invoice-items').remove();        updateTotals();      };      addBtn.addEventListener('click', () => {        const clone = template.content.firstElementChild.cloneNode(true);        linesContainer.appendChild(clone);        updateTotals();      });      linesContainer.addEventListener('change', handleProductChange);      linesContainer.addEventListener('input', handleInputChange);      linesContainer.addEventListener('click', handleRemove);      [taxRateInput, discountTypeInput, discountValueInput].forEach((input) => {        input.addEventListener('input', updateTotals);      });      if (currencySelect) {        currencySelect.addEventListener('change', () => {          updateExchangeRateVisibility();          updateTotals();        });      }      updateExchangeRateVisibility();      updateTotals();    })();  </script>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

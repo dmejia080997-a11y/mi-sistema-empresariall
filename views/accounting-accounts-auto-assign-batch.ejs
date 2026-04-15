@@ -1,0 +1,51 @@
+﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Detalle de lote</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand"><%= t('common.brand') %></div>
+<nav class="nav">
+<a href="/dashboard">Dashboard</a>
+<a href="/accounting/accounts/auto-assign/preview">Previsualización</a>
+<a href="/logout"><%= t('nav.logout') %></a>
+</nav>
+</header>
+<main class="container">
+<h1>Detalle del lote <%= batchId %></h1>
+<section class="panel">
+<div class="actions">
+<a class="btn" href="/accounting/accounts/auto-assign/batch/export?batch_id=<%= batchId %>&format=xlsx">Exportar Excel</a>
+<a class="btn" href="/accounting/accounts/auto-assign/batch/export?batch_id=<%= batchId %>&format=pdf">Exportar PDF</a>
+</div>
+<div class="table">
+<div class="table-row header accounting-batch-detail">
+<div>Cuenta</div>
+<div>Antes</div>
+<div>Después</div>
+<div>Usuario</div>
+<div>Fecha</div>
+</div>
+<% if (!rows.length) { %>
+<div class="table-row empty">No hay registros para este lote.</div>
+<% } %>
+<% rows.forEach(row => { %>
+<div class="table-row accounting-batch-detail">
+<div><%= row.account_code %> - <%= row.account_name %></div>
+<div><%= row.prev_category || '-' %></div>
+<div><%= row.new_category || '-' %></div>
+<div><%= row.username || '-' %></div>
+<div><%= row.created_at %></div>
+</div>
+<% }) %>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+

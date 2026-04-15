@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>
+<%= t('reception.title') %>
+</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand">
+<%= t('common.brand') %>
+</div>
+<nav class="nav">
+<a href="/dashboard">
+<%= t('nav.dashboard') %>
+</a>
+<a href="/logout">
+<%= t('nav.logout') %>
+</a>
+</nav>
+</header>
+<main class="container reception-module">
+<div class="page-header">
+<div>
+<h1>
+<%= t('reception.title') %>
+</h1>
+<p class="muted">
+<%= t('reception.subtitle') %>
+</p>
+</div>
+</div>
+<section class="panel module-landing">
+<div class="module-tiles">
+<a class="module-tile" href="/carrier-reception/summary">
+<div class="module-tile-title">
+<%= t('reception.summary_title') %>
+</div>
+<div class="module-tile-sub">
+<%= t('reception.stats.by_carrier') %>
+</div>
+</a>
+<a class="module-tile" href="/carrier-reception/quick">
+<div class="module-tile-title">
+<%= t('reception.quick_title') %>
+</div>
+<div class="module-tile-sub">
+<%= t('reception.form.tracking') %> / <%= t('reception.form.carrier') %>
+</div>
+</a>
+<a class="module-tile" href="/carrier-reception/list">
+<div class="module-tile-title">
+<%= t('reception.list_title') %>
+</div>
+<div class="module-tile-sub">
+<%= t('reception.filters.tracking') %> / <%= t('reception.filters.carrier') %>
+</div>
+</a>
+</div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

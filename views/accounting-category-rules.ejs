@@ -1,0 +1,110 @@
+﻿<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reglas de autoasignación</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page">
+<header class="topbar">
+<div class="brand"><%= t('common.brand') %></div>
+<nav class="nav">
+<a href="/dashboard">Dashboard</a>
+<a href="/accounting/categories">Categorías</a>
+<a href="/logout"><%= t('nav.logout') %></a>
+</nav>
+</header>
+<main class="container">
+<h1>Reglas de autoasignación</h1>
+<nav class="subnav">
+<a href="/accounting/accounts">Catálogo</a>
+<a href="/accounting/categories">Categorías</a>
+<a href="/accounting/categories/rules" class="active">Reglas</a>
+<a href="/accounting/reports">Reportes</a>
+<a href="/accounting/settings">Configuración</a>
+</nav>
+
+<% if (flash) { %>
+<div class="alert <%= flash.type %>"><%= flash.message %></div>
+<% } %>
+
+<section class="panel">
+<form class="form" method="get" action="/accounting/categories/rules">
+<label>
+Marco contable
+<select name="framework">
+<% (frameworks || ['NIF','NIIF']).forEach(fr => { %>
+<option value="<%= fr %>" <%= fr === framework ? 'selected' : '' %>><%= fr %></option>
+<% }) %>
+</select>
+</label>
+<button class="btn primary" type="submit">Ver</button>
+</form>
+</section>
+
+<section class="panel">
+<h2>Listado de reglas</h2>
+<div class="table">
+<div class="table-row header accounting-rules">
+<div>Texto</div>
+<div>Categoría destino</div>
+<div>Prioridad</div>
+<div>Activa</div>
+<div></div>
+</div>
+<% if (!rules.length) { %>
+<div class="table-row empty">No hay reglas creadas.</div>
+<% } %>
+<% rules.forEach(rule => { %>
+<form id="rule-<%= rule.id %>" method="post" action="/accounting/categories/rules/<%= rule.id %>/update"></form>
+<form id="rule-del-<%= rule.id %>" method="post" action="/accounting/categories/rules/<%= rule.id %>/delete"></form>
+<div class="table-row accounting-rules accounting-row">
+<div>
+<input form="rule-<%= rule.id %>" type="hidden" name="framework" value="<%= framework %>" />
+<input form="rule-<%= rule.id %>" type="text" name="rule_text" value="<%= rule.rule_text %>" required />
+</div>
+<div>
+<input form="rule-<%= rule.id %>" type="text" name="target_category_code" value="<%= rule.target_category_code %>" required />
+</div>
+<div>
+<input form="rule-<%= rule.id %>" type="number" name="priority" value="<%= rule.priority || 0 %>" />
+</div>
+<div>
+<input form="rule-<%= rule.id %>" type="checkbox" name="is_active" value="1" <%= rule.is_active ? 'checked' : '' %> />
+</div>
+<div class="actions">
+<button class="btn" type="submit" form="rule-<%= rule.id %>">Guardar</button>
+<input form="rule-del-<%= rule.id %>" type="hidden" name="framework" value="<%= framework %>" />
+<button class="btn danger" type="submit" form="rule-del-<%= rule.id %>">Eliminar</button>
+</div>
+</div>
+<% }) %>
+</div>
+</section>
+
+<section class="panel">
+<h2>Crear regla</h2>
+<form class="form" method="post" action="/accounting/categories/rules/create">
+<input type="hidden" name="framework" value="<%= framework %>" />
+<label>
+Texto (coincidencia)
+<input type="text" name="rule_text" placeholder="Ej. banco, nómina, impuesto" required />
+</label>
+<label>
+Categoría destino (código)
+<input type="text" name="target_category_code" placeholder="Ej. ACT-CURRENT" required />
+</label>
+<label>
+Prioridad
+<input type="number" name="priority" value="0" />
+</label>
+<button class="btn primary" type="submit">Crear regla</button>
+</form>
+<p class="helper">Las reglas se evalúan antes que las heurísticas automáticas.</p>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>
+
