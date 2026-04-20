@@ -116,7 +116,45 @@
   "launcher.settings.subtitle": "Select the modules visible on your home screen.",
   "launcher.settings.save": "Save changes",
   "launcher.settings.back": "Back to home",
-  "launcher.settings.saved": "Launcher settings saved",
+  "launcher.settings.saved": "Launcher settings saved",
+  "launcher.settings.current_launcher": "Active launcher",
+  "launcher.settings.personal_title": "Personal launcher",
+  "launcher.settings.personal_desc": "You can inherit the company launcher or choose your own layout.",
+  "launcher.settings.company_title": "Company default launcher",
+  "launcher.settings.company_desc": "Used when the user does not have a personal launcher assigned.",
+  "launcher.settings.modules_title": "Visible modules",
+  "launcher.settings.modules_desc": "Order and select the modules that appear on your main screen.",
+  "launcher.type.inherit.name": "Use company launcher",
+  "launcher.type.inherit.desc": "No personal override. If the company has none, Classic is used.",
+  "launcher.type.classic.name": "Classic",
+  "launcher.type.classic.desc": "Cards with modules and quick actions.",
+  "launcher.type.icons.name": "Icons",
+  "launcher.type.icons.desc": "Large visual app-launcher style icons.",
+  "launcher.type.executive.name": "Executive",
+  "launcher.type.executive.desc": "Top KPIs, priority actions, and operational alerts.",
+  "launcher.section.quick_actions": "Quick actions",
+  "launcher.section.modules": "Modules",
+  "launcher.section.modules_title": "Work areas",
+  "launcher.section.modules_desc": "Only modules available under your permissions are shown.",
+  "launcher.section.metrics": "Metrics",
+  "launcher.section.alerts": "Alerts",
+  "launcher.section.alerts_title": "Operational summary",
+  "launcher.section.priority_actions": "Priority actions",
+  "launcher.section.secondary_actions": "Available modules",
+  "launcher.no_modules": "There are no modules available for this user.",
+  "launcher.stats.total_packages": "Total packages",
+  "launcher.stats.total_items": "Total items",
+  "launcher.stats.low_stock": "Low stock",
+  "launcher.alerts.review": "Review",
+  "launcher.alerts.refresh": "Refresh",
+  "launcher.alerts.low_stock.title": "{count} items need stock attention",
+  "launcher.alerts.low_stock.desc": "Review inventory and prevent operational shortages.",
+  "launcher.alerts.customs.title": "{count} packages are still in customs",
+  "launcher.alerts.customs.desc": "There are shipments that still need tracking and release work.",
+  "launcher.alerts.delivery.title": "{count} packages are ready for delivery",
+  "launcher.alerts.delivery.desc": "These should be prioritized for final coordination and dispatch.",
+  "launcher.alerts.clear.title": "No critical operational alerts",
+  "launcher.alerts.clear.desc": "There are no urgent indicators right now.",
   "launcher.open": "Open module",
   "agenda_medica.title": "Medical Agenda",
   "agenda_medica.subtitle": "Manage appointments by day or week.",
@@ -464,9 +502,11 @@
   "errors.brand_update_failed": "Brand update failed. Name may already exist.",
   "errors.brand_delete_failed": "Brand delete failed.",
   "errors.code_required": "Code is required for manual mode.",
-  "errors.code_duplicate": "Code already exists.",
-  "errors.customer_name_required": "Customer name is required.",
+  "errors.code_duplicate": "Code already exists.",
+  "errors.customer_name_required": "Customer name is required.",
+  "errors.customer_portal_code_duplicate": "Portal code already exists.",
   "errors.customer_create_failed": "Customer creation failed.",
+  "errors.customer_save_detail": "Customer could not be saved. Detail: {detail}",
   "errors.customer_update_failed": "Customer update failed.",
   "errors.customer_delete_failed": "Customer delete failed.",
   "errors.customer_void_failed": "Customer void failed.",
@@ -1248,6 +1288,47 @@
   ,"common.inactive": "Inactive"
   ,"settings.cuscar_catalogs_title": "CUSCAR Catalogs"
   ,"settings.cuscar_catalogs_subtitle": "Manage base CUSCAR catalogs."
+  ,"launcher.settings.name": "Launcher and appearance"
+  ,"launcher.settings.desc": "Configure launcher, modules, and visual style."
+  ,"launcher.settings.title": "Launcher and appearance"
+  ,"launcher.settings.subtitle": "Manage launcher, visible modules, and visual appearance."
+  ,"launcher.settings.back": "Back"
+  ,"launcher.settings.appearance_eyebrow": "Theme"
+  ,"launcher.settings.appearance_title": "System appearance"
+  ,"launcher.settings.appearance_desc": "Logo, colors, typography, and visual sizing with live preview."
+  ,"launcher.settings.logo": "Logo"
+  ,"launcher.settings.logo_size": "Logo size"
+  ,"launcher.settings.primary_color": "Button color"
+  ,"launcher.settings.secondary_color": "Secondary color"
+  ,"launcher.settings.background_color": "Background color"
+  ,"launcher.settings.title_color": "Title color"
+  ,"launcher.settings.text_color": "Text color"
+  ,"launcher.settings.font_family": "Font family"
+  ,"launcher.settings.icon_size": "Icon size"
+  ,"launcher.settings.icon_frame": "White background behind icon"
+  ,"launcher.settings.widgets_title": "Notes and planner"
+  ,"launcher.settings.widgets_desc": "Turn these sections on or off for the Original launcher."
+  ,"launcher.settings.show_notes": "Show quick notes"
+  ,"launcher.settings.show_planner": "Show weekly planner"
+  ,"launcher.settings.folders_eyebrow": "Folders"
+  ,"launcher.settings.folders_title": "Icon groups"
+  ,"launcher.settings.folders_desc": "Create transparent folders and assign modules into them like a phone home screen."
+  ,"launcher.settings.add_folder": "Add folder"
+  ,"launcher.settings.remove_folder": "Remove folder"
+  ,"launcher.settings.folders_empty": "No folders created yet."
+  ,"launcher.settings.folder_name": "Folder name"
+  ,"launcher.settings.assign_folder": "Folder"
+  ,"launcher.settings.no_folder": "No folder"
+  ,"launcher.settings.preview_home": "Home"
+  ,"launcher.settings.preview_app": "App"
+  ,"launcher.settings.folder_badge": "Folder"
+  ,"launcher.settings.preview_eyebrow": "Preview"
+  ,"launcher.settings.preview_title": "User preview"
+  ,"launcher.settings.preview_desc": "The preview updates as the form changes."
+  ,"launcher.settings.widgets_empty": "Notes and planner are hidden in this launcher."
+  ,"launcher.type.classic.desc": "Clean cards with visible modules."
+  ,"launcher.type.original.name": "Original"
+  ,"launcher.type.original.desc": "Your workspace with notes, planner, and apps."
 }
 
 

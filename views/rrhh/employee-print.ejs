@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ficha de <%= employee.full_name %></title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page hr-print-page" onload="window.print()">
+  <main class="container hr-print-shell">
+    <section class="panel hr-print-panel">
+      <div class="panel-header">
+        <div>
+          <div class="eyebrow">RRHH</div>
+          <h1>Ficha de empleado</h1>
+          <p class="muted"><%= employee.full_name %></p>
+        </div>
+        <% if (employee.photo_url) { %>
+          <img src="<%= employee.photo_url %>" alt="<%= employee.full_name %>" class="hr-print-photo" />
+        <% } %>
+      </div>
+
+      <div class="hr-print-grid">
+        <div><strong>Código:</strong> <%= employee.employee_code || '-' %></div>
+        <div><strong>DPI:</strong> <%= employee.dpi_number || '-' %></div>
+        <div><strong>Puesto:</strong> <%= employee.position || '-' %></div>
+        <div><strong>Departamento:</strong> <%= employee.department || '-' %></div>
+        <div><strong>Jefe inmediato:</strong> <%= employee.immediate_boss_name || '-' %></div>
+        <div><strong>Fecha de ingreso:</strong> <%= employee.hire_date || '-' %></div>
+        <div><strong>Estado:</strong> <%= employee.employment_status || '-' %></div>
+        <div><strong>Contrato:</strong> <%= employee.contract_type || '-' %></div>
+        <div><strong>Salario base:</strong> Q<%= Number(employee.salary_base || 0).toFixed(2) %></div>
+        <div><strong>Bono:</strong> Q<%= Number(employee.bonus_amount || 0).toFixed(2) %></div>
+        <div><strong>Teléfono:</strong> <%= employee.phone || '-' %></div>
+        <div><strong>Correo:</strong> <%= employee.email || '-' %></div>
+        <div class="full-row"><strong>Dirección:</strong> <%= employee.address || '-' %></div>
+        <div class="full-row"><strong>Notas:</strong> <%= employee.notes || '-' %></div>
+      </div>
+
+      <h2>Adjuntos registrados</h2>
+      <div class="hr-print-list">
+        <% if (!attachments.length) { %>
+          <div>-</div>
+        <% } %>
+        <% attachments.forEach((attachment) => { %>
+          <div><strong><%= attachment.attachment_label %>:</strong> <%= attachment.original_name || 'Documento cargado' %></div>
+        <% }) %>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

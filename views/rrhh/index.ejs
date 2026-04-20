@@ -1,0 +1,1286 @@
+<%
+const currentQuery = query || {};
+function cloneParams(extra) {
+  const params = new URLSearchParams();
+  Object.keys(currentQuery).forEach((key) => {
+    const value = currentQuery[key];
+    if (value === undefined || value === null || value === '') return;
+    params.set(key, value);
+  });
+  Object.keys(extra || {}).forEach((key) => {
+    const value = extra[key];
+    if (value === undefined || value === null || value === '') {
+      params.delete(key);
+      return;
+    }
+    params.set(key, value);
+  });
+  return params.toString();
+}
+function tabUrl(tab, extra) {
+  const qs = cloneParams({ ...extra, tab });
+  return `/rrhh${qs ? `?${qs}` : ''}`;
+}
+function pageUrl(page) {
+  const qs = cloneParams({ page, tab: activeTab });
+  return `/rrhh?${qs}`;
+}
+const activeFilters =
+  activeTab === 'employees' ? (employees && employees.filters) || {} :
+  activeTab === 'contracts' ? (contracts && contracts.filters) || {} :
+  activeTab === 'salaries' ? (salaries && salaries.filters) || {} :
+  activeTab === 'overtime' ? (overtime && overtime.filters) || {} :
+  activeTab === 'attendance' ? (attendance && attendance.filters) || {} :
+  activeTab === 'warnings' ? (warnings && warnings.filters) || {} :
+  activeTab === 'descriptions' ? (descriptions && descriptions.filters) || {} :
+  activeTab === 'permissions' ? (permissions && permissions.filters) || {} :
+  activeTab === 'vacations' ? (vacations && vacations.filters) || {} :
+  {};
+const activePagination =
+  activeTab === 'employees' ? (employees && employees.pagination) || null :
+  activeTab === 'contracts' ? (contracts && contracts.pagination) || null :
+  activeTab === 'salaries' ? (salaries && salaries.pagination) || null :
+  activeTab === 'overtime' ? (overtime && overtime.pagination) || null :
+  activeTab === 'attendance' ? (attendance && attendance.pagination) || null :
+  activeTab === 'warnings' ? (warnings && warnings.pagination) || null :
+  activeTab === 'descriptions' ? (descriptions && descriptions.pagination) || null :
+  activeTab === 'permissions' ? (permissions && permissions.pagination) || null :
+  activeTab === 'vacations' ? (vacations && vacations.pagination) || null :
+  null;
+%>
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RRHH</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/js/rrhh.js" defer></script>
+</head>
+<body class="page hr-page">
+  <header class="topbar">
+    <div class="brand">RRHH</div>
+    <nav class="nav">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/logout"><%= t('nav.logout') %></a>
+    </nav>
+  </header>
+
+  <main class="container hr-shell">
+    <% if (flash) { %>
+      <div class="alert <%= flash.type || 'info' %>"><%= flash.message %></div>
+    <% } %>
+
+    <section class="hr-hero">
+      <div>
+        <div class="eyebrow">Talento humano</div>
+        <h1>Módulo RRHH</h1>
+        <p class="muted">Gestión multiempresa de empleados, contratos, salarios, asistencia, permisos y vacaciones.</p>
+      </div>
+      <div class="hr-summary-grid">
+        <article class="hr-summary-card">
+          <span class="muted">Empleados</span>
+          <strong><%= summary.employeeTotal %></strong>
+          <span class="helper"><%= summary.activeEmployeeTotal %> activos</span>
+        </article>
+        <article class="hr-summary-card">
+          <span class="muted">Contratos</span>
+          <strong><%= summary.contractTotal %></strong>
+          <span class="helper"><%= summary.activeContractTotal %> vigentes</span>
+        </article>
+        <article class="hr-summary-card">
+          <span class="muted">Asistencias</span>
+          <strong><%= summary.attendanceTotal %></strong>
+          <span class="helper"><%= summary.lateAttendanceTotal %> tardanzas</span>
+        </article>
+        <article class="hr-summary-card">
+          <span class="muted">Vacaciones</span>
+          <strong><%= summary.vacationTotal %></strong>
+          <span class="helper"><%= summary.approvedVacationTotal %> aprobadas</span>
+        </article>
+      </div>
+    </section>
+
+    <nav class="module-nav hr-tabs">
+      <% hrTabs.forEach((tab) => { %>
+        <a href="<%= tabUrl(tab.key, { page: 1, editId: null }) %>" class="<%= activeTab === tab.key ? 'active' : '' %>"><%= tab.label %></a>
+      <% }) %>
+    </nav>
+
+    <% if (activeTab === 'employees') { const data = employees || { rows: [], filters: {}, pagination: null, view: 'list' }; %>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Ficha de empleado</h2>
+            <p class="muted">Listado principal con búsqueda, filtros y cambio entre vista lista y cards.</p>
+          </div>
+          <div class="actions">
+            <a class="btn primary" href="/rrhh/employees/new">Nuevo empleado</a>
+            <a class="btn <%= data.view === 'list' ? 'primary' : '' %>" href="<%= tabUrl('employees', { view: 'list', page: 1 }) %>">Vista lista</a>
+            <a class="btn <%= data.view === 'cards' ? 'primary' : '' %>" href="<%= tabUrl('employees', { view: 'cards', page: 1 }) %>">Vista cards</a>
+          </div>
+        </div>
+
+        <form method="GET" action="/rrhh" class="form grid-3">
+          <input type="hidden" name="tab" value="employees" />
+          <label>
+            Buscar
+            <input type="text" name="q" value="<%= data.filters.q || '' %>" placeholder="Nombre, DPI, código, puesto o departamento" />
+          </label>
+          <label>
+            Departamento
+            <select name="department">
+              <option value="">Todos</option>
+              <% departments.forEach((department) => { %>
+                <option value="<%= department %>" <%= data.filters.department === department ? 'selected' : '' %>><%= department %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Estado
+            <select name="status">
+              <option value="">Todos</option>
+              <option value="Activos" <%= data.filters.status === 'Activos' ? 'selected' : '' %>>Activos</option>
+              <option value="Inactivos" <%= data.filters.status === 'Inactivos' ? 'selected' : '' %>>Inactivos</option>
+            </select>
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary">Buscar</button>
+            <a class="btn" href="/rrhh?tab=employees">Limpiar</a>
+          </div>
+        </form>
+
+        <% if (data.view === 'cards') { %>
+          <div class="hr-employee-cards">
+            <% if (!data.rows.length) { %>
+              <div class="table-row empty">No hay empleados registrados con esos filtros.</div>
+            <% } %>
+            <% data.rows.forEach((row) => { %>
+              <article class="hr-employee-card">
+                <div class="hr-employee-card__media">
+                  <% if (row.photo_url) { %>
+                    <img src="<%= row.photo_url %>" alt="<%= row.full_name %>" />
+                  <% } else { %>
+                    <div class="hr-avatar-placeholder"><%= (row.first_name || 'E').charAt(0) %></div>
+                  <% } %>
+                </div>
+                <div class="hr-employee-card__body">
+                  <h3><%= row.full_name %></h3>
+                  <div class="muted"><%= row.position || '-' %></div>
+                  <div class="helper"><%= row.department || 'Sin departamento' %></div>
+                  <div class="helper">Jefe: <%= row.immediate_boss_name || 'No asignado' %></div>
+                  <span class="status-badge <%= row.is_active ? 'status-delivered' : 'status-default' %>"><%= row.is_active ? 'Activo' : 'Inactivo' %></span>
+                </div>
+                <div class="actions">
+                  <a class="btn" href="/rrhh/employees/<%= row.id %>">Ver</a>
+                  <a class="btn" href="/rrhh/employees/<%= row.id %>/edit">Editar</a>
+                  <form method="POST" action="/rrhh/employees/<%= row.id %>/toggle-status" class="inline-form">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <button type="submit" class="btn <%= row.is_active ? 'danger' : '' %>"><%= row.is_active ? 'Desactivar' : 'Reactivar' %></button>
+                  </form>
+                  <a class="btn" href="/rrhh/employees/<%= row.id %>/print" target="_blank" rel="noopener">Imprimir</a>
+                </div>
+              </article>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <div class="table">
+            <div class="table-row header hr-employees">
+              <div>Empleado</div>
+              <div>Puesto</div>
+              <div>Departamento</div>
+              <div>Jefe inmediato</div>
+              <div>Estado</div>
+              <div>Acciones</div>
+            </div>
+            <% if (!data.rows.length) { %>
+              <div class="table-row empty">No hay empleados registrados con esos filtros.</div>
+            <% } %>
+            <% data.rows.forEach((row) => { %>
+              <div class="table-row hr-employees">
+                <div class="hr-employee-inline">
+                  <% if (row.photo_url) { %>
+                    <img src="<%= row.photo_url %>" alt="<%= row.full_name %>" class="hr-inline-photo" />
+                  <% } else { %>
+                    <div class="hr-avatar-placeholder hr-avatar-placeholder--small"><%= (row.first_name || 'E').charAt(0) %></div>
+                  <% } %>
+                  <div>
+                    <strong><%= row.full_name %></strong>
+                    <div class="muted"><%= row.employee_code || '-' %></div>
+                  </div>
+                </div>
+                <div><%= row.position || '-' %></div>
+                <div><%= row.department || '-' %></div>
+                <div><%= row.immediate_boss_name || '-' %></div>
+                <div><span class="status-badge <%= row.is_active ? 'status-delivered' : 'status-default' %>"><%= row.is_active ? 'Activo' : 'Inactivo' %></span></div>
+                <div class="actions">
+                  <a class="btn" href="/rrhh/employees/<%= row.id %>">Ver</a>
+                  <a class="btn" href="/rrhh/employees/<%= row.id %>/edit">Editar</a>
+                  <form method="POST" action="/rrhh/employees/<%= row.id %>/toggle-status" class="inline-form">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <button type="submit" class="btn <%= row.is_active ? 'danger' : '' %>"><%= row.is_active ? 'Desactivar' : 'Reactivar' %></button>
+                  </form>
+                  <a class="btn" href="/rrhh/employees/<%= row.id %>/print" target="_blank" rel="noopener">Imprimir</a>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+      </section>
+    <% } %>
+
+    <% if (activeTab === 'contracts') { const data = contracts || { rows: [], filters: {}, pagination: null }; %>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Contratos</h2>
+            <p class="muted">Historial contractual por empleado con vista previa, impresión y exportación PDF.</p>
+          </div>
+          <div class="actions">
+            <a class="btn primary" href="/rrhh/contracts/new">Nuevo contrato</a>
+          </div>
+        </div>
+
+        <form method="GET" action="/rrhh" class="form grid-3">
+          <input type="hidden" name="tab" value="contracts" />
+          <label>
+            Empleado
+            <select name="employee_id">
+              <option value="">Todos</option>
+              <% employees.forEach((employee) => { %>
+                <option value="<%= employee.id %>" <%= String(data.filters.employee_id || '') === String(employee.id) ? 'selected' : '' %>><%= `${employee.first_name} ${employee.last_name}` %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Estado
+            <select name="status">
+              <option value="">Todos</option>
+              <option value="Borrador" <%= data.filters.status === 'Borrador' ? 'selected' : '' %>>Borrador</option>
+              <option value="Vigente" <%= data.filters.status === 'Vigente' ? 'selected' : '' %>>Vigente</option>
+              <option value="Finalizado" <%= data.filters.status === 'Finalizado' ? 'selected' : '' %>>Finalizado</option>
+            </select>
+          </label>
+          <label>
+            Buscar
+            <input type="text" name="q" value="<%= data.filters.q || '' %>" placeholder="Empleado, tipo o lugar de trabajo" />
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary">Buscar</button>
+            <a class="btn" href="/rrhh?tab=contracts">Limpiar</a>
+          </div>
+        </form>
+
+        <div class="table">
+          <div class="table-row header hr-contracts">
+            <div>Empleado</div>
+            <div>Tipo</div>
+            <div>Inicio</div>
+            <div>Fin</div>
+            <div>Estado</div>
+            <div>Acciones</div>
+          </div>
+          <% if (!data.rows.length) { %>
+            <div class="table-row empty">No hay contratos para mostrar.</div>
+          <% } %>
+          <% data.rows.forEach((row) => { %>
+            <div class="table-row hr-contracts">
+              <div>
+                <strong><%= row.employee_name %></strong>
+                <div class="muted"><%= row.employee_position || '-' %></div>
+              </div>
+              <div><%= row.contract_type || '-' %></div>
+              <div><%= row.start_date || '-' %></div>
+              <div><%= row.end_date || 'Indefinido' %></div>
+              <div><span class="status-badge"><%= row.status || '-' %></span></div>
+              <div class="actions">
+                <a class="btn" href="/rrhh/contracts/<%= row.id %>/edit">Editar</a>
+                <a class="btn" href="/rrhh/contracts/<%= row.id %>/print" target="_blank" rel="noopener">Vista previa</a>
+                <a class="btn" href="/rrhh/contracts/<%= row.id %>/export/pdf?download=1">PDF</a>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (activeTab === 'salaries') { const data = salaries || { rows: [], filters: {}, pagination: null, summary: {} }; %>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Salarios</h2>
+            <p class="muted">Historial salarial, aumentos, bonos y deducciones fijas.</p>
+          </div>
+          <div class="hr-mini-summary">
+            <span class="pill">Base actual: Q<%= data.summary.currentSalary || '0.00' %></span>
+            <span class="pill">Bono actual: Q<%= data.summary.currentBonus || '0.00' %></span>
+          </div>
+        </div>
+
+        <form method="GET" action="/rrhh" class="form grid-3">
+          <input type="hidden" name="tab" value="salaries" />
+          <label>
+            Empleado
+            <select name="employee_id">
+              <option value="">Todos</option>
+              <% employees.forEach((employee) => { %>
+                <option value="<%= employee.id %>" <%= String(data.filters.employee_id || '') === String(employee.id) ? 'selected' : '' %>><%= `${employee.first_name} ${employee.last_name}` %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Desde
+            <input type="date" name="from" value="<%= data.filters.from || '' %>" />
+          </label>
+          <label>
+            Hasta
+            <input type="date" name="to" value="<%= data.filters.to || '' %>" />
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary">Filtrar</button>
+            <a class="btn" href="/rrhh?tab=salaries">Limpiar</a>
+          </div>
+        </form>
+
+        <form method="POST" action="<%= editRecord ? `/rrhh/salaries/${editRecord.id}/update` : '/rrhh/salaries/create' %>" class="form hr-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label>
+            Empleado
+            <select name="employee_id" required>
+              <option value="">Selecciona</option>
+              <% employees.forEach((employee) => { %>
+                <option value="<%= employee.id %>" <%= String((editRecord && editRecord.employee_id) || '') === String(employee.id) ? 'selected' : '' %>><%= `${employee.first_name} ${employee.last_name}` %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Fecha efectiva
+            <input type="date" name="effective_date" required value="<%= (editRecord && editRecord.effective_date) || '' %>" />
+          </label>
+          <label>
+            Salario base
+            <input type="number" step="0.01" name="salary_base" value="<%= (editRecord && editRecord.salary_base) || '' %>" />
+          </label>
+          <label>
+            Bono
+            <input type="number" step="0.01" name="bonus_amount" value="<%= (editRecord && editRecord.bonus_amount) || '' %>" />
+          </label>
+          <label>
+            Bono extra
+            <input type="number" step="0.01" name="extra_bonus" value="<%= (editRecord && editRecord.extra_bonus) || '' %>" />
+          </label>
+          <label>
+            Deducciones fijas
+            <input type="number" step="0.01" name="fixed_deductions" value="<%= (editRecord && editRecord.fixed_deductions) || '' %>" />
+          </label>
+          <label>
+            Método de pago
+            <input type="text" name="payment_method" value="<%= (editRecord && editRecord.payment_method) || '' %>" />
+          </label>
+          <label>
+            Cuenta bancaria
+            <input type="text" name="bank_account_number" value="<%= (editRecord && editRecord.bank_account_number) || '' %>" />
+          </label>
+          <label>
+            Estado
+            <select name="status">
+              <option value="Vigente" <%= !editRecord || editRecord.status === 'Vigente' ? 'selected' : '' %>>Vigente</option>
+              <option value="Histórico" <%= editRecord && editRecord.status === 'Histórico' ? 'selected' : '' %>>Histórico</option>
+              <option value="Suspendido" <%= editRecord && editRecord.status === 'Suspendido' ? 'selected' : '' %>>Suspendido</option>
+            </select>
+          </label>
+          <label class="full-row">
+            Notas
+            <textarea name="notes" rows="3"><%= (editRecord && editRecord.notes) || '' %></textarea>
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary"><%= editRecord ? 'Actualizar salario' : 'Registrar salario' %></button>
+            <% if (editRecord) { %>
+              <a class="btn" href="/rrhh?tab=salaries">Cancelar edición</a>
+            <% } %>
+          </div>
+        </form>
+
+        <div class="table">
+          <div class="table-row header hr-generic">
+            <div>Empleado</div>
+            <div>Fecha</div>
+            <div>Base</div>
+            <div>Bono</div>
+            <div>Método</div>
+            <div>Estado</div>
+            <div>Acciones</div>
+          </div>
+          <% if (!data.rows.length) { %>
+            <div class="table-row empty">No hay salarios registrados.</div>
+          <% } %>
+          <% data.rows.forEach((row) => { %>
+            <div class="table-row hr-generic">
+              <div><%= row.employee_name %></div>
+              <div><%= row.effective_date || '-' %></div>
+              <div>Q<%= Number(row.salary_base || 0).toFixed(2) %></div>
+              <div>Q<%= Number(row.bonus_amount || 0).toFixed(2) %></div>
+              <div><%= row.payment_method || '-' %></div>
+              <div><span class="status-badge"><%= row.status || '-' %></span></div>
+              <div class="actions">
+                <a class="btn" href="<%= tabUrl('salaries', { editId: row.id }) %>">Editar</a>
+                <form method="POST" action="/rrhh/salaries/<%= row.id %>/delete" class="inline-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <button type="submit" class="btn danger">Eliminar</button>
+                </form>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (activeTab === 'overtime') { const data = overtime || { rows: [], filters: {}, pagination: null, summary: {} }; %>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Horas extras</h2>
+            <p class="muted">Cálculo automático por rango horario, aprobación y resumen mensual.</p>
+          </div>
+          <span class="pill"><%= data.summary.monthlyHours || '0.00' %> horas en el mes</span>
+        </div>
+
+        <form method="GET" action="/rrhh" class="form grid-3">
+          <input type="hidden" name="tab" value="overtime" />
+          <label>
+            Empleado
+            <select name="employee_id">
+              <option value="">Todos</option>
+              <% employees.forEach((employee) => { %>
+                <option value="<%= employee.id %>" <%= String(data.filters.employee_id || '') === String(employee.id) ? 'selected' : '' %>><%= `${employee.first_name} ${employee.last_name}` %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Mes
+            <input type="month" name="month" value="<%= data.filters.month || '' %>" />
+          </label>
+          <label>
+            Estado
+            <select name="status">
+              <option value="">Todos</option>
+              <option value="Pendiente" <%= data.filters.status === 'Pendiente' ? 'selected' : '' %>>Pendiente</option>
+              <option value="Aprobada" <%= data.filters.status === 'Aprobada' ? 'selected' : '' %>>Aprobada</option>
+              <option value="Rechazada" <%= data.filters.status === 'Rechazada' ? 'selected' : '' %>>Rechazada</option>
+            </select>
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary">Filtrar</button>
+            <a class="btn" href="/rrhh?tab=overtime">Limpiar</a>
+          </div>
+        </form>
+
+        <form method="POST" action="<%= editRecord ? `/rrhh/overtime/${editRecord.id}/update` : '/rrhh/overtime/create' %>" class="form hr-form-grid" data-hr-hours-form>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label>
+            Empleado
+            <select name="employee_id" required>
+              <option value="">Selecciona</option>
+              <% employees.forEach((employee) => { %>
+                <option value="<%= employee.id %>" <%= String((editRecord && editRecord.employee_id) || '') === String(employee.id) ? 'selected' : '' %>><%= `${employee.first_name} ${employee.last_name}` %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Fecha
+            <input type="date" name="overtime_date" required value="<%= (editRecord && editRecord.overtime_date) || '' %>" />
+          </label>
+          <label>
+            Hora inicio
+            <input type="time" name="start_time" value="<%= (editRecord && editRecord.start_time) || '' %>" data-hr-start />
+          </label>
+          <label>
+            Hora fin
+            <input type="time" name="end_time" value="<%= (editRecord && editRecord.end_time) || '' %>" data-hr-end />
+          </label>
+          <label>
+            Total horas
+            <input type="number" step="0.01" name="total_hours" value="<%= (editRecord && editRecord.total_hours) || '' %>" data-hr-total readonly />
+          </label>
+          <label>
+            Tipo
+            <input type="text" name="overtime_type" value="<%= (editRecord && editRecord.overtime_type) || '' %>" />
+          </label>
+          <label>
+            Aprobado por
+            <input type="text" name="approved_by" value="<%= (editRecord && editRecord.approved_by) || '' %>" />
+          </label>
+          <label>
+            Estado
+            <select name="status">
+              <option value="Pendiente" <%= !editRecord || editRecord.status === 'Pendiente' ? 'selected' : '' %>>Pendiente</option>
+              <option value="Aprobada" <%= editRecord && editRecord.status === 'Aprobada' ? 'selected' : '' %>>Aprobada</option>
+              <option value="Rechazada" <%= editRecord && editRecord.status === 'Rechazada' ? 'selected' : '' %>>Rechazada</option>
+            </select>
+          </label>
+          <label class="full-row">
+            Motivo
+            <textarea name="reason" rows="2"><%= (editRecord && editRecord.reason) || '' %></textarea>
+          </label>
+          <label class="full-row">
+            Notas
+            <textarea name="notes" rows="2"><%= (editRecord && editRecord.notes) || '' %></textarea>
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary"><%= editRecord ? 'Actualizar horas extras' : 'Registrar horas extras' %></button>
+            <% if (editRecord) { %><a class="btn" href="/rrhh?tab=overtime">Cancelar edición</a><% } %>
+          </div>
+        </form>
+
+        <div class="table">
+          <div class="table-row header hr-generic">
+            <div>Empleado</div>
+            <div>Fecha</div>
+            <div>Horario</div>
+            <div>Total</div>
+            <div>Tipo</div>
+            <div>Estado</div>
+            <div>Acciones</div>
+          </div>
+          <% if (!data.rows.length) { %><div class="table-row empty">No hay horas extras registradas.</div><% } %>
+          <% data.rows.forEach((row) => { %>
+            <div class="table-row hr-generic">
+              <div><%= row.employee_name %></div>
+              <div><%= row.overtime_date || '-' %></div>
+              <div><%= `${row.start_time || '--'} - ${row.end_time || '--'}` %></div>
+              <div><%= Number(row.total_hours || 0).toFixed(2) %> h</div>
+              <div><%= row.overtime_type || '-' %></div>
+              <div><span class="status-badge"><%= row.status || '-' %></span></div>
+              <div class="actions">
+                <a class="btn" href="<%= tabUrl('overtime', { editId: row.id }) %>">Editar</a>
+                <form method="POST" action="/rrhh/overtime/<%= row.id %>/delete" class="inline-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <button type="submit" class="btn danger">Eliminar</button>
+                </form>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (activeTab === 'attendance') { const data = attendance || { rows: [], filters: {}, pagination: null, summary: {}, calendar: null }; %>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Asistencia</h2>
+            <p class="muted">Registro manual, horas trabajadas y detección de tardanzas.</p>
+          </div>
+          <div class="hr-mini-summary">
+            <span class="pill"><%= data.summary.lateCount || 0 %> tardanzas</span>
+            <span class="pill"><%= data.summary.totalWorkedHours || '0.00' %> horas trabajadas</span>
+          </div>
+        </div>
+
+        <form method="GET" action="/rrhh" class="form grid-3">
+          <input type="hidden" name="tab" value="attendance" />
+          <label>
+            Empleado
+            <select name="employee_id">
+              <option value="">Todos</option>
+              <% employees.forEach((employee) => { %>
+                <option value="<%= employee.id %>" <%= String(data.filters.employee_id || '') === String(employee.id) ? 'selected' : '' %>><%= `${employee.first_name} ${employee.last_name}` %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Mes
+            <input type="month" name="month" value="<%= data.filters.month || '' %>" />
+          </label>
+          <label>
+            Estado
+            <select name="status">
+              <option value="">Todos</option>
+              <option value="Presente" <%= data.filters.status === 'Presente' ? 'selected' : '' %>>Presente</option>
+              <option value="Tarde" <%= data.filters.status === 'Tarde' ? 'selected' : '' %>>Tarde</option>
+              <option value="Ausente" <%= data.filters.status === 'Ausente' ? 'selected' : '' %>>Ausente</option>
+              <option value="Permiso" <%= data.filters.status === 'Permiso' ? 'selected' : '' %>>Permiso</option>
+            </select>
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary">Filtrar</button>
+            <a class="btn" href="/rrhh?tab=attendance">Limpiar</a>
+          </div>
+        </form>
+
+        <form method="POST" action="<%= editRecord ? `/rrhh/attendance/${editRecord.id}/update` : '/rrhh/attendance/create' %>" class="form hr-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label>
+            Empleado
+            <select name="employee_id" required>
+              <option value="">Selecciona</option>
+              <% employees.forEach((employee) => { %>
+                <option value="<%= employee.id %>" <%= String((editRecord && editRecord.employee_id) || '') === String(employee.id) ? 'selected' : '' %>><%= `${employee.first_name} ${employee.last_name}` %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Fecha
+            <input type="date" name="attendance_date" required value="<%= (editRecord && editRecord.attendance_date) || '' %>" />
+          </label>
+          <label>
+            Entrada
+            <input type="time" name="check_in" value="<%= (editRecord && editRecord.check_in) || '' %>" />
+          </label>
+          <label>
+            Salida almuerzo
+            <input type="time" name="lunch_out" value="<%= (editRecord && editRecord.lunch_out) || '' %>" />
+          </label>
+          <label>
+            Regreso almuerzo
+            <input type="time" name="lunch_in" value="<%= (editRecord && editRecord.lunch_in) || '' %>" />
+          </label>
+          <label>
+            Salida
+            <input type="time" name="check_out" value="<%= (editRecord && editRecord.check_out) || '' %>" />
+          </label>
+          <label>
+            Estado
+            <select name="attendance_status">
+              <option value="Presente" <%= !editRecord || editRecord.attendance_status === 'Presente' ? 'selected' : '' %>>Presente</option>
+              <option value="Tarde" <%= editRecord && editRecord.attendance_status === 'Tarde' ? 'selected' : '' %>>Tarde</option>
+              <option value="Ausente" <%= editRecord && editRecord.attendance_status === 'Ausente' ? 'selected' : '' %>>Ausente</option>
+              <option value="Permiso" <%= editRecord && editRecord.attendance_status === 'Permiso' ? 'selected' : '' %>>Permiso</option>
+            </select>
+          </label>
+          <label class="full-row">
+            Notas
+            <textarea name="notes" rows="2"><%= (editRecord && editRecord.notes) || '' %></textarea>
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary"><%= editRecord ? 'Actualizar asistencia' : 'Registrar asistencia' %></button>
+            <% if (editRecord) { %><a class="btn" href="/rrhh?tab=attendance">Cancelar edición</a><% } %>
+          </div>
+        </form>
+
+        <% if (data.calendar) { %>
+          <section class="hr-calendar">
+            <div class="panel-header">
+              <h3>Calendario <%= data.calendar.label %></h3>
+            </div>
+            <div class="hr-calendar-grid hr-calendar-grid--head">
+              <span>Dom</span><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span>
+            </div>
+            <% data.calendar.weeks.forEach((week) => { %>
+              <div class="hr-calendar-grid">
+                <% week.forEach((day) => { %>
+                  <% if (!day) { %>
+                    <div class="hr-calendar-cell hr-calendar-cell--empty"></div>
+                  <% } else { %>
+                    <div class="hr-calendar-cell <%= day.record && day.record.late ? 'hr-calendar-cell--late' : '' %>">
+                      <strong><%= day.day %></strong>
+                      <% if (day.record) { %>
+                        <div class="helper"><%= day.record.status %></div>
+                        <div class="helper"><%= day.record.workedHours %> h</div>
+                      <% } else { %>
+                        <div class="helper">-</div>
+                      <% } %>
+                    </div>
+                  <% } %>
+                <% }) %>
+              </div>
+            <% }) %>
+          </section>
+        <% } %>
+
+        <div class="table">
+          <div class="table-row header hr-generic">
+            <div>Empleado</div>
+            <div>Fecha</div>
+            <div>Entrada</div>
+            <div>Salida</div>
+            <div>Horas</div>
+            <div>Estado</div>
+            <div>Acciones</div>
+          </div>
+          <% if (!data.rows.length) { %><div class="table-row empty">No hay asistencias registradas.</div><% } %>
+          <% data.rows.forEach((row) => { %>
+            <div class="table-row hr-generic">
+              <div><%= row.employee_name %></div>
+              <div><%= row.attendance_date || '-' %></div>
+              <div><%= row.check_in || '-' %></div>
+              <div><%= row.check_out || '-' %></div>
+              <div><%= row.worked_hours %> h</div>
+              <div><span class="status-badge"><%= row.attendance_status || '-' %></span></div>
+              <div class="actions">
+                <a class="btn" href="<%= tabUrl('attendance', { editId: row.id, month: data.filters.month || '' }) %>">Editar</a>
+                <form method="POST" action="/rrhh/attendance/<%= row.id %>/delete" class="inline-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <button type="submit" class="btn danger">Eliminar</button>
+                </form>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (activeTab === 'warnings') { const data = warnings || { rows: [], filters: {}, pagination: null }; %>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Llamadas de atención</h2>
+            <p class="muted">Historial disciplinario por empleado con adjuntos e impresión.</p>
+          </div>
+        </div>
+
+        <form method="GET" action="/rrhh" class="form grid-3">
+          <input type="hidden" name="tab" value="warnings" />
+          <label>
+            Empleado
+            <select name="employee_id">
+              <option value="">Todos</option>
+              <% employees.forEach((employee) => { %>
+                <option value="<%= employee.id %>" <%= String(data.filters.employee_id || '') === String(employee.id) ? 'selected' : '' %>><%= `${employee.first_name} ${employee.last_name}` %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Estado
+            <select name="status">
+              <option value="">Todos</option>
+              <option value="Emitida" <%= data.filters.status === 'Emitida' ? 'selected' : '' %>>Emitida</option>
+              <option value="Firmada" <%= data.filters.status === 'Firmada' ? 'selected' : '' %>>Firmada</option>
+              <option value="Archivada" <%= data.filters.status === 'Archivada' ? 'selected' : '' %>>Archivada</option>
+            </select>
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary">Filtrar</button>
+            <a class="btn" href="/rrhh?tab=warnings">Limpiar</a>
+          </div>
+        </form>
+
+        <form method="POST" enctype="multipart/form-data" action="<%= editRecord ? `/rrhh/warnings/${editRecord.id}/update` : '/rrhh/warnings/create' %>" class="form hr-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label>
+            Empleado
+            <select name="employee_id" required>
+              <option value="">Selecciona</option>
+              <% employees.forEach((employee) => { %>
+                <option value="<%= employee.id %>" <%= String((editRecord && editRecord.employee_id) || '') === String(employee.id) ? 'selected' : '' %>><%= `${employee.first_name} ${employee.last_name}` %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Fecha
+            <input type="date" name="warning_date" value="<%= (editRecord && editRecord.warning_date) || '' %>" required />
+          </label>
+          <label>
+            Tipo
+            <input type="text" name="warning_type" value="<%= (editRecord && editRecord.warning_type) || '' %>" />
+          </label>
+          <label>
+            Emitida por
+            <input type="text" name="issued_by" value="<%= (editRecord && editRecord.issued_by) || '' %>" />
+          </label>
+          <label>
+            Estado
+            <select name="status">
+              <option value="Emitida" <%= !editRecord || editRecord.status === 'Emitida' ? 'selected' : '' %>>Emitida</option>
+              <option value="Firmada" <%= editRecord && editRecord.status === 'Firmada' ? 'selected' : '' %>>Firmada</option>
+              <option value="Archivada" <%= editRecord && editRecord.status === 'Archivada' ? 'selected' : '' %>>Archivada</option>
+            </select>
+          </label>
+          <label>
+            Adjuntar documento
+            <input type="file" name="attachment" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" />
+          </label>
+          <label class="full-row">
+            Motivo
+            <input type="text" name="reason" value="<%= (editRecord && editRecord.reason) || '' %>" required />
+          </label>
+          <label class="full-row">
+            Descripción detallada
+            <textarea name="detailed_description" rows="3"><%= (editRecord && editRecord.detailed_description) || '' %></textarea>
+          </label>
+          <label class="full-row">
+            Acción correctiva
+            <textarea name="corrective_action" rows="2"><%= (editRecord && editRecord.corrective_action) || '' %></textarea>
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary"><%= editRecord ? 'Actualizar llamada' : 'Registrar llamada' %></button>
+            <% if (editRecord) { %><a class="btn" href="/rrhh?tab=warnings">Cancelar edición</a><% } %>
+          </div>
+        </form>
+
+        <div class="table">
+          <div class="table-row header hr-generic">
+            <div>Empleado</div>
+            <div>Fecha</div>
+            <div>Tipo</div>
+            <div>Motivo</div>
+            <div>Estado</div>
+            <div>Acciones</div>
+          </div>
+          <% if (!data.rows.length) { %><div class="table-row empty">No hay llamadas de atención registradas.</div><% } %>
+          <% data.rows.forEach((row) => { %>
+            <div class="table-row hr-generic">
+              <div><%= row.employee_name %></div>
+              <div><%= row.warning_date || '-' %></div>
+              <div><%= row.warning_type || '-' %></div>
+              <div><%= row.reason || '-' %></div>
+              <div><span class="status-badge"><%= row.status || '-' %></span></div>
+              <div class="actions">
+                <% if (row.attachment_url) { %><a class="btn" href="<%= row.attachment_url %>" target="_blank" rel="noopener">Adjunto</a><% } %>
+                <a class="btn" href="<%= tabUrl('warnings', { editId: row.id }) %>">Editar</a>
+                <a class="btn" href="/rrhh/print/warnings/<%= row.id %>" target="_blank" rel="noopener">Imprimir</a>
+                <form method="POST" action="/rrhh/warnings/<%= row.id %>/delete" class="inline-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <button type="submit" class="btn danger">Eliminar</button>
+                </form>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (activeTab === 'orgchart') { const data = orgchart || { trees: [], department: '' }; %>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Organigramas</h2>
+            <p class="muted">Jerarquía construida con el jefe inmediato de cada empleado.</p>
+          </div>
+        </div>
+
+        <form method="GET" action="/rrhh" class="form grid-2">
+          <input type="hidden" name="tab" value="orgchart" />
+          <label>
+            Departamento
+            <select name="department">
+              <option value="">Todos</option>
+              <% departments.forEach((department) => { %>
+                <option value="<%= department %>" <%= data.department === department ? 'selected' : '' %>><%= department %></option>
+              <% }) %>
+            </select>
+          </label>
+          <div class="actions">
+            <button type="submit" class="btn primary">Filtrar</button>
+            <a class="btn" href="/rrhh?tab=orgchart">Limpiar</a>
+          </div>
+        </form>
+
+        <div class="hr-orgchart">
+          <% if (!data.trees.length) { %>
+            <div class="table-row empty">No hay estructura jerárquica para mostrar.</div>
+          <% } else { %>
+            <%- include('orgchart-node', { nodes: data.trees }) %>
+          <% } %>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (activeTab === 'descriptions') { const data = descriptions || { rows: [], filters: {}, pagination: null }; %>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Descripciones de puesto</h2>
+            <p class="muted">CRUD completo y asignación a empleados desde la ficha.</p>
+          </div>
+        </div>
+
+        <form method="GET" action="/rrhh" class="form grid-2">
+          <input type="hidden" name="tab" value="descriptions" />
+          <label>
+            Departamento
+            <select name="department">
+              <option value="">Todos</option>
+              <% departments.forEach((department) => { %>
+                <option value="<%= department %>" <%= data.filters.department === department ? 'selected' : '' %>><%= department %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Estado
+            <select name="status">
+              <option value="">Todos</option>
+              <option value="Activa" <%= data.filters.status === 'Activa' ? 'selected' : '' %>>Activa</option>
+              <option value="Inactiva" <%= data.filters.status === 'Inactiva' ? 'selected' : '' %>>Inactiva</option>
+            </select>
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary">Filtrar</button>
+            <a class="btn" href="/rrhh?tab=descriptions">Limpiar</a>
+          </div>
+        </form>
+
+        <form method="POST" action="<%= editRecord ? `/rrhh/descriptions/${editRecord.id}/update` : '/rrhh/descriptions/create' %>" class="form hr-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label>
+            Nombre del puesto
+            <input type="text" name="position_name" value="<%= (editRecord && editRecord.position_name) || '' %>" required />
+          </label>
+          <label>
+            Departamento
+            <input type="text" name="department" value="<%= (editRecord && editRecord.department) || '' %>" required />
+          </label>
+          <label>
+            Puesto del jefe inmediato
+            <input type="text" name="immediate_boss_title" value="<%= (editRecord && editRecord.immediate_boss_title) || '' %>" />
+          </label>
+          <label>
+            Horario
+            <input type="text" name="work_schedule" value="<%= (editRecord && editRecord.work_schedule) || '' %>" />
+          </label>
+          <label>
+            Salario sugerido
+            <input type="number" step="0.01" name="suggested_salary" value="<%= (editRecord && editRecord.suggested_salary) || '' %>" />
+          </label>
+          <label>
+            Estado
+            <select name="status">
+              <option value="Activa" <%= !editRecord || editRecord.status === 'Activa' ? 'selected' : '' %>>Activa</option>
+              <option value="Inactiva" <%= editRecord && editRecord.status === 'Inactiva' ? 'selected' : '' %>>Inactiva</option>
+            </select>
+          </label>
+          <label class="full-row">
+            Objetivo del puesto
+            <textarea name="job_objective" rows="2"><%= (editRecord && editRecord.job_objective) || '' %></textarea>
+          </label>
+          <label class="full-row">
+            Funciones principales
+            <textarea name="main_functions" rows="3"><%= (editRecord && editRecord.main_functions) || '' %></textarea>
+          </label>
+          <label class="full-row">
+            Funciones secundarias
+            <textarea name="secondary_functions" rows="2"><%= (editRecord && editRecord.secondary_functions) || '' %></textarea>
+          </label>
+          <label class="full-row">
+            Requisitos académicos
+            <textarea name="academic_requirements" rows="2"><%= (editRecord && editRecord.academic_requirements) || '' %></textarea>
+          </label>
+          <label>
+            Experiencia requerida
+            <textarea name="required_experience" rows="2"><%= (editRecord && editRecord.required_experience) || '' %></textarea>
+          </label>
+          <label>
+            Habilidades
+            <textarea name="skills" rows="2"><%= (editRecord && editRecord.skills) || '' %></textarea>
+          </label>
+          <label>
+            Competencias
+            <textarea name="competencies" rows="2"><%= (editRecord && editRecord.competencies) || '' %></textarea>
+          </label>
+          <label class="full-row">
+            Notas
+            <textarea name="notes" rows="2"><%= (editRecord && editRecord.notes) || '' %></textarea>
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary"><%= editRecord ? 'Actualizar descripción' : 'Crear descripción' %></button>
+            <% if (editRecord) { %><a class="btn" href="/rrhh?tab=descriptions">Cancelar edición</a><% } %>
+          </div>
+        </form>
+
+        <div class="table">
+          <div class="table-row header hr-generic">
+            <div>Puesto</div>
+            <div>Departamento</div>
+            <div>Jefe inmediato</div>
+            <div>Salario sugerido</div>
+            <div>Asignados</div>
+            <div>Acciones</div>
+          </div>
+          <% if (!data.rows.length) { %><div class="table-row empty">No hay descripciones registradas.</div><% } %>
+          <% data.rows.forEach((row) => { %>
+            <div class="table-row hr-generic">
+              <div><strong><%= row.position_name %></strong><div class="muted"><%= row.status || '-' %></div></div>
+              <div><%= row.department || '-' %></div>
+              <div><%= row.immediate_boss_title || '-' %></div>
+              <div>Q<%= Number(row.suggested_salary || 0).toFixed(2) %></div>
+              <div><%= row.assigned_employees || 0 %></div>
+              <div class="actions">
+                <a class="btn" href="<%= tabUrl('descriptions', { editId: row.id }) %>">Editar</a>
+                <a class="btn" href="/rrhh/print/descriptions/<%= row.id %>" target="_blank" rel="noopener">Imprimir</a>
+                <form method="POST" action="/rrhh/descriptions/<%= row.id %>/delete" class="inline-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <button type="submit" class="btn danger">Eliminar</button>
+                </form>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (activeTab === 'permissions') { const data = permissions || { rows: [], filters: {}, pagination: null }; %>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Permisos</h2>
+            <p class="muted">Cálculo automático de días, aprobación y vista imprimible por empleado.</p>
+          </div>
+        </div>
+
+        <form method="GET" action="/rrhh" class="form grid-2">
+          <input type="hidden" name="tab" value="permissions" />
+          <label>
+            Empleado
+            <select name="employee_id">
+              <option value="">Todos</option>
+              <% employees.forEach((employee) => { %>
+                <option value="<%= employee.id %>" <%= String(data.filters.employee_id || '') === String(employee.id) ? 'selected' : '' %>><%= `${employee.first_name} ${employee.last_name}` %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Estado
+            <select name="status">
+              <option value="">Todos</option>
+              <option value="Pendiente" <%= data.filters.status === 'Pendiente' ? 'selected' : '' %>>Pendiente</option>
+              <option value="Aprobada" <%= data.filters.status === 'Aprobada' ? 'selected' : '' %>>Aprobada</option>
+              <option value="Rechazada" <%= data.filters.status === 'Rechazada' ? 'selected' : '' %>>Rechazada</option>
+            </select>
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary">Filtrar</button>
+            <a class="btn" href="/rrhh?tab=permissions">Limpiar</a>
+          </div>
+        </form>
+
+        <form method="POST" enctype="multipart/form-data" action="<%= editRecord ? `/rrhh/permissions/${editRecord.id}/update` : '/rrhh/permissions/create' %>" class="form hr-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label>
+            Empleado
+            <select name="employee_id" required>
+              <option value="">Selecciona</option>
+              <% employees.forEach((employee) => { %>
+                <option value="<%= employee.id %>" <%= String((editRecord && editRecord.employee_id) || '') === String(employee.id) ? 'selected' : '' %>><%= `${employee.first_name} ${employee.last_name}` %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Tipo de permiso
+            <input type="text" name="permission_type" value="<%= (editRecord && editRecord.permission_type) || '' %>" required />
+          </label>
+          <label>
+            Fecha inicio
+            <input type="date" name="start_date" value="<%= (editRecord && editRecord.start_date) || '' %>" required />
+          </label>
+          <label>
+            Fecha fin
+            <input type="date" name="end_date" value="<%= (editRecord && editRecord.end_date) || '' %>" required />
+          </label>
+          <label>
+            Con goce de salario
+            <div class="toggle-row">
+              <input type="checkbox" name="with_pay" <%= !editRecord || editRecord.with_pay ? 'checked' : '' %> />
+              <span class="badge status active">Sí</span>
+            </div>
+          </label>
+          <label>
+            Aprobado por
+            <input type="text" name="approved_by" value="<%= (editRecord && editRecord.approved_by) || '' %>" />
+          </label>
+          <label>
+            Estado
+            <select name="status">
+              <option value="Pendiente" <%= !editRecord || editRecord.status === 'Pendiente' ? 'selected' : '' %>>Pendiente</option>
+              <option value="Aprobada" <%= editRecord && editRecord.status === 'Aprobada' ? 'selected' : '' %>>Aprobada</option>
+              <option value="Rechazada" <%= editRecord && editRecord.status === 'Rechazada' ? 'selected' : '' %>>Rechazada</option>
+            </select>
+          </label>
+          <label>
+            Adjunto
+            <input type="file" name="attachment" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" />
+          </label>
+          <label class="full-row">
+            Motivo
+            <textarea name="reason" rows="2"><%= (editRecord && editRecord.reason) || '' %></textarea>
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary"><%= editRecord ? 'Actualizar permiso' : 'Registrar permiso' %></button>
+            <% if (editRecord) { %><a class="btn" href="/rrhh?tab=permissions">Cancelar edición</a><% } %>
+          </div>
+        </form>
+
+        <div class="table">
+          <div class="table-row header hr-generic">
+            <div>Empleado</div>
+            <div>Tipo</div>
+            <div>Rango</div>
+            <div>Días</div>
+            <div>Con goce</div>
+            <div>Acciones</div>
+          </div>
+          <% if (!data.rows.length) { %><div class="table-row empty">No hay permisos registrados.</div><% } %>
+          <% data.rows.forEach((row) => { %>
+            <div class="table-row hr-generic">
+              <div><%= row.employee_name %></div>
+              <div><%= row.permission_type || '-' %></div>
+              <div><%= row.start_date || '-' %> al <%= row.end_date || '-' %></div>
+              <div><%= Number(row.total_days || 0).toFixed(2) %></div>
+              <div><%= row.with_pay ? 'Sí' : 'No' %></div>
+              <div class="actions">
+                <% if (row.attachment_url) { %><a class="btn" href="<%= row.attachment_url %>" target="_blank" rel="noopener">Adjunto</a><% } %>
+                <a class="btn" href="<%= tabUrl('permissions', { editId: row.id }) %>">Editar</a>
+                <a class="btn" href="/rrhh/print/permissions/<%= row.id %>" target="_blank" rel="noopener">Imprimir</a>
+                <form method="POST" action="/rrhh/permissions/<%= row.id %>/delete" class="inline-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <button type="submit" class="btn danger">Eliminar</button>
+                </form>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (activeTab === 'vacations') { const data = vacations || { rows: [], filters: {}, pagination: null, summary: { byDepartment: [] } }; %>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Vacaciones</h2>
+            <p class="muted">Saldo estimado, historial y reportes por departamento.</p>
+          </div>
+        </div>
+
+        <form method="GET" action="/rrhh" class="form grid-3">
+          <input type="hidden" name="tab" value="vacations" />
+          <label>
+            Empleado
+            <select name="employee_id">
+              <option value="">Todos</option>
+              <% employees.forEach((employee) => { %>
+                <option value="<%= employee.id %>" <%= String(data.filters.employee_id || '') === String(employee.id) ? 'selected' : '' %>><%= `${employee.first_name} ${employee.last_name}` %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Departamento
+            <select name="department">
+              <option value="">Todos</option>
+              <% departments.forEach((department) => { %>
+                <option value="<%= department %>" <%= data.filters.department === department ? 'selected' : '' %>><%= department %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Estado
+            <select name="status">
+              <option value="">Todos</option>
+              <option value="Pendiente" <%= data.filters.status === 'Pendiente' ? 'selected' : '' %>>Pendiente</option>
+              <option value="Aprobada" <%= data.filters.status === 'Aprobada' ? 'selected' : '' %>>Aprobada</option>
+              <option value="Rechazada" <%= data.filters.status === 'Rechazada' ? 'selected' : '' %>>Rechazada</option>
+            </select>
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary">Filtrar</button>
+            <a class="btn" href="/rrhh?tab=vacations">Limpiar</a>
+          </div>
+        </form>
+
+        <% if (data.summary.byDepartment && data.summary.byDepartment.length) { %>
+          <div class="hr-department-summary">
+            <% data.summary.byDepartment.forEach((entry) => { %>
+              <div class="pill"><strong><%= entry.department %></strong>: <%= entry.total %></div>
+            <% }) %>
+          </div>
+        <% } %>
+
+        <form method="POST" action="<%= editRecord ? `/rrhh/vacations/${editRecord.id}/update` : '/rrhh/vacations/create' %>" class="form hr-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label>
+            Empleado
+            <select name="employee_id" required>
+              <option value="">Selecciona</option>
+              <% employees.forEach((employee) => { %>
+                <option value="<%= employee.id %>" <%= String((editRecord && editRecord.employee_id) || '') === String(employee.id) ? 'selected' : '' %>><%= `${employee.first_name} ${employee.last_name}` %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>
+            Periodo
+            <input type="text" name="vacation_period" value="<%= (editRecord && editRecord.vacation_period) || '' %>" placeholder="2026" />
+          </label>
+          <label>
+            Fecha ingreso base
+            <input type="date" name="hire_date_snapshot" value="<%= (editRecord && editRecord.hire_date_snapshot) || '' %>" />
+          </label>
+          <label>
+            Días ganados
+            <input type="number" step="0.01" name="earned_days" value="<%= (editRecord && editRecord.earned_days) || '' %>" />
+          </label>
+          <label>
+            Días usados
+            <input type="number" step="0.01" name="used_days" value="<%= (editRecord && editRecord.used_days) || '' %>" />
+          </label>
+          <label>
+            Inicio vacaciones
+            <input type="date" name="vacation_start" required value="<%= (editRecord && editRecord.vacation_start) || '' %>" />
+          </label>
+          <label>
+            Fin vacaciones
+            <input type="date" name="vacation_end" required value="<%= (editRecord && editRecord.vacation_end) || '' %>" />
+          </label>
+          <label>
+            Regreso
+            <input type="date" name="return_date" value="<%= (editRecord && editRecord.return_date) || '' %>" />
+          </label>
+          <label>
+            Estado
+            <select name="status">
+              <option value="Pendiente" <%= !editRecord || editRecord.status === 'Pendiente' ? 'selected' : '' %>>Pendiente</option>
+              <option value="Aprobada" <%= editRecord && editRecord.status === 'Aprobada' ? 'selected' : '' %>>Aprobada</option>
+              <option value="Rechazada" <%= editRecord && editRecord.status === 'Rechazada' ? 'selected' : '' %>>Rechazada</option>
+            </select>
+          </label>
+          <label class="full-row">
+            Notas
+            <textarea name="notes" rows="2"><%= (editRecord && editRecord.notes) || '' %></textarea>
+          </label>
+          <div class="actions full-row">
+            <button type="submit" class="btn primary"><%= editRecord ? 'Actualizar vacaciones' : 'Registrar vacaciones' %></button>
+            <% if (editRecord) { %><a class="btn" href="/rrhh?tab=vacations">Cancelar edición</a><% } %>
+          </div>
+        </form>
+
+        <div class="table">
+          <div class="table-row header hr-generic">
+            <div>Empleado</div>
+            <div>Periodo</div>
+            <div>Ganados</div>
+            <div>Usados</div>
+            <div>Disponibles</div>
+            <div>Acciones</div>
+          </div>
+          <% if (!data.rows.length) { %><div class="table-row empty">No hay vacaciones registradas.</div><% } %>
+          <% data.rows.forEach((row) => { %>
+            <div class="table-row hr-generic">
+              <div><strong><%= row.employee_name %></strong><div class="muted"><%= row.department || '-' %></div></div>
+              <div><%= row.vacation_period || '-' %></div>
+              <div><%= Number(row.earned_days || 0).toFixed(2) %></div>
+              <div><%= Number(row.used_days || 0).toFixed(2) %></div>
+              <div><%= Number(row.available_days || 0).toFixed(2) %></div>
+              <div class="actions">
+                <a class="btn" href="<%= tabUrl('vacations', { editId: row.id }) %>">Editar</a>
+                <form method="POST" action="/rrhh/vacations/<%= row.id %>/delete" class="inline-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <button type="submit" class="btn danger">Eliminar</button>
+                </form>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (activePagination && activePagination.totalPages > 1) { %>
+      <nav class="hr-pagination">
+        <% if (activePagination.hasPrev) { %>
+          <a class="btn" href="<%= pageUrl(activePagination.page - 1) %>">Anterior</a>
+        <% } %>
+        <span class="pill">Página <%= activePagination.page %> de <%= activePagination.totalPages %></span>
+        <% if (activePagination.hasNext) { %>
+          <a class="btn" href="<%= pageUrl(activePagination.page + 1) %>">Siguiente</a>
+        <% } %>
+      </nav>
+    <% } %>
+  </main>
+</body>
+</html>

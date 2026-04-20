@@ -1,0 +1,53 @@
+<section class="launcher-stage launcher-stage--icons">
+<div class="launcher-stage-copy">
+<p class="eyebrow"><%= t('launcher.type.icons.name') %></p>
+<h1><%= (companyBrand && companyBrand.name) ? companyBrand.name : t('common.brand') %></h1>
+<p class="muted"><%= t('launcher.type.icons.desc') %></p>
+</div>
+<div class="launcher-stage-badges">
+<span class="launcher-pill"><%= t('launcher.section.modules') %>: <strong><%= (launcherModules || []).length %></strong></span>
+<span class="launcher-pill"><%= t('launcher.stats.total_packages') %>: <strong><%= stats.packageCount || 0 %></strong></span>
+</div>
+</section>
+
+<section class="launcher-icon-wall">
+<% const iconItems = launcherIconLayout && Array.isArray(launcherIconLayout.items) ? launcherIconLayout.items : []; %>
+<% if ((launcherModules || []).length === 0) { %>
+<div class="launcher-empty-state"><%= t('launcher.no_modules') %></div>
+<% } %>
+<% iconItems.forEach((item) => { %>
+<% if (item.type === 'group' && item.group) { %>
+<details class="launcher-folder-tile">
+<summary class="launcher-folder-tile__summary">
+<div class="launcher-folder-tile__icon-stack">
+<% item.group.modules.slice(0, 4).forEach((mod) => { %>
+<span class="launcher-folder-tile__mini" style="--app-color:<%= mod.color %>">
+<span class="launcher-icon-core"><%- icons[mod.icon || mod.key] || icons.default %></span>
+</span>
+<% }) %>
+</div>
+<div class="launcher-app-tile__name"><%= item.group.name %></div>
+<div class="launcher-app-tile__desc"><%= t('launcher.settings.folder_badge') %></div>
+</summary>
+<div class="launcher-folder-panel">
+<% item.group.modules.forEach((mod) => { %>
+<a class="launcher-folder-panel__app" href="<%= mod.href %>" style="--app-color:<%= mod.color %>">
+<div class="launcher-app-tile__icon">
+<span class="launcher-icon-core"><%- icons[mod.icon || mod.key] || icons.default %></span>
+</div>
+<div class="launcher-app-tile__name"><%= mod.name %></div>
+</a>
+<% }) %>
+</div>
+</details>
+<% } else if (item.module) { const mod = item.module; %>
+<a class="launcher-app-tile" href="<%= mod.href %>" style="--app-color:<%= mod.color %>">
+<div class="launcher-app-tile__icon">
+<span class="launcher-icon-core"><%- icons[mod.icon || mod.key] || icons.default %></span>
+</div>
+<div class="launcher-app-tile__name"><%= mod.name %></div>
+<div class="launcher-app-tile__desc"><%= mod.desc %></div>
+</a>
+<% } %>
+<% }) %>
+</section>

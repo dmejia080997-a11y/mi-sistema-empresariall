@@ -34,6 +34,7 @@ const { registerAccountingRoutes } = require('./src/modules/accounting/routes');
 const { registerLogisticsRoutes } = require('./src/modules/logistics/routes');
 const { registerInvoiceRoutes } = require('./src/modules/invoices/routes');
 const { registerAgendaMedicaRoutes } = require('./src/modules/agenda-medica/routes');
+const { registerHrRoutes } = require('./src/modules/hr/routes');
 const { registerUserRoutes } = require('./src/modules/users/routes');
 const { registerAuditRoutes } = require('./src/modules/audit/routes');
 const { registerMasterActivitiesRoutes } = require('./src/modules/master-activities/routes');
@@ -585,6 +586,65 @@ function isDuplicateColumnError(err) {
   return message.includes('duplicate column') || message.includes('already exists');
 }
 
+function isUniqueConstraintError(err) {
+  if (!err) return false;
+  const message = String(err.message || '').toLowerCase();
+  return err.code === 'SQLITE_CONSTRAINT' || message.includes('unique constraint') || message.includes('constraint failed');
+}
+
+function escapeSqlIdentifier(identifier) {
+  const normalized = String(identifier || '').trim();
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(normalized)) {
+    throw new Error(`Invalid SQL identifier: ${identifier}`);
+  }
+  return normalized;
+}
+
+function serializeMigrationDetails(details) {
+  if (details === undefined) return null;
+  try {
+    return JSON.stringify(details);
+  } catch (err) {
+    return JSON.stringify({ serialization_error: err.message || String(err) });
+  }
+}
+
+function ensureMigrationLogTable() {
+  db.run(
+    `CREATE TABLE IF NOT EXISTS migration_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      level TEXT NOT NULL,
+      scope TEXT NOT NULL,
+      message TEXT NOT NULL,
+      details TEXT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    (err) => {
+      if (err) {
+        console.error('[migration] failed to initialize migration_events table', err);
+      }
+    }
+  );
+}
+
+function logMigrationEvent(level, scope, message, details) {
+  const normalizedLevel = String(level || 'info').toLowerCase();
+  const logger = normalizedLevel === 'error' ? console.error : normalizedLevel === 'warn' ? console.warn : console.log;
+  logger(`[migration][${scope}] ${message}`);
+  if (details !== undefined) {
+    logger(details);
+  }
+  db.run(
+    'INSERT INTO migration_events (level, scope, message, details) VALUES (?, ?, ?, ?)',
+    [normalizedLevel, String(scope || 'general'), String(message || ''), serializeMigrationDetails(details)],
+    (err) => {
+      if (err) {
+        console.error('[migration] failed to write migration event', err);
+      }
+    }
+  );
+}
+
 function tableExists(table, callback) {
   db.get(
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
@@ -653,6 +713,159 @@ function ensureColumnsOnTable(table, columns, done) {
         }
         remaining -= 1;
         if (remaining === 0 && done) done();
+      });
+    });
+  });
+}
+
+function loadIndexMetadata(table, callback) {
+  const safeTable = escapeSqlIdentifier(table);
+  db.all(`PRAGMA index_list(${safeTable})`, (err, indexes) => {
+    if (err || !indexes || indexes.length === 0) {
+      callback(err, []);
+      return;
+    }
+    const metadata = [];
+    let remaining = indexes.length;
+    indexes.forEach((idx) => {
+      const safeIndexName = String(idx.name || '').replace(/'/g, "''");
+      db.all(`PRAGMA index_info('${safeIndexName}')`, (infoErr, columns) => {
+        metadata.push({
+          ...idx,
+          columns: infoErr || !columns ? [] : columns.map((col) => col.name)
+        });
+        remaining -= 1;
+        if (remaining === 0) {
+          callback(null, metadata);
+        }
+      });
+    });
+  });
+}
+
+function sameColumnSet(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+}
+
+function findDuplicateGroups(table, columns, options, callback) {
+  const safeTable = escapeSqlIdentifier(table);
+  const config = options || {};
+  const safeColumns = columns.map((column) => escapeSqlIdentifier(column));
+  const selectColumns = safeColumns.join(', ');
+  const whereClause = config.where ? `WHERE ${config.where}` : '';
+  const limit = Number.isInteger(config.limit) && config.limit > 0 ? config.limit : 5;
+  db.all(
+    `SELECT ${selectColumns}, COUNT(*) AS total
+     FROM ${safeTable}
+     ${whereClause}
+     GROUP BY ${selectColumns}
+     HAVING total > 1
+     LIMIT ${limit}`,
+    (err, rows) => {
+      callback(err, rows || []);
+    }
+  );
+}
+
+function dropIndexesSequentially(indexes, done) {
+  if (!indexes || indexes.length === 0) {
+    if (done) done();
+    return;
+  }
+  const [current, ...rest] = indexes;
+  const safeIndexName = escapeSqlIdentifier(current.name);
+  db.run(`DROP INDEX IF EXISTS ${safeIndexName}`, (err) => {
+    if (err) {
+      logMigrationEvent('warn', 'indexes', 'No se pudo eliminar un indice heredado en una migracion segura.', {
+        index: current.name,
+        error: err.message || String(err)
+      });
+    }
+    dropIndexesSequentially(rest, done);
+  });
+}
+
+function ensureUniqueIndexSafely(table, columns, createSql, options, callback) {
+  const config = options || {};
+  const scope = config.scope || `${table}_${columns.join('_')}`;
+  const conflictColumnSets = Array.isArray(config.conflictColumnSets) ? config.conflictColumnSets : [];
+  tableExists(table, (exists) => {
+    if (!exists) {
+      if (callback) callback(false);
+      return;
+    }
+    loadIndexMetadata(table, (err, indexes) => {
+      if (err) {
+        logMigrationEvent('warn', scope, 'No se pudo inspeccionar los indices existentes antes de aplicar una migracion segura.', {
+          table,
+          error: err.message || String(err)
+        });
+        if (callback) callback(false);
+        return;
+      }
+      const desiredIndex = indexes.find((idx) => idx.unique && sameColumnSet(idx.columns, columns));
+      if (desiredIndex) {
+        if (callback) callback(true);
+        return;
+      }
+      const conflictingIndexes = indexes.filter((idx) =>
+        idx.unique &&
+        idx.origin === 'c' &&
+        conflictColumnSets.some((candidate) => sameColumnSet(idx.columns, candidate))
+      );
+      dropIndexesSequentially(conflictingIndexes, () => {
+        findDuplicateGroups(table, columns, { where: config.where, limit: config.limit }, (dupErr, duplicates) => {
+          if (dupErr) {
+            logMigrationEvent('warn', scope, 'No se pudo validar duplicados antes de crear un indice unico.', {
+              table,
+              columns,
+              error: dupErr.message || String(dupErr)
+            });
+            if (callback) callback(false);
+            return;
+          }
+          if (duplicates.length > 0) {
+            logMigrationEvent('warn', scope, 'Se omitio la creacion de un indice unico para no borrar ni reescribir datos existentes.', {
+              table,
+              columns,
+              duplicates
+            });
+            if (config.fallbackSql) {
+              db.run(config.fallbackSql, (fallbackErr) => {
+                if (fallbackErr) {
+                  logMigrationEvent('warn', scope, 'No se pudo crear el indice alterno no unico.', {
+                    table,
+                    columns,
+                    error: fallbackErr.message || String(fallbackErr)
+                  });
+                }
+                if (callback) callback(false);
+              });
+              return;
+            }
+            if (callback) callback(false);
+            return;
+          }
+          db.run(createSql, (createErr) => {
+            if (createErr) {
+              logMigrationEvent(isUniqueConstraintError(createErr) ? 'warn' : 'error', scope, 'No se pudo crear el indice unico seguro.', {
+                table,
+                columns,
+                error: createErr.message || String(createErr)
+              });
+              if (config.fallbackSql) {
+                db.run(config.fallbackSql, () => {
+                  if (callback) callback(false);
+                });
+                return;
+              }
+              if (callback) callback(false);
+              return;
+            }
+            if (callback) callback(true);
+          });
+        });
       });
     });
   });
@@ -1670,7 +1883,8 @@ function getCompanySettings(companyId, callback) {
         ...company,
         base_currency: baseCurrency,
         allowed_currencies: allowedCurrencies,
-        accounting_framework: company.accounting_framework || 'NIF'
+        accounting_framework: company.accounting_framework || 'NIF',
+        default_launcher: normalizeLauncherType(company.default_launcher, { allowEmpty: true })
       });
     }
   );
@@ -2094,219 +2308,78 @@ function ensureCustomerPortalColumns() {
 }
 
 function ensureUsersPerCompanyUnique() {
-  db.all('PRAGMA index_list(users)', (err, indexes) => {
-    if (err || !indexes) return;
-    const uniqueIndexes = indexes.filter((idx) => idx.unique);
-    const checkNext = (idx) => {
-      if (idx >= uniqueIndexes.length) {
-        db.get(
-          `SELECT company_id, username, COUNT(*) AS count
-           FROM users
-           GROUP BY company_id, username
-           HAVING count > 1
-           LIMIT 1`,
-          (dupErr, dupRow) => {
-            if (dupErr) return;
-            if (dupRow) {
-              rebuildUsersTable();
-              return;
-            }
-            const stmt = db.run(
-              'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_company_username ON users (company_id, username)',
-              (indexErr) => {
-                if (indexErr) {
-                  if (indexErr.code === 'SQLITE_CONSTRAINT') {
-                    console.error('[ensureUsersPerCompanyUnique] duplicate users detected, rebuilding table', indexErr);
-                    rebuildUsersTable();
-                    return;
-                  }
-                  console.error('[ensureUsersPerCompanyUnique] index create failed', indexErr);
-                }
-              }
-            );
-            if (stmt && typeof stmt.on === 'function') {
-              stmt.on('error', (stmtErr) => {
-                if (stmtErr) {
-                  if (stmtErr.code === 'SQLITE_CONSTRAINT') {
-                    console.error('[ensureUsersPerCompanyUnique] duplicate users detected, rebuilding table', stmtErr);
-                    rebuildUsersTable();
-                    return;
-                  }
-                  console.error('[ensureUsersPerCompanyUnique] index create failed', stmtErr);
-                }
-              });
-            }
-          }
-        );
-        return;
-      }
-      const index = uniqueIndexes[idx];
-      db.all(`PRAGMA index_info(${index.name})`, (infoErr, columns) => {
-        if (infoErr || !columns) return checkNext(idx + 1);
-        const colNames = columns.map((col) => col.name);
-        if (colNames.length === 1 && colNames[0] === 'username') {
-          rebuildUsersTable();
-          return;
-        }
-        return checkNext(idx + 1);
-      });
-    };
-    checkNext(0);
-  });
-}
-
-function dedupeUsers(callback) {
-  db.run(
-    `DELETE FROM users
-     WHERE id NOT IN (
-       SELECT MIN(id)
-       FROM users
-       GROUP BY company_id, username
-     )`,
-    (err) => {
-      if (err) console.error('[dedupeUsers] failed', err);
-      if (callback) callback();
+  ensureUniqueIndexSafely(
+    'users',
+    ['company_id', 'username'],
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_company_username ON users (company_id, username)',
+    {
+      scope: 'users_company_username_unique',
+      conflictColumnSets: [['username']],
+      fallbackSql: 'CREATE INDEX IF NOT EXISTS idx_users_company_username_lookup ON users (company_id, username)'
     }
   );
 }
 
-function rebuildUsersTable() {
-  db.serialize(() => {
-    db.run('PRAGMA foreign_keys = OFF', (err) => {
-      if (err) console.error('[rebuildUsersTable] PRAGMA OFF failed', err);
-    });
-    db.run(
-      `CREATE TABLE IF NOT EXISTS users_new (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL,
-        password_hash TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'employee',
-        company_id INTEGER NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      (err) => {
-        if (err) console.error('[rebuildUsersTable] create users_new failed', err);
-      }
-    );
-    db.run(
-      `INSERT INTO users_new (id, username, password_hash, role, company_id, created_at)
-       SELECT u.id, u.username, u.password_hash, u.role, u.company_id, u.created_at
-       FROM users u
-       JOIN (
-         SELECT MIN(id) AS id
-         FROM users
-         GROUP BY company_id, username
-       ) keep ON keep.id = u.id`
-      ,
-      (err) => {
-        if (err) console.error('[rebuildUsersTable] insert users_new failed', err);
-      }
-    );
-    db.run('DROP TABLE users', (err) => {
-      if (err) console.error('[rebuildUsersTable] drop users failed', err);
-    });
-    db.run('ALTER TABLE users_new RENAME TO users', (err) => {
-      if (err) console.error('[rebuildUsersTable] rename users_new failed', err);
-    });
-    db.run('CREATE INDEX IF NOT EXISTS idx_users_company_id ON users (company_id)', (err) => {
-      if (err) console.error('[rebuildUsersTable] create idx_users_company_id failed', err);
-    });
-    const stmt = db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_company_username ON users (company_id, username)', (err) => {
-      if (err) console.error('[rebuildUsersTable] create idx_users_company_username failed', err);
-    });
-    if (stmt && typeof stmt.on === 'function') {
-      stmt.on('error', (stmtErr) => {
-        if (stmtErr) console.error('[rebuildUsersTable] create idx_users_company_username failed', stmtErr);
+function dedupeUsers(callback) {
+  findDuplicateGroups('users', ['company_id', 'username'], { limit: 10 }, (err, duplicates) => {
+    if (err) {
+      logMigrationEvent('warn', 'users_dedupe', 'No se pudo validar usuarios duplicados antes de la migracion segura.', {
+        error: err.message || String(err)
+      });
+    } else if (duplicates.length > 0) {
+      logMigrationEvent('warn', 'users_dedupe', 'Se detectaron usuarios duplicados. La migracion segura no eliminara registros existentes.', {
+        duplicates
       });
     }
-    db.run('PRAGMA foreign_keys = ON', (err) => {
-      if (err) console.error('[rebuildUsersTable] PRAGMA ON failed', err);
-    });
+    if (callback) callback();
   });
+}
+
+function rebuildUsersTable() {
+  logMigrationEvent('warn', 'users_table', 'Se bloqueo una reconstruccion destructiva de la tabla users. La actualizacion segura no elimina ni recrea tablas en produccion.');
 }
 
 function ensureCategoriesPerCompanyUnique() {
-  db.all('PRAGMA index_list(categories)', (err, indexes) => {
-    if (err || !indexes) return;
-    const uniqueIndexes = indexes.filter((idx) => idx.unique);
-    const checkNext = (idx) => {
-      if (idx >= uniqueIndexes.length) {
-        db.get(
-          `SELECT company_id, name, COUNT(*) AS count
-           FROM categories
-           GROUP BY company_id, name
-           HAVING count > 1
-           LIMIT 1`,
-          (dupErr, dupRow) => {
-            if (dupErr) return;
-            if (dupRow) {
-              rebuildCategoriesTable();
-              return;
-            }
-            db.run(
-              'CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_company_name ON categories (company_id, name)',
-              (indexErr) => {
-                if (indexErr && indexErr.code !== 'SQLITE_CONSTRAINT') {
-                  console.warn('[ensureCategoriesPerCompanyUnique] index create failed', indexErr);
-                }
-              }
-            );
-          }
-        );
-        return;
-      }
-      const index = uniqueIndexes[idx];
-      db.all(`PRAGMA index_info(${index.name})`, (infoErr, columns) => {
-        if (infoErr || !columns) return checkNext(idx + 1);
-        const colNames = columns.map((col) => col.name);
-        if (colNames.length === 1 && colNames[0] === 'name') {
-          rebuildCategoriesTable();
-          return;
-        }
-        return checkNext(idx + 1);
-      });
-    };
-    checkNext(0);
-  });
+  ensureUniqueIndexSafely(
+    'categories',
+    ['company_id', 'name'],
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_company_name ON categories (company_id, name)',
+    {
+      scope: 'categories_company_name_unique',
+      conflictColumnSets: [['name']],
+      fallbackSql: 'CREATE INDEX IF NOT EXISTS idx_categories_company_name_lookup ON categories (company_id, name)'
+    }
+  );
 }
 
 function rebuildCategoriesTable() {
-  db.serialize(() => {
-    db.run('PRAGMA foreign_keys = OFF');
-    db.run(
-      `CREATE TABLE IF NOT EXISTS categories_new (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        code TEXT NULL,
-        code_manual INTEGER NOT NULL DEFAULT 0,
-        company_id INTEGER NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`
-    );
-    db.run(
-      `INSERT INTO categories_new (id, name, code, code_manual, company_id, created_at)
-       SELECT c.id, c.name, c.code, c.code_manual, c.company_id, c.created_at
-       FROM categories c
-       JOIN (
-         SELECT MIN(id) AS id
-         FROM categories
-         GROUP BY company_id, name
-       ) keep ON keep.id = c.id`
-    );
-    db.run('DROP TABLE categories');
-    db.run('ALTER TABLE categories_new RENAME TO categories');
-    db.run('CREATE INDEX IF NOT EXISTS idx_categories_name ON categories (name)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_categories_company_id ON categories (company_id)');
-    db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_company_name ON categories (company_id, name)');
-    db.run('PRAGMA foreign_keys = ON');
-  });
+  logMigrationEvent('warn', 'categories_table', 'Se bloqueo una reconstruccion destructiva de la tabla categories. La actualizacion segura no elimina ni recrea tablas en produccion.');
 }
 
 function backfillCompanyIdForExisting() {
-  db.get('SELECT id FROM companies ORDER BY id ASC LIMIT 1', (err, row) => {
-    if (err || !row) return;
-    const companyId = row.id;
-  const tables = ['users', 'items', 'categories', 'brands', 'customers', 'invoices', 'invoice_items', 'audit_logs', 'awbs'];
+  db.all('SELECT id FROM companies ORDER BY id ASC', (err, rows) => {
+    if (err || !rows || rows.length === 0) return;
+    const companyId = rows.length === 1 ? rows[0].id : null;
+    const tables = ['users', 'items', 'categories', 'brands', 'customers', 'invoices', 'invoice_items', 'audit_logs', 'awbs'];
+    if (!companyId) {
+      let pending = tables.length;
+      const unresolved = [];
+      tables.forEach((table) => {
+        db.get(`SELECT COUNT(*) AS total FROM ${table} WHERE company_id IS NULL`, (countErr, result) => {
+          if (!countErr && result && Number(result.total) > 0) {
+            unresolved.push({ table, total: Number(result.total) });
+          }
+          pending -= 1;
+          if (pending === 0 && unresolved.length > 0) {
+            logMigrationEvent('warn', 'company_id_backfill', 'Se omitio el relleno automatico de company_id porque la base tiene varias empresas y existen filas ambiguas.', {
+              companies: rows.length,
+              unresolved
+            });
+          }
+        });
+      });
+      return;
+    }
     tables.forEach((table) => {
       if (table === 'users') {
         db.run(
@@ -2314,16 +2387,24 @@ function backfillCompanyIdForExisting() {
           [companyId],
           (updateErr) => {
             if (updateErr) {
-              console.error('[backfillCompanyIdForExisting] update users failed', {
+              logMigrationEvent('warn', 'company_id_backfill', 'No se pudo actualizar company_id en users durante la migracion segura.', {
                 companyId,
-                error: updateErr
+                error: updateErr.message || String(updateErr)
               });
             }
           }
         );
         return;
       }
-      db.run(`UPDATE ${table} SET company_id = ? WHERE company_id IS NULL`, [companyId]);
+      db.run(`UPDATE ${table} SET company_id = ? WHERE company_id IS NULL`, [companyId], (updateErr) => {
+        if (updateErr) {
+          logMigrationEvent('warn', 'company_id_backfill', 'No se pudo actualizar company_id en una tabla durante la migracion segura.', {
+            table,
+            companyId,
+            error: updateErr.message || String(updateErr)
+          });
+        }
+      });
     });
   });
 }
@@ -2364,45 +2445,33 @@ function ensureIndexIfColumns(table, requiredColumns, createSql) {
 }
 
 function dedupeCatalogByCode(table, callback) {
-  tableExists(table, (exists) => {
-    if (!exists) {
-      if (callback) callback();
-      return;
+  findDuplicateGroups(table, ['company_id', 'code'], { where: "code IS NOT NULL AND TRIM(code) != ''", limit: 10 }, (err, rows) => {
+    if (err) {
+      logMigrationEvent('warn', `${table}_code_duplicates`, 'No se pudo revisar duplicados de catalogo antes de la migracion segura.', {
+        table,
+        error: err.message || String(err)
+      });
+    } else if (rows.length > 0) {
+      logMigrationEvent('warn', `${table}_code_duplicates`, 'Se detectaron codigos duplicados. La migracion segura no eliminara catalogos existentes.', {
+        table,
+        duplicates: rows
+      });
     }
-    db.all(
-      `SELECT company_id, code, MIN(id) AS keep_id, COUNT(*) AS total
-       FROM ${table}
-       WHERE code IS NOT NULL AND TRIM(code) != ''
-       GROUP BY company_id, code
-       HAVING total > 1`,
-      (err, rows) => {
-        if (err || !rows || rows.length === 0) {
-          if (callback) callback();
-          return;
-        }
-        let pending = rows.length;
-        rows.forEach((row) => {
-          db.run(
-            `DELETE FROM ${table}
-             WHERE company_id = ? AND code = ? AND id != ?`,
-            [row.company_id, row.code, row.keep_id],
-            () => {
-              pending -= 1;
-              if (pending <= 0 && callback) callback();
-            }
-          );
-        });
-      }
-    );
+    if (callback) callback();
   });
 }
 
 function ensureCatalogCodeIndexes(table) {
   ensureIndexIfColumn(table, 'code', `CREATE INDEX IF NOT EXISTS idx_${table}_code ON ${table} (code)`);
-  ensureIndexIfColumns(
+  ensureUniqueIndexSafely(
     table,
     ['company_id', 'code'],
-    `CREATE UNIQUE INDEX IF NOT EXISTS ux_${table}_company_code ON ${table} (company_id, code)`
+    `CREATE UNIQUE INDEX IF NOT EXISTS ux_${table}_company_code ON ${table} (company_id, code)`,
+    {
+      scope: `${table}_company_code_unique`,
+      where: "code IS NOT NULL AND TRIM(code) != ''",
+      fallbackSql: `CREATE INDEX IF NOT EXISTS ix_${table}_company_code ON ${table} (company_id, code)`
+    }
   );
 }
 
@@ -2815,6 +2884,7 @@ function logAction(userId, action, details, companyId) {
 }
 
 db.serialize(() => {
+  ensureMigrationLogTable();
 
  db.run(`
  CREATE TABLE IF NOT EXISTS companies (
@@ -2831,10 +2901,18 @@ db.serialize(() => {
  phone TEXT,
  username TEXT,
  password_hash TEXT,
+ default_launcher TEXT,
  accounting_framework TEXT,
  logo TEXT,
  primary_color TEXT,
  secondary_color TEXT,
+ theme_background_color TEXT,
+ theme_title_color TEXT,
+ theme_text_color TEXT,
+ theme_font_family TEXT,
+ theme_logo_size INTEGER,
+ theme_icon_size INTEGER,
+ theme_icon_frame INTEGER,
  active_from DATETIME,
  active_until DATETIME,
  inactive_reason TEXT,
@@ -2923,6 +3001,7 @@ db.serialize(() => {
       company_id INTEGER NOT NULL,
       visible_modules TEXT NULL,
       widget_prefs TEXT NULL,
+      layout_prefs TEXT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(user_id, company_id),
@@ -3045,6 +3124,13 @@ db.serialize(() => {
     { name: 'tax_address', type: 'TEXT' },
     { name: 'activity_id', type: 'INTEGER' },
     { name: 'allowed_modules', type: 'TEXT' },
+    { name: 'theme_background_color', type: 'TEXT' },
+    { name: 'theme_title_color', type: 'TEXT' },
+    { name: 'theme_text_color', type: 'TEXT' },
+    { name: 'theme_font_family', type: 'TEXT' },
+    { name: 'theme_logo_size', type: 'INTEGER' },
+    { name: 'theme_icon_size', type: 'INTEGER' },
+    { name: 'theme_icon_frame', type: 'INTEGER' },
     { name: 'contact_general_first_name', type: 'TEXT' },
     { name: 'contact_general_last_name', type: 'TEXT' },
     { name: 'contact_general_phone', type: 'TEXT' },
@@ -3071,6 +3157,13 @@ db.serialize(() => {
 
   ensureColumn('users', 'is_active', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn('launcher_preferences', 'widget_prefs', 'TEXT');
+  ensureColumn('launcher_preferences', 'layout_prefs', 'TEXT');
+  ensureColumnsOnTable('companies', [{ name: 'default_launcher', type: 'TEXT' }], () => {
+    db.run("UPDATE companies SET default_launcher = NULL WHERE default_launcher IS NOT NULL AND default_launcher NOT IN ('classic', 'icons', 'executive', 'original')");
+  });
+  ensureColumnsOnTable('users', [{ name: 'launcher_type', type: 'TEXT' }], () => {
+    db.run("UPDATE users SET launcher_type = NULL WHERE launcher_type IS NOT NULL AND launcher_type NOT IN ('classic', 'icons', 'executive', 'original')");
+  });
   ensureColumn('items', 'company_id', 'INTEGER');
   ensureColumnsOnTable(
     'items',
@@ -4468,6 +4561,184 @@ function slugifyStatusKey(value) {
     .replace(/^_+|_+$/g, '');
 }
 
+const LAUNCHER_TYPES = ['classic', 'icons', 'executive', 'original'];
+const DEFAULT_LAUNCHER_TYPE = 'classic';
+const LAUNCHER_FONT_CHOICES = [
+  { value: 'space-grotesk', label: 'Space Grotesk' },
+  { value: 'manrope', label: 'Manrope' },
+  { value: 'nunito', label: 'Nunito' },
+  { value: 'source-serif', label: 'Source Serif' }
+];
+const DEFAULT_COMPANY_APPEARANCE = {
+  primaryColor: '#d97757',
+  secondaryColor: '#3d7b6f',
+  backgroundColor: '#f8f5ee',
+  titleColor: '#1c1b1a',
+  textColor: '#1c1b1a',
+  fontFamily: 'space-grotesk',
+  logoSize: 34,
+  iconSize: 62,
+  iconFrame: false
+};
+
+function normalizeBooleanFlag(value, fallback = false) {
+  const rawValue = Array.isArray(value) ? value[value.length - 1] : value;
+  if (typeof rawValue === 'boolean') return rawValue;
+  if (typeof rawValue === 'number') return rawValue !== 0;
+  const normalized = normalizeString(rawValue).toLowerCase();
+  if (['1', 'true', 'on', 'yes', 'si'].includes(normalized)) return true;
+  if (['0', 'false', 'off', 'no'].includes(normalized)) return false;
+  return Boolean(fallback);
+}
+
+function normalizeLauncherType(value, options = {}) {
+  const allowEmpty = Boolean(options.allowEmpty);
+  const normalized = normalizeString(value).toLowerCase();
+  if (!normalized) return allowEmpty ? null : DEFAULT_LAUNCHER_TYPE;
+  if (LAUNCHER_TYPES.includes(normalized)) return normalized;
+  if (allowEmpty && (normalized === 'inherit' || normalized === 'company' || normalized === 'default')) {
+    return null;
+  }
+  return allowEmpty ? null : DEFAULT_LAUNCHER_TYPE;
+}
+
+function resolveLauncherType(userLauncherType, companyLauncherType) {
+  return (
+    normalizeLauncherType(userLauncherType, { allowEmpty: true }) ||
+    normalizeLauncherType(companyLauncherType, { allowEmpty: true }) ||
+    DEFAULT_LAUNCHER_TYPE
+  );
+}
+
+function getLauncherChoices(t, options = {}) {
+  const includeInherit = Boolean(options.includeInherit);
+  const choices = [];
+  if (includeInherit) {
+    choices.push({
+      value: '',
+      key: 'inherit',
+      name: t('launcher.type.inherit.name'),
+      desc: t('launcher.type.inherit.desc')
+    });
+  }
+  LAUNCHER_TYPES.forEach((type) => {
+    choices.push({
+      value: type,
+      key: type,
+      name: t(`launcher.type.${type}.name`),
+      desc: t(`launcher.type.${type}.desc`)
+    });
+  });
+  return choices;
+}
+
+function clampNumber(value, min, max, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(max, Math.max(min, numeric));
+}
+
+function normalizeCompanyFontFamily(value, fallback) {
+  const normalized = normalizeString(value).toLowerCase();
+  if (LAUNCHER_FONT_CHOICES.some((entry) => entry.value === normalized)) return normalized;
+  return fallback || DEFAULT_COMPANY_APPEARANCE.fontFamily;
+}
+
+function normalizeThemeColor(value, fallback) {
+  if (isHexColor(value)) return String(value).trim();
+  return fallback;
+}
+
+function normalizeCompanyAppearanceSettings(raw, fallback = {}) {
+  const safeFallback = {
+    logoPath: fallback.logoPath || null,
+    primaryColor: fallback.primaryColor || DEFAULT_COMPANY_APPEARANCE.primaryColor,
+    secondaryColor: fallback.secondaryColor || DEFAULT_COMPANY_APPEARANCE.secondaryColor,
+    backgroundColor: fallback.backgroundColor || DEFAULT_COMPANY_APPEARANCE.backgroundColor,
+    titleColor: fallback.titleColor || DEFAULT_COMPANY_APPEARANCE.titleColor,
+    textColor: fallback.textColor || DEFAULT_COMPANY_APPEARANCE.textColor,
+    fontFamily: fallback.fontFamily || DEFAULT_COMPANY_APPEARANCE.fontFamily,
+    logoSize: Number.isFinite(Number(fallback.logoSize)) ? Number(fallback.logoSize) : DEFAULT_COMPANY_APPEARANCE.logoSize,
+    iconSize: Number.isFinite(Number(fallback.iconSize)) ? Number(fallback.iconSize) : DEFAULT_COMPANY_APPEARANCE.iconSize,
+    iconFrame: typeof fallback.iconFrame === 'boolean' ? fallback.iconFrame : DEFAULT_COMPANY_APPEARANCE.iconFrame
+  };
+
+  return {
+    logoPath: raw && Object.prototype.hasOwnProperty.call(raw, 'logoPath') ? raw.logoPath || null : safeFallback.logoPath,
+    primaryColor: normalizeThemeColor(raw && raw.primaryColor, safeFallback.primaryColor),
+    secondaryColor: normalizeThemeColor(raw && raw.secondaryColor, safeFallback.secondaryColor),
+    backgroundColor: normalizeThemeColor(raw && raw.backgroundColor, safeFallback.backgroundColor),
+    titleColor: normalizeThemeColor(raw && raw.titleColor, safeFallback.titleColor),
+    textColor: normalizeThemeColor(raw && raw.textColor, safeFallback.textColor),
+    fontFamily: normalizeCompanyFontFamily(raw && raw.fontFamily, safeFallback.fontFamily),
+    logoSize: clampNumber(raw && raw.logoSize, 24, 84, safeFallback.logoSize),
+    iconSize: clampNumber(raw && raw.iconSize, 44, 108, safeFallback.iconSize),
+    iconFrame: normalizeBooleanFlag(raw && raw.iconFrame, safeFallback.iconFrame)
+  };
+}
+
+function extractCompanyAppearance(company) {
+  return normalizeCompanyAppearanceSettings({
+    logoPath: company && company.logo ? company.logo : null,
+    primaryColor: company && company.primary_color,
+    secondaryColor: company && company.secondary_color,
+    backgroundColor: company && company.theme_background_color,
+    titleColor: company && company.theme_title_color,
+    textColor: company && company.theme_text_color,
+    fontFamily: company && company.theme_font_family,
+    logoSize: company && company.theme_logo_size,
+    iconSize: company && company.theme_icon_size,
+    iconFrame: company && company.theme_icon_frame
+  });
+}
+
+function buildCompanyThemeStyle(appearance) {
+  const safeAppearance = normalizeCompanyAppearanceSettings(appearance || {});
+  return [
+    `--accent:${safeAppearance.primaryColor}`,
+    `--accent-2:${safeAppearance.secondaryColor}`,
+    `--bg:${safeAppearance.backgroundColor}`,
+    `--ink:${safeAppearance.textColor}`,
+    `--title-color:${safeAppearance.titleColor}`,
+    `--brand-logo-size:${safeAppearance.logoSize}px`,
+    `--launcher-icon-size:${safeAppearance.iconSize}px`,
+    `--launcher-icon-frame:${safeAppearance.iconFrame ? 1 : 0}`
+  ].join(';');
+}
+
+function saveCompanyAppearanceSettings(companyId, appearance, callback) {
+  if (!companyId) return callback(new Error('missing company'));
+  const safeAppearance = normalizeCompanyAppearanceSettings(appearance || {});
+  db.run(
+    `UPDATE companies
+     SET logo = ?,
+         primary_color = ?,
+         secondary_color = ?,
+         theme_background_color = ?,
+         theme_title_color = ?,
+         theme_text_color = ?,
+         theme_font_family = ?,
+         theme_logo_size = ?,
+         theme_icon_size = ?,
+         theme_icon_frame = ?
+     WHERE id = ?`,
+    [
+      safeAppearance.logoPath || null,
+      safeAppearance.primaryColor,
+      safeAppearance.secondaryColor,
+      safeAppearance.backgroundColor,
+      safeAppearance.titleColor,
+      safeAppearance.textColor,
+      safeAppearance.fontFamily,
+      safeAppearance.logoSize,
+      safeAppearance.iconSize,
+      safeAppearance.iconFrame ? 1 : 0,
+      companyId
+    ],
+    (err) => callback(err)
+  );
+}
+
 const DEFAULT_launcher_COLOR = '#1f2937';
 const launcher_SETTINGS_KEY = 'launcher_settings';
 const launcher_MODULE_CONFIG = {
@@ -4542,6 +4813,12 @@ const launcher_MODULE_CONFIG = {
     nameKey: 'launcher.agenda_medica.name',
     descKey: 'launcher.agenda_medica.desc',
     order: 58
+  },
+  rrhh: {
+    href: '/rrhh',
+    color: '#155e75',
+    icon: 'rrhh',
+    order: 59
   },
   portal: {
     href: '/customer/login',
@@ -4639,6 +4916,13 @@ const launcher_ICON_MAP = {
 <path d="M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
 <path d="M7 11h10M7 15h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
 </svg>`,
+  rrhh: `<svg viewBox="0 0 24 24" aria-hidden="true">
+<circle cx="9" cy="8" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+<path d="M4.5 18c0-2.9 2-5 4.8-5.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+<circle cx="16.5" cy="8.5" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+<path d="M13.7 17.8c.2-2.2 1.8-4 4-4.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+<path d="M12 5v14M9.5 12h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+</svg>`,
   manifest: `<svg viewBox="0 0 24 24" aria-hidden="true">
 <path d="M6 3h8l4 4v14H6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
 <path d="M14 3v4h4" fill="none" stroke="currentColor" stroke-width="1.8"/>
@@ -4679,17 +4963,6 @@ const launcher_ICON_MAP = {
 </svg>`
 };
   const EXTRA_launcher_MODULES = [
-    {
-      key: launcher_SETTINGS_KEY,
-      href: '/launcher/settings',
-      color: '#111827',
-      icon: 'settings',
-      nameKey: 'launcher.settings.name',
-      descKey: 'launcher.settings.desc',
-      order: 9999,
-      alwaysShow: true,
-      alwaysVisible: true
-    },
   {
     key: 'tracking',
     href: '/tracking',
@@ -4884,51 +5157,192 @@ function parseLauncherWidgetPrefs(raw) {
   }
 }
 
-function getlauncherPreferences(userId, companyId, callback) {
-  if (!userId || !companyId) return callback(null);
+function normalizeLauncherLayoutPrefs(raw, options = {}) {
+  const allowedSet = options.allowedSet instanceof Set ? options.allowedSet : null;
+  const visibleSet = options.visibleSet instanceof Set ? options.visibleSet : null;
+  const normalized = {
+    groups: [],
+    assignments: {}
+  };
+
+  if (!raw || typeof raw !== 'object') return normalized;
+
+  const groups = Array.isArray(raw.groups) ? raw.groups : [];
+  const seenGroups = new Set();
+  groups.slice(0, 8).forEach((group, index) => {
+    const rawId = normalizeString(group && group.id);
+    const id = rawId || `group_${index + 1}`;
+    if (seenGroups.has(id)) return;
+    const name = normalizeString(group && group.name).slice(0, 32) || `Grupo ${normalized.groups.length + 1}`;
+    normalized.groups.push({ id, name });
+    seenGroups.add(id);
+  });
+
+  const assignments = raw.assignments && typeof raw.assignments === 'object' ? raw.assignments : {};
+  const assignedModules = new Set();
+  Object.entries(assignments).forEach(([moduleKey, groupId]) => {
+    const safeModuleKey = String(moduleKey);
+    const safeGroupId = normalizeString(groupId);
+    if (!safeGroupId || !seenGroups.has(safeGroupId)) return;
+    if (allowedSet && !allowedSet.has(safeModuleKey)) return;
+    if (visibleSet && !visibleSet.has(safeModuleKey)) return;
+    if (assignedModules.has(safeModuleKey)) return;
+    normalized.assignments[safeModuleKey] = safeGroupId;
+    assignedModules.add(safeModuleKey);
+  });
+
+  return normalized;
+}
+
+function parseLauncherLayoutPrefs(raw, options = {}) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return normalizeLauncherLayoutPrefs(parsed, options);
+  } catch (err) {
+    return null;
+  }
+}
+
+function buildLauncherIconLayout(modules, layoutPrefs) {
+  const safeModules = Array.isArray(modules) ? modules : [];
+  const allowedSet = new Set(safeModules.map((mod) => mod.key));
+  const normalizedLayout = normalizeLauncherLayoutPrefs(layoutPrefs, { allowedSet });
+  const groupMap = new Map(normalizedLayout.groups.map((group) => [group.id, { ...group, modules: [] }]));
+  const layoutItems = [];
+  const renderedGroups = new Set();
+
+  safeModules.forEach((mod) => {
+    const groupId = normalizedLayout.assignments[mod.key];
+    const group = groupId ? groupMap.get(groupId) : null;
+    if (!group) {
+      layoutItems.push({ type: 'module', key: mod.key, module: mod });
+      return;
+    }
+    group.modules.push(mod);
+    if (renderedGroups.has(group.id)) return;
+    layoutItems.push({ type: 'group', key: group.id, group });
+    renderedGroups.add(group.id);
+  });
+
+  return {
+    items: layoutItems.filter((entry) => entry.type === 'module' || (entry.group && entry.group.modules.length)),
+    groups: normalizedLayout.groups,
+    assignments: normalizedLayout.assignments
+  };
+}
+
+function getLauncherConfiguration(userId, companyId, callback) {
+  if (!userId || !companyId) {
+    return callback({
+      userLauncherType: null,
+      companyLauncherType: null,
+      effectiveLauncherType: DEFAULT_LAUNCHER_TYPE
+    });
+  }
   db.get(
-    'SELECT visible_modules, widget_prefs FROM launcher_preferences WHERE user_id = ? AND company_id = ? LIMIT 1',
+    `SELECT u.launcher_type AS user_launcher_type,
+            c.default_launcher AS company_launcher_type
+     FROM users u
+     JOIN companies c ON c.id = u.company_id
+     WHERE u.id = ? AND u.company_id = ?
+     LIMIT 1`,
     [userId, companyId],
     (err, row) => {
-      if (err || !row) return callback(null);
-      const visibleModules = parselauncherModuleList(row.visible_modules);
-      const widgetPrefs = parseLauncherWidgetPrefs(row.widget_prefs);
-      if (!visibleModules && !widgetPrefs) return callback(null);
+      const userLauncherType = normalizeLauncherType(row && row.user_launcher_type, { allowEmpty: true });
+      const companyLauncherType = normalizeLauncherType(row && row.company_launcher_type, { allowEmpty: true });
       return callback({
-        visibleModules: visibleModules || null,
-        widgetPrefs: widgetPrefs || null
+        userLauncherType,
+        companyLauncherType,
+        effectiveLauncherType: resolveLauncherType(userLauncherType, companyLauncherType)
       });
     }
   );
 }
 
-function savelauncherPreferences(userId, companyId, visibleModules, callback) {
+function saveUserLauncherType(userId, companyId, launcherType, callback) {
   if (!userId || !companyId) {
     if (callback) callback(new Error('Missing user or company'));
     return;
   }
+  const normalized = normalizeLauncherType(launcherType, { allowEmpty: true });
+  db.run(
+    'UPDATE users SET launcher_type = ? WHERE id = ? AND company_id = ?',
+    [normalized, userId, companyId],
+    (err) => callback && callback(err || null)
+  );
+}
+
+function saveCompanyLauncherType(companyId, launcherType, callback) {
+  if (!companyId) {
+    if (callback) callback(new Error('Missing company'));
+    return;
+  }
+  const normalized = normalizeLauncherType(launcherType, { allowEmpty: true });
+  db.run(
+    'UPDATE companies SET default_launcher = ? WHERE id = ?',
+    [normalized, companyId],
+    (err) => callback && callback(err || null)
+  );
+}
+
+function getlauncherPreferences(userId, companyId, callback) {
+  if (!userId || !companyId) return callback(null);
+  db.get(
+    'SELECT visible_modules, widget_prefs, layout_prefs FROM launcher_preferences WHERE user_id = ? AND company_id = ? LIMIT 1',
+    [userId, companyId],
+    (err, row) => {
+      if (err || !row) return callback(null);
+      const visibleModules = parselauncherModuleList(row.visible_modules);
+      const widgetPrefs = parseLauncherWidgetPrefs(row.widget_prefs);
+      const layoutPrefs = parseLauncherLayoutPrefs(row.layout_prefs);
+      if (!visibleModules && !widgetPrefs && !layoutPrefs) return callback(null);
+      return callback({
+        visibleModules: visibleModules || null,
+        widgetPrefs: widgetPrefs || null,
+        layoutPrefs: layoutPrefs || null
+      });
+    }
+  );
+}
+
+function savelauncherPreferences(userId, companyId, visibleModules, layoutPrefs, callback) {
+  let finalLayoutPrefs = layoutPrefs;
+  let finalCallback = callback;
+  if (typeof finalLayoutPrefs === 'function') {
+    finalCallback = finalLayoutPrefs;
+    finalLayoutPrefs = undefined;
+  }
+  if (!userId || !companyId) {
+    if (finalCallback) finalCallback(new Error('Missing user or company'));
+    return;
+  }
   const payload = JSON.stringify(Array.isArray(visibleModules) ? visibleModules : []);
+  const layoutPayload = typeof finalLayoutPrefs === 'undefined' ? undefined : JSON.stringify(finalLayoutPrefs || { groups: [], assignments: {} });
   db.get(
     'SELECT id FROM launcher_preferences WHERE user_id = ? AND company_id = ? LIMIT 1',
     [userId, companyId],
     (err, row) => {
       if (err) {
-        if (callback) callback(err);
+        if (finalCallback) finalCallback(err);
         return;
       }
       if (row && row.id) {
-        db.run(
-          'UPDATE launcher_preferences SET visible_modules = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-          [payload, row.id],
-          (updateErr) => callback && callback(updateErr)
-        );
+        const sql = typeof layoutPayload === 'undefined'
+          ? 'UPDATE launcher_preferences SET visible_modules = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+          : 'UPDATE launcher_preferences SET visible_modules = ?, layout_prefs = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+        const params = typeof layoutPayload === 'undefined' ? [payload, row.id] : [payload, layoutPayload, row.id];
+        db.run(sql, params, (updateErr) => finalCallback && finalCallback(updateErr));
         return;
       }
-      db.run(
-        'INSERT INTO launcher_preferences (user_id, company_id, visible_modules) VALUES (?, ?, ?)',
-        [userId, companyId, payload],
-        (insertErr) => callback && callback(insertErr)
-      );
+      const sql = typeof layoutPayload === 'undefined'
+        ? 'INSERT INTO launcher_preferences (user_id, company_id, visible_modules) VALUES (?, ?, ?)'
+        : 'INSERT INTO launcher_preferences (user_id, company_id, visible_modules, layout_prefs) VALUES (?, ?, ?, ?)';
+      const params = typeof layoutPayload === 'undefined'
+        ? [userId, companyId, payload]
+        : [userId, companyId, payload, layoutPayload];
+      db.run(sql, params, (insertErr) => finalCallback && finalCallback(insertErr));
     }
   );
 }
@@ -4993,6 +5407,65 @@ function applylauncherPreferences(modules, prefs) {
     configurableIndex += 1;
     return nextMod || mod;
   });
+}
+
+function buildDashboardViewModel(t, modules, stats) {
+  const safeModules = Array.isArray(modules) ? modules : [];
+  const primaryModules = safeModules.filter((mod) => mod && mod.key !== launcher_SETTINGS_KEY);
+  const quickActions = primaryModules.slice(0, 4);
+  const secondaryActions = primaryModules.slice(4, 10);
+  const statCards = [
+    { key: 'packages', label: t('launcher.stats.total_packages'), value: Number(stats && stats.packageCount) || 0 },
+    { key: 'today', label: t('launcher.stats.received_today'), value: Number(stats && stats.packageReceivedToday) || 0 },
+    { key: 'items', label: t('launcher.stats.total_items'), value: Number(stats && stats.itemCount) || 0 },
+    { key: 'low_stock', label: t('launcher.stats.low_stock'), value: Number(stats && stats.lowStock) || 0 }
+  ];
+  const alerts = [];
+
+  if ((stats && Number(stats.lowStock)) > 0) {
+    alerts.push({
+      tone: 'warning',
+      title: t('launcher.alerts.low_stock.title', { count: Number(stats.lowStock) }),
+      description: t('launcher.alerts.low_stock.desc'),
+      href: '/inventory',
+      cta: t('launcher.alerts.review')
+    });
+  }
+  if ((stats && Number(stats.packageInCustoms)) > 0) {
+    alerts.push({
+      tone: 'info',
+      title: t('launcher.alerts.customs.title', { count: Number(stats.packageInCustoms) }),
+      description: t('launcher.alerts.customs.desc'),
+      href: '/packages',
+      cta: t('launcher.alerts.review')
+    });
+  }
+  if ((stats && Number(stats.packageReadyDelivery)) > 0) {
+    alerts.push({
+      tone: 'success',
+      title: t('launcher.alerts.delivery.title', { count: Number(stats.packageReadyDelivery) }),
+      description: t('launcher.alerts.delivery.desc'),
+      href: '/packages',
+      cta: t('launcher.alerts.review')
+    });
+  }
+  if (!alerts.length) {
+    alerts.push({
+      tone: 'neutral',
+      title: t('launcher.alerts.clear.title'),
+      description: t('launcher.alerts.clear.desc'),
+      href: '/dashboard',
+      cta: t('launcher.alerts.refresh')
+    });
+  }
+
+  return {
+    heroMetrics: statCards.slice(0, 3),
+    statCards,
+    quickActions,
+    secondaryActions,
+    alerts
+  };
 }
 
 function normalizeNoteColor(value, fallback) {
@@ -5970,7 +6443,8 @@ const AI_MODULE_LABELS = {
   companies: 'Empresas',
   inventory: 'Inventario',
   manifests: 'Manifiestos',
-  airway_bills: 'Guias aereas'
+  airway_bills: 'Guias aereas',
+  rrhh: 'RRHH'
 };
 
 function resolveModuleByPath(pathname) {
@@ -5981,6 +6455,7 @@ function resolveModuleByPath(pathname) {
     { re: /^\/inventory/, module: 'inventory' },
     { re: /^\/categories/, module: 'inventory' },
     { re: /^\/brands/, module: 'inventory' },
+    { re: /^\/rrhh/, module: 'rrhh' },
     { re: /^\/manifests/, module: 'manifests' },
     { re: /^\/airway-bills/, module: 'airway_bills' },
     { re: /^\/master/, module: 'companies' },
@@ -7257,12 +7732,22 @@ function getCompanyBrandById(companyId, callback) {
   if (!companyId) return callback(null);
   getCompanySettings(companyId, (company) => {
     if (!company) return callback(null);
+    const appearance = extractCompanyAppearance(company);
     return callback({
       id: company.id,
       name: company.name,
-      logo: buildFileUrl(company.logo || null),
-      primary_color: company.primary_color || null,
-      secondary_color: company.secondary_color || null
+      logo: buildFileUrl(appearance.logoPath || null),
+      logo_path: appearance.logoPath || null,
+      primary_color: appearance.primaryColor,
+      secondary_color: appearance.secondaryColor,
+      background_color: appearance.backgroundColor,
+      title_color: appearance.titleColor,
+      text_color: appearance.textColor,
+      font_family: appearance.fontFamily,
+      logo_size: appearance.logoSize,
+      icon_size: appearance.iconSize,
+      icon_frame: appearance.iconFrame,
+      theme_style: buildCompanyThemeStyle(appearance)
     });
   });
 }
@@ -8597,6 +9082,7 @@ registerCustomerRoutes(app, {
   getCustomerStatusById,
   setFlash,
   logAction,
+  formatSqliteError,
   requestSatLookup,
   SAT_PORTAL_URL,
   CUSTOMER_DOCUMENT_TYPES,
@@ -8730,6 +9216,17 @@ registerAgendaMedicaRoutes(app, {
   APPOINTMENT_DEFAULT_DURATION
 });
 
+registerHrRoutes(app, {
+  db,
+  requireAuth,
+  requirePermission,
+  csrfMiddleware,
+  getCompanyId,
+  normalizeString,
+  setFlash,
+  buildFileUrl
+});
+
 registerUserRoutes(app, {
   db,
   bcrypt,
@@ -8772,20 +9269,250 @@ registerMasterRoutes(app, {
   buildCompanyStatus
 });
 
+function buildLauncherModuleOptions(modules, visibleList) {
+  const selectable = (modules || []).filter((mod) => !mod.alwaysVisible);
+  const safeVisibleList = Array.isArray(visibleList) ? visibleList.map((entry) => String(entry)) : null;
+  const visibleSet = safeVisibleList ? new Set(safeVisibleList) : null;
+  const selectableMap = new Map(selectable.map((mod) => [mod.key, mod]));
+  const orderedSelectable = [];
+
+  if (safeVisibleList) {
+    safeVisibleList.forEach((key) => {
+      const mod = selectableMap.get(key);
+      if (!mod) return;
+      orderedSelectable.push(mod);
+      selectableMap.delete(key);
+    });
+  }
+
+  selectable.forEach((mod) => {
+    if (!selectableMap.has(mod.key)) return;
+    orderedSelectable.push(mod);
+    selectableMap.delete(mod.key);
+  });
+
+  return orderedSelectable.map((mod) => ({
+    ...mod,
+    checked: !visibleSet || visibleSet.has(mod.key)
+  }));
+}
+
+function renderLauncherSettingsPage(req, res, message, stateOverrides) {
+  const companyId = getCompanyId(req);
+  const userId = req.session && req.session.user ? req.session.user.id : null;
+  if (!companyId || !userId) return res.redirect('/dashboard');
+
+  buildlauncherModules(db, res.locals.t, req.session.permissionMap, Boolean(req.session.master), (modules) => {
+    getlauncherPreferences(userId, companyId, (prefs) => {
+      getLauncherConfiguration(userId, companyId, (config) => {
+        getCompanySettings(companyId, (companySettings) => {
+          const companyAppearance = extractCompanyAppearance(companySettings || null);
+          const safeModules = buildLauncherModuleOptions(modules, null);
+          const state = stateOverrides || {};
+          const visibleModules = Array.isArray(state.visibleModules)
+            ? state.visibleModules
+            : prefs && Array.isArray(prefs.visibleModules)
+              ? prefs.visibleModules
+              : null;
+          const allowedKeys = new Set((modules || []).map((mod) => mod.key));
+          const safeVisibleModules = Array.isArray(visibleModules)
+            ? visibleModules.map((entry) => String(entry)).filter((entry) => allowedKeys.has(entry))
+            : null;
+          const safeVisibleSet = new Set(safeVisibleModules || (modules || []).map((mod) => mod.key));
+          const safeLauncherLayout = normalizeLauncherLayoutPrefs(
+            Object.prototype.hasOwnProperty.call(state, 'launcherLayout')
+              ? state.launcherLayout
+              : prefs && prefs.layoutPrefs
+                ? prefs.layoutPrefs
+                : null,
+            {
+              allowedSet: allowedKeys,
+              visibleSet: safeVisibleSet
+            }
+          );
+          const moduleOptions = buildLauncherModuleOptions(modules, safeVisibleModules);
+          const previewModules = moduleOptions.filter((mod) => mod.checked).slice(0, 4);
+          const userLauncherType = Object.prototype.hasOwnProperty.call(state, 'userLauncherType')
+            ? normalizeLauncherType(state.userLauncherType, { allowEmpty: true })
+            : config.userLauncherType;
+          const companyLauncherType = Object.prototype.hasOwnProperty.call(state, 'companyLauncherType')
+            ? normalizeLauncherType(state.companyLauncherType, { allowEmpty: true })
+            : config.companyLauncherType;
+          const effectiveLauncherType = resolveLauncherType(userLauncherType, companyLauncherType);
+          const canManageCompanyLauncher = hasPermission(req.session.permissionMap || null, 'settings', 'manage');
+          const appearanceState = Object.prototype.hasOwnProperty.call(state, 'companyAppearance')
+            ? normalizeCompanyAppearanceSettings(state.companyAppearance, companyAppearance)
+            : companyAppearance;
+          const widgetPrefs = Object.prototype.hasOwnProperty.call(state, 'widgetPrefs')
+            ? normalizeLauncherWidgetPrefs(state.widgetPrefs)
+            : prefs && prefs.widgetPrefs
+              ? normalizeLauncherWidgetPrefs(prefs.widgetPrefs)
+              : normalizeLauncherWidgetPrefs(null);
+
+          getCompanyBrandById(companyId, (companyBrand) => {
+            return res.render('launcher-settings', {
+              modules: moduleOptions,
+              previewModules: (previewModules.length ? previewModules : safeModules.slice(0, 4)),
+              message: message || null,
+              companyBrand: companyBrand
+                ? {
+                    ...companyBrand,
+                    theme_style: buildCompanyThemeStyle(appearanceState),
+                    font_family: appearanceState.fontFamily,
+                    logo_size: appearanceState.logoSize,
+                    icon_size: appearanceState.iconSize
+                  }
+                : null,
+              companyAppearance: appearanceState,
+              launcherLayout: safeLauncherLayout,
+              fontChoices: LAUNCHER_FONT_CHOICES,
+              icons: launcher_ICON_MAP,
+              launcherChoices: getLauncherChoices(res.locals.t, { includeInherit: true }),
+              companyLauncherChoices: getLauncherChoices(res.locals.t),
+              canManageCompanyLauncher,
+              userLauncherType,
+              companyLauncherType,
+              effectiveLauncherType,
+              widgetPrefs
+            });
+          });
+        });
+      });
+    });
+  });
+}
+
+function persistLauncherSettings(req, res) {
+  const companyId = getCompanyId(req);
+  const userId = req.session && req.session.user ? req.session.user.id : null;
+  if (!companyId || !userId) return res.redirect('/dashboard');
+
+  const canManageCompanyLauncher = hasPermission(req.session.permissionMap || null, 'settings', 'manage');
+  const requestedUserLauncher = normalizeLauncherType(req.body && req.body.user_launcher_type, { allowEmpty: true });
+  const requestedCompanyLauncher = canManageCompanyLauncher
+    ? normalizeLauncherType(req.body && req.body.company_launcher_type, { allowEmpty: true })
+    : undefined;
+
+  getCompanySettings(companyId, (companySettings) => {
+    const currentAppearance = extractCompanyAppearance(companySettings || null);
+    const requestedAppearance = canManageCompanyLauncher
+      ? normalizeCompanyAppearanceSettings({
+          logoPath: req.file ? req.file.path : currentAppearance.logoPath,
+          primaryColor: req.body && req.body.primary_color,
+          secondaryColor: req.body && req.body.secondary_color,
+          backgroundColor: req.body && req.body.background_color,
+          titleColor: req.body && req.body.title_color,
+          textColor: req.body && req.body.text_color,
+          fontFamily: req.body && req.body.font_family,
+          logoSize: req.body && req.body.logo_size,
+          iconSize: req.body && req.body.icon_size,
+          iconFrame: req.body && req.body.icon_frame
+        }, currentAppearance)
+      : currentAppearance;
+
+    getlauncherPreferences(userId, companyId, (prefs) => {
+      const currentWidgetPrefs = normalizeLauncherWidgetPrefs(prefs && prefs.widgetPrefs ? prefs.widgetPrefs : null);
+      const requestedWidgetPrefs = normalizeLauncherWidgetPrefs({
+        ...currentWidgetPrefs,
+        visibility: {
+          ...(currentWidgetPrefs.visibility || {}),
+          notes: normalizeBooleanFlag(req.body && req.body.widget_notes, currentWidgetPrefs.visibility.notes),
+          planner: normalizeBooleanFlag(req.body && req.body.widget_planner, currentWidgetPrefs.visibility.planner)
+        }
+      });
+
+      buildlauncherModules(db, res.locals.t, req.session.permissionMap, Boolean(req.session.master), (modules) => {
+        const selectable = (modules || []).filter((mod) => !mod.alwaysVisible);
+        const allowedKeys = new Set(selectable.map((mod) => mod.key));
+        const rawSelection = req.body && req.body.modules ? req.body.modules : [];
+        const selectionArray = Array.isArray(rawSelection) ? rawSelection : [rawSelection];
+        const finalSelection = selectionArray
+          .map((entry) => String(entry))
+          .filter((entry) => allowedKeys.has(entry));
+        const requestedLayout = normalizeLauncherLayoutPrefs(
+          parseLauncherLayoutPrefs(req.body && req.body.layout_prefs) || null,
+          {
+            allowedSet: allowedKeys,
+            visibleSet: new Set(finalSelection)
+          }
+        );
+
+        saveUserLauncherType(userId, companyId, requestedUserLauncher, (userLauncherErr) => {
+          if (!userLauncherErr && req.session && req.session.user) {
+            req.session.user.launcher_type = requestedUserLauncher;
+          }
+          savelauncherPreferences(userId, companyId, finalSelection, requestedLayout, (prefsErr) => {
+            savelauncherWidgetPrefs(userId, companyId, requestedWidgetPrefs, (widgetErr) => {
+              const persistCompanyData = (done) => {
+                if (!canManageCompanyLauncher || typeof requestedCompanyLauncher === 'undefined') return done(null, null);
+                saveCompanyLauncherType(companyId, requestedCompanyLauncher, (companyLauncherErr) => {
+                  if (companyLauncherErr) return done(companyLauncherErr);
+                  saveCompanyAppearanceSettings(companyId, requestedAppearance, (appearanceErr) => {
+                    if (!appearanceErr && req.session && req.session.company) {
+                      req.session.company.default_launcher = requestedCompanyLauncher;
+                      req.session.company.logo = requestedAppearance.logoPath || null;
+                      req.session.company.primary_color = requestedAppearance.primaryColor;
+                      req.session.company.secondary_color = requestedAppearance.secondaryColor;
+                      req.session.company.theme_background_color = requestedAppearance.backgroundColor;
+                      req.session.company.theme_title_color = requestedAppearance.titleColor;
+                      req.session.company.theme_text_color = requestedAppearance.textColor;
+                      req.session.company.theme_font_family = requestedAppearance.fontFamily;
+                      req.session.company.theme_logo_size = requestedAppearance.logoSize;
+                      req.session.company.theme_icon_size = requestedAppearance.iconSize;
+                      req.session.company.theme_icon_frame = requestedAppearance.iconFrame ? 1 : 0;
+                    }
+                    return done(appearanceErr || null);
+                  });
+                });
+              };
+
+              persistCompanyData((companyErr) => {
+                const hasError = Boolean(userLauncherErr || prefsErr || widgetErr || companyErr);
+                const message = hasError
+                  ? { type: 'error', message: res.locals.t('errors.server_try_again') }
+                  : { type: 'success', message: res.locals.t('launcher.settings.saved') };
+                const nextState = {
+                  visibleModules: finalSelection,
+                  userLauncherType: requestedUserLauncher,
+                  companyAppearance: requestedAppearance,
+                  launcherLayout: requestedLayout,
+                  widgetPrefs: requestedWidgetPrefs
+                };
+                if (typeof requestedCompanyLauncher !== 'undefined') {
+                  nextState.companyLauncherType = requestedCompanyLauncher;
+                }
+
+                return renderLauncherSettingsPage(req, res, message, nextState);
+              });
+            });
+          });
+        });
+      });
+    });
+  });
+}
+
 app.get('/dashboard', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
   const companyId = getCompanyId(req);
   const userId = req.session && req.session.user ? req.session.user.id : null;
   fetchDashboardStats(companyId, (stats) => {
     buildlauncherModules(db, res.locals.t, req.session.permissionMap, Boolean(req.session.master), (modules) => {
       getlauncherPreferences(userId, companyId, (prefs) => {
-        const filteredModules = applylauncherPreferences(modules, prefs);
-        getCompanyBrandById(companyId, (companyBrand) => {
-          res.render('dashboard', {
-            stats,
-            launcherModules: filteredModules,
-            widgetPrefs: prefs && prefs.widgetPrefs ? prefs.widgetPrefs : null,
-            companyBrand,
-            icons: launcher_ICON_MAP
+        getLauncherConfiguration(userId, companyId, (config) => {
+          const filteredModules = applylauncherPreferences(modules, prefs);
+          const dashboardModel = buildDashboardViewModel(res.locals.t, filteredModules, stats);
+          getCompanyBrandById(companyId, (companyBrand) => {
+            const launcherIconLayout = buildLauncherIconLayout(filteredModules, prefs && prefs.layoutPrefs);
+            res.render('dashboard', {
+              stats,
+              launcherModules: filteredModules,
+              launcherIconLayout,
+              dashboardModel,
+              widgetPrefs: prefs && prefs.widgetPrefs ? prefs.widgetPrefs : null,
+              companyBrand,
+              icons: launcher_ICON_MAP,
+              effectiveLauncherType: config.effectiveLauncherType
+            });
           });
         });
       });
@@ -8793,96 +9520,20 @@ app.get('/dashboard', requireAuth, requirePermission('dashboard', 'view'), (req,
   });
 });
 
-app.get('/launcher/settings', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
-  const companyId = getCompanyId(req);
-  const userId = req.session && req.session.user ? req.session.user.id : null;
-  if (!companyId || !userId) return res.redirect('/dashboard');
-  buildlauncherModules(db, res.locals.t, req.session.permissionMap, Boolean(req.session.master), (modules) => {
-    const selectable = (modules || []).filter((mod) => !mod.alwaysVisible);
-    getlauncherPreferences(userId, companyId, (prefs) => {
-      const visibleList = prefs && Array.isArray(prefs.visibleModules) ? prefs.visibleModules : null;
-      const visibleSet = visibleList ? new Set(visibleList) : null;
-      const selectableMap = new Map(selectable.map((mod) => [mod.key, mod]));
-      const orderedSelectable = [];
-
-      if (visibleList) {
-        visibleList.forEach((key) => {
-          const mod = selectableMap.get(key);
-          if (!mod) return;
-          orderedSelectable.push(mod);
-          selectableMap.delete(key);
-        });
-      }
-
-      selectable.forEach((mod) => {
-        if (!selectableMap.has(mod.key)) return;
-        orderedSelectable.push(mod);
-        selectableMap.delete(mod.key);
-      });
-
-      const options = orderedSelectable.map((mod) => ({
-        ...mod,
-        checked: !visibleSet || visibleSet.has(mod.key)
-      }));
-      getCompanyBrandById(companyId, (companyBrand) => {
-        res.render('launcher-settings', {
-          modules: options,
-          message: null,
-          companyBrand,
-          icons: launcher_ICON_MAP
-        });
-      });
-    });
-  });
+app.get('/settings/launcher', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
+  return renderLauncherSettingsPage(req, res, null, null);
 });
 
-app.post('/launcher/settings', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
-  const companyId = getCompanyId(req);
-  const userId = req.session && req.session.user ? req.session.user.id : null;
-  if (!companyId || !userId) return res.redirect('/dashboard');
-  buildlauncherModules(db, res.locals.t, req.session.permissionMap, Boolean(req.session.master), (modules) => {
-    const selectable = (modules || []).filter((mod) => !mod.alwaysVisible);
-    const allowedKeys = new Set(selectable.map((mod) => mod.key));
-    const rawSelection = req.body && req.body.modules ? req.body.modules : [];
-    const selectionArray = Array.isArray(rawSelection) ? rawSelection : [rawSelection];
-    const finalSelection = selectionArray
-      .map((entry) => String(entry))
-      .filter((entry) => allowedKeys.has(entry));
-    savelauncherPreferences(userId, companyId, finalSelection, (err) => {
-      const visibleSet = new Set(finalSelection);
-      const selectableMap = new Map(selectable.map((mod) => [mod.key, mod]));
-      const orderedSelectable = [];
+app.post('/settings/launcher', requireAuth, requirePermission('dashboard', 'view'), companyLogoUpload.single('logo_file'), csrfMiddleware, (req, res) => {
+  return persistLauncherSettings(req, res);
+});
 
-      finalSelection.forEach((key) => {
-        const mod = selectableMap.get(key);
-        if (!mod) return;
-        orderedSelectable.push(mod);
-        selectableMap.delete(key);
-      });
+app.get('/launcher/settings', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
+  return res.redirect('/settings/launcher');
+});
 
-      selectable.forEach((mod) => {
-        if (!selectableMap.has(mod.key)) return;
-        orderedSelectable.push(mod);
-        selectableMap.delete(mod.key);
-      });
-
-      const options = orderedSelectable.map((mod) => ({
-        ...mod,
-        checked: visibleSet.has(mod.key)
-      }));
-      const message = err
-        ? { type: 'error', message: res.locals.t('errors.server_try_again') }
-        : { type: 'success', message: res.locals.t('launcher.settings.saved') };
-      getCompanyBrandById(companyId, (companyBrand) => {
-        res.render('launcher-settings', {
-          modules: options,
-          message,
-          companyBrand,
-          icons: launcher_ICON_MAP
-        });
-      });
-    });
-  });
+app.post('/launcher/settings', requireAuth, requirePermission('dashboard', 'view'), companyLogoUpload.single('logo_file'), csrfMiddleware, (req, res) => {
+  return persistLauncherSettings(req, res);
 });
 
 app.post('/launcher/order', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {

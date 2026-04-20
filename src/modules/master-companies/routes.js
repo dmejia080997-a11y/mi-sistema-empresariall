@@ -342,10 +342,17 @@ function registerMasterCompanyRoutes(app, deps) {
             logo: company.logo || null,
             primary_color: company.primary_color || null,
             secondary_color: company.secondary_color || null,
+            theme_background_color: company.theme_background_color || null,
+            theme_title_color: company.theme_title_color || null,
+            theme_text_color: company.theme_text_color || null,
+            theme_font_family: company.theme_font_family || null,
+            theme_logo_size: company.theme_logo_size || null,
+            theme_icon_size: company.theme_icon_size || null,
             phone: company.phone || null,
             country: company.country || null,
             accounting_method: company.accounting_method || null,
             activity_id: company.activity_id || null,
+            default_launcher: company.default_launcher || null,
             allowed_modules: (() => {
               const raw = parseJsonList(company.allowed_modules);
               return raw.length ? normalizeAllowedModules(raw) : null;

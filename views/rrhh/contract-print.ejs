@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contrato <%= contract.employee_name %></title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page hr-print-page" onload="window.print()">
+  <main class="container hr-print-shell">
+    <section class="panel hr-print-panel">
+      <div class="panel-header">
+        <div>
+          <div class="eyebrow">RRHH</div>
+          <h1>Contrato laboral</h1>
+          <p class="muted"><%= contract.employee_name %> · <%= contract.contract_type || '-' %></p>
+        </div>
+      </div>
+
+      <div class="hr-print-grid">
+        <div><strong>Empleado:</strong> <%= contract.employee_name || '-' %></div>
+        <div><strong>DPI:</strong> <%= contract.dpi_number || '-' %></div>
+        <div><strong>Puesto:</strong> <%= contract.position || '-' %></div>
+        <div><strong>Departamento:</strong> <%= contract.department || '-' %></div>
+        <div><strong>Ingreso:</strong> <%= contract.hire_date || '-' %></div>
+        <div><strong>Jefe:</strong> <%= contract.immediate_boss_name || '-' %></div>
+        <div><strong>Inicio:</strong> <%= contract.start_date || '-' %></div>
+        <div><strong>Fin:</strong> <%= contract.end_date || 'Indefinido' %></div>
+        <div><strong>Salario:</strong> Q<%= Number(contract.salary || 0).toFixed(2) %></div>
+        <div><strong>Bono:</strong> Q<%= Number(contract.bonus_amount || 0).toFixed(2) %></div>
+        <div><strong>Lugar de trabajo:</strong> <%= contract.workplace || '-' %></div>
+        <div><strong>Jornada:</strong> <%= contract.work_schedule || '-' %></div>
+      </div>
+
+      <article class="hr-contract-body">
+        <% String(contract.generated_contract_text || '').split('\n').forEach((line) => { %>
+          <% if (!line.trim()) { %>
+            <br />
+          <% } else { %>
+            <p><%= line %></p>
+          <% } %>
+        <% }) %>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

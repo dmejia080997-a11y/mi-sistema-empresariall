@@ -3,88 +3,650 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>
-<%= t('launcher.settings.title') %>
-</title>
+<title><%= t('launcher.settings.title') %></title>
 <link rel="stylesheet" href="/styles.css" />
 </head>
-<body class="page launcher-page" style="<% if (companyBrand) { %>--accent:<%= companyBrand.primary_color || '#d97757' %>; --accent-2:<%= companyBrand.secondary_color || '#3d7b6f' %>;<% } %>">
+<body class="page launcher-page theme-font-<%= (companyAppearance && companyAppearance.fontFamily) ? companyAppearance.fontFamily : 'space-grotesk' %>" data-icon-frame="<%= companyAppearance && companyAppearance.iconFrame ? '1' : '0' %>" style="<%= companyBrand && companyBrand.theme_style ? companyBrand.theme_style : '' %>">
 <header class="topbar">
 <a class="brand brand-link" href="/dashboard">
 <% if (companyBrand && companyBrand.logo) { %>
 <img src="<%= companyBrand.logo %>" alt="Logo" class="brand-logo" />
 <% } %>
-<span class="brand-name">
-<%= (companyBrand && companyBrand.name) ? companyBrand.name : t('common.brand') %>
-</span>
+<span class="brand-name"><%= (companyBrand && companyBrand.name) ? companyBrand.name : t('common.brand') %></span>
 </a>
 <nav class="nav">
-<a href="/dashboard">
-<%= t('nav.dashboard') %>
-</a>
-<a href="/logout">
-<%= t('nav.logout') %>
-</a>
+<% if (can('settings', 'view')) { %>
+<a href="/settings"><%= t('settings.title') %></a>
+<% } %>
+<a href="/dashboard"><%= t('nav.dashboard') %></a>
+<a href="/logout"><%= t('nav.logout') %></a>
 </nav>
 </header>
+
 <main class="container launcher-settings">
 <div class="page-header">
 <div>
-<h1>
-<%= t('launcher.settings.title') %>
-</h1>
-<p class="muted">
-<%= t('launcher.settings.subtitle') %>
-</p>
+<p class="eyebrow"><%= t('settings.title') %></p>
+<h1><%= t('launcher.settings.title') %></h1>
+<p class="muted"><%= t('launcher.settings.subtitle') %></p>
 </div>
 <div class="actions">
-<a class="btn" href="/dashboard">
-<%= t('launcher.settings.back') %>
-</a>
-</div>
-</div>
-<% if (message) { %>
-<div class="alert <%= message.type %>">
-<%= message.message %>
-</div>
+<span class="launcher-status-pill"><%= t('launcher.settings.current_launcher') %>: <strong data-current-launcher-label><%= t(`launcher.type.${effectiveLauncherType}.name`) %></strong></span>
+<% if (can('settings', 'view')) { %>
+<a class="btn" href="/settings"><%= t('settings.back_settings') %></a>
 <% } %>
-<form method="POST" action="/launcher/settings" class="form">
+<a class="btn" href="/dashboard"><%= t('nav.dashboard') %></a>
+<button class="btn primary" type="submit" form="launcher-config-form"><%= t('launcher.settings.save') %></button>
+</div>
+</div>
+
+<% if (message) { %>
+<div class="alert <%= message.type %>"><%= message.message %></div>
+<% } %>
+
+<form id="launcher-config-form" method="POST" action="/settings/launcher" class="form launcher-config-form launcher-settings-shell" enctype="multipart/form-data">
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<input type="hidden" name="layout_prefs" value="" data-layout-input />
+
+<div class="launcher-settings-main">
+<section class="launcher-settings-panel">
+<div class="launcher-section-head">
+<div>
+<p class="eyebrow"><%= t('launcher.settings.personal_title') %></p>
+<h2><%= t('launcher.settings.personal_title') %></h2>
+<p class="muted"><%= t('launcher.settings.personal_desc') %></p>
+</div>
+</div>
+<div class="launcher-choice-grid" data-user-launcher-choices>
+<% (launcherChoices || []).forEach((choice) => { %>
+<label class="launcher-choice-card">
+<input type="radio" name="user_launcher_type" value="<%= choice.value %>" <%= (!userLauncherType && choice.key === 'inherit') || userLauncherType === choice.value ? 'checked' : '' %> />
+<div class="launcher-choice-card__body">
+<div class="launcher-choice-card__title"><%= choice.name %></div>
+<div class="launcher-choice-card__desc"><%= choice.desc %></div>
+</div>
+</label>
+<% }) %>
+</div>
+</section>
+
+<% if (canManageCompanyLauncher) { %>
+<section class="launcher-settings-panel">
+<div class="launcher-section-head">
+<div>
+<p class="eyebrow"><%= t('launcher.settings.company_title') %></p>
+<h2><%= t('launcher.settings.company_title') %></h2>
+<p class="muted"><%= t('launcher.settings.company_desc') %></p>
+</div>
+</div>
+<div class="launcher-choice-grid" data-company-launcher-choices>
+<% (companyLauncherChoices || []).forEach((choice) => { %>
+<label class="launcher-choice-card">
+<input type="radio" name="company_launcher_type" value="<%= choice.value %>" <%= (!companyLauncherType && choice.value === 'classic') || companyLauncherType === choice.value ? 'checked' : '' %> />
+<div class="launcher-choice-card__body">
+<div class="launcher-choice-card__title"><%= choice.name %></div>
+<div class="launcher-choice-card__desc"><%= choice.desc %></div>
+</div>
+</label>
+<% }) %>
+</div>
+</section>
+<% } %>
+
+<section class="launcher-settings-panel">
+<div class="launcher-section-head">
+<div>
+<p class="eyebrow"><%= t('launcher.section.modules') %></p>
+<h2><%= t('launcher.settings.modules_title') %></h2>
+<p class="muted"><%= t('launcher.settings.modules_desc') %></p>
+</div>
+</div>
 <section class="launcher-settings-grid" data-launcher-grid>
 <% (modules || []).forEach((mod) => { %>
-<label class="launcher-settings-card" style="--app-color:<%= mod.color %>" draggable="true" data-module-key="<%= mod.key %>">
+<% const selectedGroupId = launcherLayout && launcherLayout.assignments ? launcherLayout.assignments[mod.key] : ''; %>
+<label class="launcher-settings-card" style="--app-color:<%= mod.color %>" draggable="true" data-module-key="<%= mod.key %>" data-module-name="<%= mod.name %>" data-module-desc="<%= mod.desc || '' %>" data-module-color="<%= mod.color %>">
 <input class="launcher-settings-checkbox" type="checkbox" name="modules" value="<%= mod.key %>" <%= mod.checked ? 'checked' : '' %> />
-<div class="launcher-settings-icon">
-<%- icons[mod.icon || mod.key] || icons.default %>
-</div>
-<div class="launcher-settings-name">
-<%= mod.name %>
-</div>
+<div class="launcher-settings-icon"><%- icons[mod.icon || mod.key] || icons.default %></div>
+<div class="launcher-settings-name"><%= mod.name %></div>
 <% if (mod.desc) { %>
-<div class="launcher-settings-desc">
-<%= mod.desc %>
-</div>
+<div class="launcher-settings-desc"><%= mod.desc %></div>
 <% } %>
+<div class="launcher-settings-group-field">
+<span><%= t('launcher.settings.assign_folder') %></span>
+<select data-module-group-select data-module-key="<%= mod.key %>">
+<option value=""><%= t('launcher.settings.no_folder') %></option>
+<% (launcherLayout && launcherLayout.groups ? launcherLayout.groups : []).forEach((group) => { %>
+<option value="<%= group.id %>" <%= selectedGroupId === group.id ? 'selected' : '' %>><%= group.name %></option>
+<% }) %>
+</select>
+</div>
 </label>
 <% }) %>
 </section>
+</section>
+
+<section class="launcher-settings-panel">
+<div class="launcher-section-head">
+<div>
+<p class="eyebrow"><%= t('launcher.settings.folders_eyebrow') %></p>
+<h2><%= t('launcher.settings.folders_title') %></h2>
+<p class="muted"><%= t('launcher.settings.folders_desc') %></p>
+</div>
+<button class="btn" type="button" data-group-add><%= t('launcher.settings.add_folder') %></button>
+</div>
+<div class="launcher-folder-manager" data-folder-manager></div>
+</section>
+
+<section class="launcher-settings-panel">
+<div class="launcher-section-head">
+<div>
+<p class="eyebrow"><%= t('launcher.widgets_eyebrow') %></p>
+<h2><%= t('launcher.settings.widgets_title') %></h2>
+<p class="muted"><%= t('launcher.settings.widgets_desc') %></p>
+</div>
+</div>
+<div class="launcher-widget-grid">
+<label class="launcher-widget-card">
+<input type="hidden" name="widget_notes" value="0" />
+<input type="checkbox" name="widget_notes" value="1" <%= widgetPrefs && widgetPrefs.visibility && widgetPrefs.visibility.notes !== false ? 'checked' : '' %> data-preview-widget="notes" />
+<div>
+<div class="launcher-widget-card__title"><%= t('launcher.settings.show_notes') %></div>
+<div class="launcher-widget-card__desc"><%= t('launcher.notes_subtitle') %></div>
+</div>
+</label>
+<label class="launcher-widget-card">
+<input type="hidden" name="widget_planner" value="0" />
+<input type="checkbox" name="widget_planner" value="1" <%= widgetPrefs && widgetPrefs.visibility && widgetPrefs.visibility.planner !== false ? 'checked' : '' %> data-preview-widget="planner" />
+<div>
+<div class="launcher-widget-card__title"><%= t('launcher.settings.show_planner') %></div>
+<div class="launcher-widget-card__desc"><%= t('launcher.planner_subtitle') %></div>
+</div>
+</label>
+</div>
+</section>
+
+<% if (canManageCompanyLauncher) { %>
+<section class="launcher-settings-panel">
+<div class="launcher-section-head">
+<div>
+<p class="eyebrow"><%= t('launcher.settings.appearance_eyebrow') %></p>
+<h2><%= t('launcher.settings.appearance_title') %></h2>
+<p class="muted"><%= t('launcher.settings.appearance_desc') %></p>
+</div>
+</div>
+<div class="launcher-appearance-grid">
+<label>
+<span><%= t('launcher.settings.logo') %></span>
+<input type="file" name="logo_file" accept="image/*" data-preview-field="logo_file" />
+</label>
+<label>
+<span><%= t('launcher.settings.logo_size') %></span>
+<input type="range" name="logo_size" min="24" max="84" step="2" value="<%= companyAppearance.logoSize %>" data-preview-field="logo_size" />
+<small data-preview-output="logo_size"><%= companyAppearance.logoSize %>px</small>
+</label>
+<label>
+<span><%= t('launcher.settings.primary_color') %></span>
+<input type="color" name="primary_color" value="<%= companyAppearance.primaryColor %>" data-preview-field="primary_color" />
+</label>
+<label>
+<span><%= t('launcher.settings.secondary_color') %></span>
+<input type="color" name="secondary_color" value="<%= companyAppearance.secondaryColor %>" data-preview-field="secondary_color" />
+</label>
+<label>
+<span><%= t('launcher.settings.background_color') %></span>
+<input type="color" name="background_color" value="<%= companyAppearance.backgroundColor %>" data-preview-field="background_color" />
+</label>
+<label>
+<span><%= t('launcher.settings.title_color') %></span>
+<input type="color" name="title_color" value="<%= companyAppearance.titleColor %>" data-preview-field="title_color" />
+</label>
+<label>
+<span><%= t('launcher.settings.text_color') %></span>
+<input type="color" name="text_color" value="<%= companyAppearance.textColor %>" data-preview-field="text_color" />
+</label>
+<label>
+<span><%= t('launcher.settings.font_family') %></span>
+<select name="font_family" data-preview-field="font_family">
+<% (fontChoices || []).forEach((choice) => { %>
+<option value="<%= choice.value %>" <%= companyAppearance.fontFamily === choice.value ? 'selected' : '' %>><%= choice.label %></option>
+<% }) %>
+</select>
+</label>
+<label>
+<span><%= t('launcher.settings.icon_size') %></span>
+<input type="range" name="icon_size" min="44" max="108" step="2" value="<%= companyAppearance.iconSize %>" data-preview-field="icon_size" />
+<small data-preview-output="icon_size"><%= companyAppearance.iconSize %>px</small>
+</label>
+<label class="launcher-appearance-toggle">
+<span><%= t('launcher.settings.icon_frame') %></span>
+<input type="hidden" name="icon_frame" value="0" />
+<input type="checkbox" name="icon_frame" value="1" <%= companyAppearance.iconFrame ? 'checked' : '' %> data-preview-field="icon_frame" />
+</label>
+</div>
+</section>
+<% } %>
+</div>
+
+<aside class="launcher-settings-preview">
+<section class="launcher-settings-panel launcher-preview-panel">
+<div class="launcher-section-head">
+<div>
+<p class="eyebrow"><%= t('launcher.settings.preview_eyebrow') %></p>
+<h2><%= t('launcher.settings.preview_title') %></h2>
+<p class="muted"><%= t('launcher.settings.preview_desc') %></p>
+</div>
+</div>
+
+<div
+  class="launcher-preview-shell theme-font-<%= (companyAppearance && companyAppearance.fontFamily) ? companyAppearance.fontFamily : 'space-grotesk' %>"
+  data-preview-root
+  data-preview-user="<%= userLauncherType || '' %>"
+  data-preview-company="<%= companyLauncherType || 'classic' %>"
+  data-preview-name="<%= (companyBrand && companyBrand.name) ? companyBrand.name : t('common.brand') %>"
+  data-preview-home-label="<%= t('launcher.settings.preview_home') %>"
+  data-preview-app-label="<%= t('launcher.settings.preview_app') %>"
+  data-preview-open-label="<%= t('launcher.open') %>"
+  data-preview-folder-label="<%= t('launcher.settings.folder_badge') %>"
+  style="<%= companyBrand && companyBrand.theme_style ? companyBrand.theme_style : '' %>">
+  <div class="launcher-preview-switcher">
+    <button class="btn primary" type="button" data-preview-tab="home"><%= t('launcher.settings.preview_home') %></button>
+    <button class="btn" type="button" data-preview-tab="app"><%= t('launcher.settings.preview_app') %></button>
+  </div>
+  <div class="launcher-preview-phone" data-preview-screen></div>
+</div>
+</section>
+</aside>
+
 <div class="actions">
-<a class="btn" href="/dashboard">
-<%= t('launcher.settings.back') %>
-</a>
-<button class="btn primary" type="submit">
-<%= t('launcher.settings.save') %>
-</button>
+<% if (can('settings', 'view')) { %>
+<a class="btn" href="/settings"><%= t('settings.back_settings') %></a>
+<% } %>
+<button class="btn primary" type="submit"><%= t('launcher.settings.save') %></button>
 </div>
 </form>
 </main>
+
+<script type="application/json" data-layout-json><%- JSON.stringify(launcherLayout || { groups: [], assignments: {} }) %></script>
+
 <script>
   (function () {
     const grid = document.querySelector('[data-launcher-grid]');
-    if (!grid) return;
-    let dragging = null;
-
+    const previewRoot = document.querySelector('[data-preview-root]');
+    if (!grid || !previewRoot) return;
+    const layoutInput = document.querySelector('[data-layout-input]');
+    const layoutJson = document.querySelector('[data-layout-json]');
+    const folderManager = document.querySelector('[data-folder-manager]');
+    const currentLauncherLabel = document.querySelector('[data-current-launcher-label]');
+    const previewScreen = document.querySelector('[data-preview-screen]');
+    const previewTabs = Array.from(document.querySelectorAll('[data-preview-tab]'));
+    const userLauncherInputs = Array.from(document.querySelectorAll('[data-user-launcher-choices] input[type="radio"]'));
+    const companyLauncherInputs = Array.from(document.querySelectorAll('[data-company-launcher-choices] input[type="radio"]'));
+    const widgetInputs = Array.from(document.querySelectorAll('[data-preview-widget]'));
+    const fileInput = document.querySelector('[data-preview-field="logo_file"]');
+    const fields = Array.from(document.querySelectorAll('[data-preview-field]')).filter((field) => field.name !== 'logo_file');
+    const initialWidgetPrefs = <%- JSON.stringify(widgetPrefs || null) %>;
+    const previewDefaults = {
+      primary_color: <%- JSON.stringify(companyAppearance.primaryColor) %>,
+      secondary_color: <%- JSON.stringify(companyAppearance.secondaryColor) %>,
+      background_color: <%- JSON.stringify(companyAppearance.backgroundColor) %>,
+      title_color: <%- JSON.stringify(companyAppearance.titleColor) %>,
+      text_color: <%- JSON.stringify(companyAppearance.textColor) %>,
+      logo_size: <%- JSON.stringify(String(companyAppearance.logoSize)) %>,
+      icon_size: <%- JSON.stringify(String(companyAppearance.iconSize)) %>,
+      font_family: <%- JSON.stringify(companyAppearance.fontFamily) %>,
+      icon_frame: <%- JSON.stringify(companyAppearance.iconFrame ? '1' : '0') %>
+    };
     const getCard = (event) => event.target.closest('.launcher-settings-card');
+    let dragging = null;
+    let previewTab = 'home';
+    let previewLogoSrc = <%- JSON.stringify(companyBrand && companyBrand.logo ? companyBrand.logo : '') %>;
+    let layoutState = { groups: [], assignments: {} };
+
+    if (layoutJson) {
+      try {
+        layoutState = JSON.parse(layoutJson.textContent || '{}') || layoutState;
+      } catch (error) {
+        layoutState = { groups: [], assignments: {} };
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function getModuleCards() {
+      return Array.from(grid.querySelectorAll('.launcher-settings-card'));
+    }
+
+    function getFieldValue(field) {
+      if (!field) return '';
+      if (field.type === 'checkbox') return field.checked ? field.value : '0';
+      return field.value;
+    }
+
+    function getCheckedModules() {
+      return getModuleCards()
+        .map((card) => {
+          const checkbox = card.querySelector('.launcher-settings-checkbox');
+          if (!checkbox || !checkbox.checked) return null;
+          return {
+            key: card.dataset.moduleKey || '',
+            name: card.dataset.moduleName || '',
+            desc: card.dataset.moduleDesc || '',
+            color: card.dataset.moduleColor || '#d97757',
+            iconHtml: (card.querySelector('.launcher-settings-icon') || {}).innerHTML || ''
+          };
+        })
+        .filter(Boolean);
+    }
+
+    function serializeLayout() {
+      const visibleSet = new Set(getCheckedModules().map((mod) => mod.key));
+      const groups = (layoutState.groups || []).map((group, index) => ({
+        id: group.id || `group_${index + 1}`,
+        name: (group.name || '').trim() || `Grupo ${index + 1}`
+      }));
+      const validGroupIds = new Set(groups.map((group) => group.id));
+      const assignments = {};
+      Object.entries(layoutState.assignments || {}).forEach(([moduleKey, groupId]) => {
+        if (!visibleSet.has(moduleKey)) return;
+        if (!validGroupIds.has(groupId)) return;
+        assignments[moduleKey] = groupId;
+      });
+      layoutState = { groups, assignments };
+      if (layoutInput) {
+        layoutInput.value = JSON.stringify(layoutState);
+      }
+    }
+
+    function refreshGroupSelects() {
+      const noFolderLabel = <%- JSON.stringify(t('launcher.settings.no_folder')) %>;
+      getModuleCards().forEach((card) => {
+        const checkbox = card.querySelector('.launcher-settings-checkbox');
+        const select = card.querySelector('[data-module-group-select]');
+        const moduleKey = card.dataset.moduleKey || '';
+        if (!select) return;
+        const selectedGroupId = layoutState.assignments[moduleKey] || '';
+        select.innerHTML = [
+          `<option value="">${escapeHtml(noFolderLabel)}</option>`,
+          ...(layoutState.groups || []).map((group) => `<option value="${escapeHtml(group.id)}"${selectedGroupId === group.id ? ' selected' : ''}>${escapeHtml(group.name)}</option>`)
+        ].join('');
+        select.disabled = !checkbox || !checkbox.checked || !(layoutState.groups || []).length;
+      });
+    }
+
+    function renderFolderManager() {
+      if (!folderManager) return;
+      if (!(layoutState.groups || []).length) {
+        folderManager.innerHTML = `<div class="launcher-empty-state">${escapeHtml(<%- JSON.stringify(t('launcher.settings.folders_empty')) %>)}</div>`;
+        refreshGroupSelects();
+        serializeLayout();
+        return;
+      }
+      folderManager.innerHTML = (layoutState.groups || []).map((group) => `
+        <article class="launcher-folder-card" data-group-id="${escapeHtml(group.id)}">
+          <label>
+            <span>${escapeHtml(<%- JSON.stringify(t('launcher.settings.folder_name')) %>)}</span>
+            <input type="text" maxlength="32" value="${escapeHtml(group.name)}" data-group-name />
+          </label>
+          <button class="btn danger small" type="button" data-group-remove>${escapeHtml(<%- JSON.stringify(t('launcher.settings.remove_folder')) %>)}</button>
+        </article>
+      `).join('');
+      refreshGroupSelects();
+      serializeLayout();
+    }
+
+    function getCheckedValue(list) {
+      const selected = list.find((input) => input.checked);
+      return selected ? selected.value : '';
+    }
+
+    function getWidgetVisibility() {
+      const initialVisibility = initialWidgetPrefs && initialWidgetPrefs.visibility
+        ? initialWidgetPrefs.visibility
+        : {};
+      const visibility = {
+        notes: initialVisibility.notes !== false,
+        planner: initialVisibility.planner !== false
+      };
+      widgetInputs.forEach((input) => {
+        visibility[input.dataset.previewWidget] = input.checked;
+      });
+      return visibility;
+    }
+
+    function resolveLauncher() {
+      const userValue = getCheckedValue(userLauncherInputs);
+      const companyValue = getCheckedValue(companyLauncherInputs) || previewRoot.dataset.previewCompany || 'classic';
+      return userValue || companyValue || 'classic';
+    }
+
+    function setVariant(type) {
+      if (currentLauncherLabel) {
+        const activeInput = document.querySelector(`input[type="radio"][value="${type}"]`);
+        const label = activeInput ? activeInput.closest('.launcher-choice-card').querySelector('.launcher-choice-card__title') : null;
+        if (label) currentLauncherLabel.textContent = label.textContent;
+      }
+    }
+
+    function updateRangeOutput(name, value) {
+      const target = document.querySelector(`[data-preview-output="${name}"]`);
+      if (target) target.textContent = `${value}px`;
+    }
+
+    function buildLayoutItems(modules) {
+      const groupsById = new Map((layoutState.groups || []).map((group) => [group.id, { ...group, modules: [] }]));
+      const items = [];
+      const seenGroups = new Set();
+      modules.forEach((mod) => {
+        const groupId = layoutState.assignments[mod.key];
+        const group = groupId ? groupsById.get(groupId) : null;
+        if (!group) {
+          items.push({ type: 'module', module: mod });
+          return;
+        }
+        group.modules.push(mod);
+        if (seenGroups.has(group.id)) return;
+        items.push({ type: 'group', group });
+        seenGroups.add(group.id);
+      });
+      return items.filter((item) => item.type === 'module' || (item.group && item.group.modules.length));
+    }
+
+    function renderHomePreview(activeType, modules) {
+      const brandName = previewRoot.dataset.previewName || '';
+      const folderBadge = previewRoot.dataset.previewFolderLabel || '';
+      const logoMarkup = previewLogoSrc ? `<img src="${escapeHtml(previewLogoSrc)}" alt="Logo" class="brand-logo" />` : '';
+      if (activeType === 'classic') {
+        return `
+          <div class="launcher-preview-device launcher-preview-device--app">
+            <div class="launcher-preview-device__status">${logoMarkup}<strong>${escapeHtml(brandName)}</strong></div>
+            <div class="launcher-preview-classic-grid">
+              ${modules.slice(0, 4).map((mod) => `
+                <article class="launcher-module-card" style="--app-color:${escapeHtml(mod.color)}">
+                  <div class="launcher-module-card__icon"><span class="launcher-icon-core">${mod.iconHtml}</span></div>
+                  <div class="launcher-module-card__body">
+                    <div class="launcher-module-card__name">${escapeHtml(mod.name)}</div>
+                    <div class="launcher-module-card__desc">${escapeHtml(mod.desc)}</div>
+                  </div>
+                </article>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+      if (activeType === 'executive') {
+        return `
+          <div class="launcher-preview-device launcher-preview-device--app">
+            <div class="launcher-preview-device__status">${logoMarkup}<strong>${escapeHtml(brandName)}</strong></div>
+            <div class="launcher-stat-grid">
+              <article class="launcher-stat-card"><span class="launcher-stat-card__label"><%= t('launcher.stats.total_packages') %></span><strong class="launcher-stat-card__value">48</strong></article>
+              <article class="launcher-stat-card"><span class="launcher-stat-card__label"><%= t('launcher.stats.total_items') %></span><strong class="launcher-stat-card__value">120</strong></article>
+              <article class="launcher-stat-card"><span class="launcher-stat-card__label"><%= t('launcher.stats.low_stock') %></span><strong class="launcher-stat-card__value">6</strong></article>
+            </div>
+          </div>
+        `;
+      }
+      if (activeType === 'original') {
+        const widgetVisibility = getWidgetVisibility();
+        return `
+          <div class="launcher-preview-device launcher-preview-device--app">
+            <div class="launcher-preview-device__status">${logoMarkup}<strong>${escapeHtml(brandName)}</strong></div>
+            <div class="launcher-preview-original-grid">
+            ${widgetVisibility.notes ? `
+            <div class="notes-grid">
+              <article class="note-card" style="--note-color:#fff2b8">
+                <div class="note-text"><%= t('launcher.notes_title') %></div>
+              </article>
+            </div>
+            ` : ''}
+            ${widgetVisibility.planner ? `
+            <div class="planner-grid launcher-preview-planner">
+              <article class="planner-week">
+                <div class="planner-week-header">
+                  <div class="planner-week-title"><%= t('launcher.planner_title') %></div>
+                  <div class="planner-week-range">2 dias</div>
+                </div>
+                <div class="planner-days">
+                  <article class="planner-day">
+                    <div class="planner-day-label">Hoy</div>
+                    <div class="planner-list">
+                      <div class="planner-item">
+                        <input class="planner-item-check" type="checkbox" checked />
+                        <input class="planner-item-input" type="text" value="<%= t('launcher.planner_quick_placeholder') %>" />
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              </article>
+            </div>
+            ` : ''}
+            ${!widgetVisibility.notes && !widgetVisibility.planner ? `
+            <div class="launcher-empty-state"><%= t('launcher.settings.widgets_empty') %></div>
+            ` : ''}
+            </div>
+          </div>
+        `;
+      }
+      const layoutItems = buildLayoutItems(modules);
+      return `
+        <div class="launcher-preview-device launcher-preview-device--phone">
+          <div class="launcher-preview-device__status">
+            <span>9:41</span>
+            <div class="launcher-preview-device__brand">${logoMarkup}<strong>${escapeHtml(brandName)}</strong></div>
+          </div>
+          <div class="launcher-preview-home-grid">
+            ${layoutItems.slice(0, 8).map((item) => {
+              if (item.type === 'group' && item.group) {
+                return `
+                  <article class="launcher-preview-folder">
+                    <div class="launcher-preview-folder__stack">
+                      ${item.group.modules.slice(0, 4).map((mod) => `
+                        <span class="launcher-preview-folder__mini" style="--app-color:${escapeHtml(mod.color)}">
+                          <span class="launcher-icon-core">${mod.iconHtml}</span>
+                        </span>
+                      `).join('')}
+                    </div>
+                    <div class="launcher-app-tile__name">${escapeHtml(item.group.name)}</div>
+                    <div class="launcher-preview-folder__badge">${escapeHtml(folderBadge)}</div>
+                  </article>
+                `;
+              }
+              const mod = item.module;
+              return `
+                <article class="launcher-preview-app" style="--app-color:${escapeHtml(mod.color)}">
+                  <div class="launcher-app-tile__icon"><span class="launcher-icon-core">${mod.iconHtml}</span></div>
+                  <div class="launcher-app-tile__name">${escapeHtml(mod.name)}</div>
+                </article>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAppPreview(modules) {
+      const layoutItems = buildLayoutItems(modules);
+      const sampleItem = layoutItems.find((item) => item.type === 'module') || layoutItems.find((item) => item.type === 'group' && item.group && item.group.modules[0]);
+      const sampleModule = sampleItem
+        ? (sampleItem.type === 'module' ? sampleItem.module : sampleItem.group.modules[0])
+        : modules[0];
+      if (!sampleModule) {
+        return `<div class="launcher-empty-state"><%= t('launcher.no_modules') %></div>`;
+      }
+      const brandName = previewRoot.dataset.previewName || '';
+      const openLabel = previewRoot.dataset.previewOpenLabel || '';
+      const logoMarkup = previewLogoSrc ? `<img src="${escapeHtml(previewLogoSrc)}" alt="Logo" class="brand-logo" />` : '';
+      return `
+        <div class="launcher-preview-device launcher-preview-device--app">
+          <div class="launcher-preview-appbar" style="--app-color:${escapeHtml(sampleModule.color)}">
+            <div class="launcher-preview-appbar__brand">${logoMarkup}<strong>${escapeHtml(brandName)}</strong></div>
+            <button class="btn primary" type="button">${escapeHtml(openLabel)}</button>
+          </div>
+          <div class="launcher-preview-module-hero">
+            <div class="launcher-app-tile__icon"><span class="launcher-icon-core">${sampleModule.iconHtml}</span></div>
+            <div>
+              <p class="eyebrow"><%= t('launcher.settings.preview_app') %></p>
+              <h3>${escapeHtml(sampleModule.name)}</h3>
+              <p class="muted">${escapeHtml(sampleModule.desc)}</p>
+            </div>
+          </div>
+          <div class="launcher-preview-module-cards">
+            <article class="launcher-stat-card">
+              <span class="launcher-stat-card__label"><%= t('launcher.stats.total_packages') %></span>
+              <strong class="launcher-stat-card__value">12</strong>
+            </article>
+            <article class="launcher-stat-card">
+              <span class="launcher-stat-card__label"><%= t('launcher.section.quick_actions') %></span>
+              <strong class="launcher-stat-card__value">4</strong>
+            </article>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderPreview() {
+      if (!previewScreen) return;
+      const values = {};
+      fields.forEach((field) => {
+        values[field.name] = getFieldValue(field);
+      });
+      previewRoot.dataset.iconFrame = (values.icon_frame || previewDefaults.icon_frame) === '1' ? '1' : '0';
+      const activeType = resolveLauncher();
+      const modules = getCheckedModules();
+      previewScreen.innerHTML = previewTab === 'app'
+        ? renderAppPreview(modules)
+        : renderHomePreview(activeType, modules);
+      previewTabs.forEach((tab) => {
+        tab.classList.toggle('primary', tab.dataset.previewTab === previewTab);
+      });
+    }
+
+    function applyPreview() {
+      const values = {};
+      fields.forEach((field) => {
+        values[field.name] = getFieldValue(field);
+      });
+      previewRoot.style.setProperty('--accent', values.primary_color || previewDefaults.primary_color || '#d97757');
+      previewRoot.style.setProperty('--accent-2', values.secondary_color || previewDefaults.secondary_color || '#3d7b6f');
+      previewRoot.style.setProperty('--bg', values.background_color || previewDefaults.background_color || '#f8f5ee');
+      previewRoot.style.setProperty('--ink', values.text_color || previewDefaults.text_color || '#1c1b1a');
+      previewRoot.style.setProperty('--title-color', values.title_color || previewDefaults.title_color || '#1c1b1a');
+      previewRoot.style.setProperty('--brand-logo-size', `${values.logo_size || previewDefaults.logo_size || 34}px`);
+      previewRoot.style.setProperty('--launcher-icon-size', `${values.icon_size || previewDefaults.icon_size || 62}px`);
+      previewRoot.className = previewRoot.className.replace(/theme-font-[^\s]+/g, '').trim();
+      previewRoot.classList.add(`theme-font-${values.font_family || previewDefaults.font_family || 'space-grotesk'}`);
+      updateRangeOutput('logo_size', values.logo_size || previewDefaults.logo_size || 34);
+      updateRangeOutput('icon_size', values.icon_size || previewDefaults.icon_size || 62);
+      setVariant(resolveLauncher());
+      serializeLayout();
+      renderPreview();
+    }
 
     grid.addEventListener('dragstart', (event) => {
       const card = getCard(event);
@@ -101,6 +663,8 @@
       if (!dragging) return;
       dragging.classList.remove('dragging');
       dragging = null;
+      serializeLayout();
+      renderPreview();
     });
 
     grid.addEventListener('dragover', (event) => {
@@ -109,18 +673,120 @@
       const target = getCard(event);
       if (!target || target === dragging) return;
       const rect = target.getBoundingClientRect();
-      const shouldInsertAfter =
-        event.clientY > rect.top + rect.height / 2 ||
-        event.clientX > rect.left + rect.width / 2;
+      const shouldInsertAfter = event.clientY > rect.top + rect.height / 2 || event.clientX > rect.left + rect.width / 2;
       if (shouldInsertAfter) {
         grid.insertBefore(dragging, target.nextSibling);
       } else {
         grid.insertBefore(dragging, target);
       }
     });
+
+    grid.addEventListener('change', (event) => {
+      const checkbox = event.target.closest('.launcher-settings-checkbox');
+      const select = event.target.closest('[data-module-group-select]');
+      if (checkbox) {
+        const card = checkbox.closest('.launcher-settings-card');
+        const moduleKey = card ? card.dataset.moduleKey || '' : '';
+        if (!checkbox.checked && moduleKey) {
+          delete layoutState.assignments[moduleKey];
+        }
+        refreshGroupSelects();
+        applyPreview();
+      }
+      if (select) {
+        const moduleKey = select.dataset.moduleKey || '';
+        if (!moduleKey) return;
+        if (select.value) {
+          layoutState.assignments[moduleKey] = select.value;
+        } else {
+          delete layoutState.assignments[moduleKey];
+        }
+        applyPreview();
+      }
+    });
+
+    if (folderManager) {
+      folderManager.addEventListener('input', (event) => {
+        const nameInput = event.target.closest('[data-group-name]');
+        if (!nameInput) return;
+        const card = nameInput.closest('[data-group-id]');
+        const group = card ? (layoutState.groups || []).find((entry) => entry.id === card.dataset.groupId) : null;
+        if (!group) return;
+        group.name = nameInput.value;
+        refreshGroupSelects();
+        serializeLayout();
+        renderPreview();
+      });
+
+      folderManager.addEventListener('click', (event) => {
+        const removeButton = event.target.closest('[data-group-remove]');
+        if (!removeButton) return;
+        const card = removeButton.closest('[data-group-id]');
+        if (!card) return;
+        layoutState.groups = (layoutState.groups || []).filter((group) => group.id !== card.dataset.groupId);
+        Object.keys(layoutState.assignments || {}).forEach((moduleKey) => {
+          if (layoutState.assignments[moduleKey] === card.dataset.groupId) {
+            delete layoutState.assignments[moduleKey];
+          }
+        });
+        renderFolderManager();
+        renderPreview();
+      });
+    }
+
+    const addGroupButton = document.querySelector('[data-group-add]');
+    if (addGroupButton) {
+      addGroupButton.addEventListener('click', () => {
+        const nextIndex = (layoutState.groups || []).length + 1;
+        layoutState.groups = layoutState.groups || [];
+        layoutState.groups.push({
+          id: `group_${Date.now()}_${nextIndex}`,
+          name: `Grupo ${nextIndex}`
+        });
+        renderFolderManager();
+        renderPreview();
+      });
+    }
+
+    userLauncherInputs.concat(companyLauncherInputs).forEach((input) => {
+      input.addEventListener('change', applyPreview);
+    });
+    widgetInputs.forEach((input) => {
+      input.addEventListener('change', renderPreview);
+    });
+
+    fields.forEach((field) => {
+      field.addEventListener('input', applyPreview);
+      field.addEventListener('change', applyPreview);
+    });
+
+    if (fileInput) {
+      fileInput.addEventListener('change', () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) {
+          renderPreview();
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          previewLogoSrc = String(reader.result || '');
+          renderPreview();
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    previewTabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        previewTab = tab.dataset.previewTab || 'home';
+        renderPreview();
+      });
+    });
+
+    renderFolderManager();
+    applyPreview();
   })();
 </script>
 <script src="/status-footer.js" defer></script>
 </body>
 </html>
-

@@ -1,0 +1,24 @@
+<% (nodes || []).forEach((node) => { %>
+  <article class="hr-org-node" style="--org-depth:<%= node.depth || 0 %>">
+    <div class="hr-org-node__card">
+      <div class="hr-org-node__media">
+        <% if (node.photo_url) { %>
+          <img src="<%= node.photo_url %>" alt="<%= node.name %>" />
+        <% } else { %>
+          <div class="hr-avatar-placeholder"><%= (node.first_name || 'E').charAt(0) %></div>
+        <% } %>
+      </div>
+      <div class="hr-org-node__body">
+        <strong><%= node.name %></strong>
+        <div class="muted"><%= node.position || '-' %></div>
+        <div class="helper"><%= node.department || 'Sin departamento' %></div>
+        <span class="status-badge <%= node.is_active ? 'status-delivered' : 'status-default' %>"><%= node.is_active ? 'Activo' : 'Inactivo' %></span>
+      </div>
+    </div>
+    <% if (node.children && node.children.length) { %>
+      <div class="hr-org-node__children">
+        <%- include('orgchart-node', { nodes: node.children }) %>
+      </div>
+    <% } %>
+  </article>
+<% }) %>

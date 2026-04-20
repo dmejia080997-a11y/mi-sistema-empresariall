@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'employee',
   company_id INTEGER NULL,
+  launcher_type TEXT NULL,
   is_active INTEGER NOT NULL DEFAULT 1,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -523,3 +524,210 @@ CREATE TABLE IF NOT EXISTS ai_help_modules (
 
 CREATE INDEX IF NOT EXISTS idx_ai_help_modules_company ON ai_help_modules (company_id);
 CREATE INDEX IF NOT EXISTS idx_ai_help_modules_code ON ai_help_modules (module_code);
+
+CREATE TABLE IF NOT EXISTS hr_job_descriptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  position_name TEXT NOT NULL,
+  department TEXT NOT NULL,
+  immediate_boss_title TEXT,
+  job_objective TEXT,
+  main_functions TEXT,
+  secondary_functions TEXT,
+  academic_requirements TEXT,
+  required_experience TEXT,
+  skills TEXT,
+  competencies TEXT,
+  work_schedule TEXT,
+  suggested_salary REAL,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'Activa',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS hr_employees (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  dpi_number TEXT,
+  dpi_issued_at TEXT,
+  marital_status TEXT,
+  married_last_name TEXT,
+  gender TEXT,
+  birth_date TEXT,
+  phone TEXT,
+  email TEXT,
+  address TEXT,
+  education_level TEXT,
+  ethnicity TEXT,
+  languages TEXT,
+  position TEXT,
+  department TEXT,
+  immediate_boss_id INTEGER,
+  employee_code TEXT NOT NULL,
+  hire_date TEXT,
+  employment_status TEXT NOT NULL DEFAULT 'Activo',
+  contract_type TEXT,
+  salary_base REAL DEFAULT 0,
+  bonus_amount REAL DEFAULT 0,
+  payroll_calculation_type TEXT,
+  bank_account_number TEXT,
+  bank_account_type TEXT,
+  bank_name TEXT,
+  photo_path TEXT,
+  job_application_path TEXT,
+  notes TEXT,
+  job_description_id INTEGER,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS hr_employee_attachments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  employee_id INTEGER NOT NULL,
+  attachment_type TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  original_name TEXT,
+  mime_type TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS hr_contracts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  employee_id INTEGER NOT NULL,
+  contract_type TEXT NOT NULL,
+  start_date TEXT NOT NULL,
+  end_date TEXT,
+  work_schedule TEXT,
+  workday_type TEXT,
+  salary REAL DEFAULT 0,
+  bonus_amount REAL DEFAULT 0,
+  workplace TEXT,
+  probation_period TEXT,
+  main_functions TEXT,
+  extra_clauses TEXT,
+  observations TEXT,
+  generated_contract_text TEXT,
+  status TEXT NOT NULL DEFAULT 'Borrador',
+  pdf_path TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS hr_salaries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  employee_id INTEGER NOT NULL,
+  effective_date TEXT NOT NULL,
+  salary_base REAL DEFAULT 0,
+  bonus_amount REAL DEFAULT 0,
+  extra_bonus REAL DEFAULT 0,
+  fixed_deductions REAL DEFAULT 0,
+  payment_method TEXT,
+  bank_account_number TEXT,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'Vigente',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS hr_overtime (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  employee_id INTEGER NOT NULL,
+  overtime_date TEXT NOT NULL,
+  start_time TEXT,
+  end_time TEXT,
+  total_hours REAL DEFAULT 0,
+  overtime_type TEXT,
+  reason TEXT,
+  approved_by TEXT,
+  status TEXT NOT NULL DEFAULT 'Pendiente',
+  notes TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS hr_attendance (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  employee_id INTEGER NOT NULL,
+  attendance_date TEXT NOT NULL,
+  check_in TEXT,
+  lunch_out TEXT,
+  lunch_in TEXT,
+  check_out TEXT,
+  attendance_status TEXT NOT NULL DEFAULT 'Presente',
+  notes TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS hr_warnings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  employee_id INTEGER NOT NULL,
+  warning_date TEXT NOT NULL,
+  warning_type TEXT,
+  reason TEXT NOT NULL,
+  detailed_description TEXT,
+  corrective_action TEXT,
+  issued_by TEXT,
+  attachment_path TEXT,
+  status TEXT NOT NULL DEFAULT 'Emitida',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS hr_permissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  employee_id INTEGER NOT NULL,
+  permission_type TEXT NOT NULL,
+  start_date TEXT NOT NULL,
+  end_date TEXT NOT NULL,
+  total_days REAL DEFAULT 0,
+  with_pay INTEGER NOT NULL DEFAULT 1,
+  reason TEXT,
+  approved_by TEXT,
+  attachment_path TEXT,
+  status TEXT NOT NULL DEFAULT 'Pendiente',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS hr_vacations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  employee_id INTEGER NOT NULL,
+  vacation_period TEXT,
+  hire_date_snapshot TEXT,
+  earned_days REAL DEFAULT 0,
+  used_days REAL DEFAULT 0,
+  available_days REAL DEFAULT 0,
+  vacation_start TEXT NOT NULL,
+  vacation_end TEXT NOT NULL,
+  return_date TEXT,
+  status TEXT NOT NULL DEFAULT 'Pendiente',
+  notes TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_hr_employees_company ON hr_employees (company_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_hr_employees_company_code ON hr_employees (company_id, employee_code);
+CREATE INDEX IF NOT EXISTS idx_hr_employees_company_dept ON hr_employees (company_id, department);
+CREATE INDEX IF NOT EXISTS idx_hr_employee_attachments_company ON hr_employee_attachments (company_id, employee_id);
+CREATE INDEX IF NOT EXISTS idx_hr_contracts_company_employee ON hr_contracts (company_id, employee_id);
+CREATE INDEX IF NOT EXISTS idx_hr_salaries_company_employee ON hr_salaries (company_id, employee_id, effective_date);
+CREATE INDEX IF NOT EXISTS idx_hr_overtime_company_employee ON hr_overtime (company_id, employee_id, overtime_date);
+CREATE INDEX IF NOT EXISTS idx_hr_attendance_company_employee ON hr_attendance (company_id, employee_id, attendance_date);
+CREATE INDEX IF NOT EXISTS idx_hr_warnings_company_employee ON hr_warnings (company_id, employee_id, warning_date);
+CREATE INDEX IF NOT EXISTS idx_hr_permissions_company_employee ON hr_permissions (company_id, employee_id, start_date);
+CREATE INDEX IF NOT EXISTS idx_hr_vacations_company_employee ON hr_vacations (company_id, employee_id, vacation_start);
+CREATE INDEX IF NOT EXISTS idx_hr_descriptions_company_dept ON hr_job_descriptions (company_id, department);

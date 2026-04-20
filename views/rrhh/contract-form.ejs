@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= mode === 'edit' ? 'Editar contrato' : 'Nuevo contrato' %></title>
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/js/rrhh.js" defer></script>
+</head>
+<body class="page hr-page">
+  <header class="topbar">
+    <div class="brand">RRHH</div>
+    <nav class="nav">
+      <a href="/rrhh?tab=contracts">Volver a contratos</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/logout"><%= t('nav.logout') %></a>
+    </nav>
+  </header>
+
+  <main class="container hr-shell">
+    <% if (flash) { %>
+      <div class="alert <%= flash.type || 'info' %>"><%= flash.message %></div>
+    <% } %>
+
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="eyebrow">Contratos</div>
+          <h1><%= mode === 'edit' ? 'Editar contrato' : 'Nuevo contrato' %></h1>
+          <p class="muted">Al elegir empleado se autocompletan los datos base y se genera un texto profesional editable.</p>
+        </div>
+        <div class="actions">
+          <% if (mode === 'edit' && contract) { %>
+            <a class="btn" href="/rrhh/contracts/<%= contract.id %>/print" target="_blank" rel="noopener">Vista previa</a>
+            <a class="btn" href="/rrhh/contracts/<%= contract.id %>/export/pdf?download=1">PDF</a>
+          <% } %>
+          <a class="btn" href="/rrhh?tab=contracts">Listado</a>
+        </div>
+      </div>
+
+      <form method="POST" action="<%= mode === 'edit' && contract ? `/rrhh/contracts/${contract.id}/update` : '/rrhh/contracts/create' %>" class="form hr-form-grid hr-form-grid--wide" data-contract-form>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+        <label>
+          Empleado
+          <select name="employee_id" required data-contract-employee>
+            <option value="">Selecciona</option>
+            <% employees.forEach((employee) => { %>
+              <option value="<%= employee.id %>" <%= String((contract && contract.employee_id) || '') === String(employee.id) ? 'selected' : '' %>><%= `${employee.first_name} ${employee.last_name}` %></option>
+            <% }) %>
+          </select>
+        </label>
+        <label>
+          Tipo de contrato
+          <input type="text" name="contract_type" required value="<%= (contract && contract.contract_type) || '' %>" data-contract-field="contract_type" />
+        </label>
+        <label>
+          Estado
+          <select name="status" data-contract-field="status">
+            <option value="Borrador" <%= !contract || contract.status === 'Borrador' ? 'selected' : '' %>>Borrador</option>
+            <option value="Vigente" <%= contract && contract.status === 'Vigente' ? 'selected' : '' %>>Vigente</option>
+            <option value="Finalizado" <%= contract && contract.status === 'Finalizado' ? 'selected' : '' %>>Finalizado</option>
+          </select>
+        </label>
+
+        <label>
+          Inicio
+          <input type="date" name="start_date" required value="<%= (contract && contract.start_date) || '' %>" data-contract-field="start_date" />
+        </label>
+        <label>
+          Fin
+          <input type="date" name="end_date" value="<%= (contract && contract.end_date) || '' %>" data-contract-field="end_date" />
+        </label>
+        <label>
+          Jornada
+          <input type="text" name="work_schedule" value="<%= (contract && contract.work_schedule) || '' %>" data-contract-field="work_schedule" placeholder="Lunes a viernes de 08:00 a 17:00" />
+        </label>
+
+        <label>
+          Tipo de jornada
+          <input type="text" name="workday_type" value="<%= (contract && contract.workday_type) || '' %>" data-contract-field="workday_type" />
+        </label>
+        <label>
+          Salario
+          <input type="number" step="0.01" name="salary" value="<%= (contract && contract.salary) || '' %>" data-contract-field="salary" />
+        </label>
+        <label>
+          Bono
+          <input type="number" step="0.01" name="bonus_amount" value="<%= (contract && contract.bonus_amount) || '' %>" data-contract-field="bonus_amount" />
+        </label>
+
+        <label>
+          Lugar de trabajo
+          <input type="text" name="workplace" value="<%= (contract && contract.workplace) || '' %>" data-contract-field="workplace" />
+        </label>
+        <label>
+          Periodo de prueba
+          <input type="text" name="probation_period" value="<%= (contract && contract.probation_period) || '' %>" data-contract-field="probation_period" />
+        </label>
+
+        <label class="full-row">
+          Funciones principales
+          <textarea name="main_functions" rows="3" data-contract-field="main_functions"><%= (contract && contract.main_functions) || '' %></textarea>
+        </label>
+        <label class="full-row">
+          Cláusulas extra
+          <textarea name="extra_clauses" rows="3" data-contract-field="extra_clauses"><%= (contract && contract.extra_clauses) || '' %></textarea>
+        </label>
+        <label class="full-row">
+          Observaciones
+          <textarea name="observations" rows="2" data-contract-field="observations"><%= (contract && contract.observations) || '' %></textarea>
+        </label>
+
+        <section class="hr-contract-panel full-row">
+          <div class="panel-header">
+            <div>
+              <h2>Texto del contrato</h2>
+              <p class="muted">Puedes editar el texto antes de guardar la versión final.</p>
+            </div>
+          </div>
+          <textarea name="generated_contract_text" rows="18" data-contract-text><%= (contract && contract.generated_contract_text) || '' %></textarea>
+        </section>
+
+        <section class="hr-contract-panel full-row">
+          <div class="panel-header">
+            <div>
+              <h2>Vista previa</h2>
+              <p class="muted">Se actualiza automáticamente según el empleado y los campos del formulario.</p>
+            </div>
+          </div>
+          <div class="hr-contract-preview" data-contract-preview></div>
+        </section>
+
+        <div class="actions full-row">
+          <button type="submit" class="btn primary"><%= mode === 'edit' ? 'Guardar contrato' : 'Crear contrato' %></button>
+          <% if (mode === 'edit' && contract) { %>
+            <a class="btn" href="/rrhh/contracts/<%= contract.id %>/print" target="_blank" rel="noopener">Imprimir</a>
+          <% } %>
+          <a class="btn" href="/rrhh?tab=contracts">Cancelar</a>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <script id="hr-employees-json" type="application/json"><%- JSON.stringify(employees || []).replace(/</g, '\\u003c') %></script>
+</body>
+</html>

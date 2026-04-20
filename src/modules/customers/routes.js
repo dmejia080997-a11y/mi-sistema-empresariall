@@ -39,6 +39,7 @@
     getCustomerStatusById,
     setFlash,
     logAction,
+    formatSqliteError,
     requestSatLookup,
     SAT_PORTAL_URL,
     CUSTOMER_DOCUMENT_TYPES,
@@ -46,6 +47,47 @@
     PAYMENT_METHODS,
     COMMUNICATION_TYPES
   } = deps;
+  const formatCustomerSaveError = (res, err, fallbackKey) => {
+    if (!err) return res.locals.t(fallbackKey);
+    const rawMessage = normalizeString(err.message || err);
+    let detail = rawMessage;
+    const code = normalizeString(err.code).toUpperCase();
+    if (
+      typeof formatSqliteError === 'function' &&
+      (code.startsWith('SQLITE') || /sqlite|constraint|foreign key|unique|no such/i.test(rawMessage))
+    ) {
+      detail = formatSqliteError(err);
+    }
+    if (!detail) return res.locals.t(fallbackKey);
+    return res.locals.t('errors.customer_save_detail', { detail });
+  };
+  const auditCustomerSaveFailure = (req, action, context = {}) => {
+    if (typeof logAction !== 'function') return;
+    const userId = req.session && req.session.user ? req.session.user.id : null;
+    const companyId = getCompanyId(req);
+    const payload = {
+      stage: context.stage || 'unknown',
+      customer_id: context.customerId || null,
+      route: req.originalUrl || req.url || null,
+      error_code: normalizeString(context.errorCode),
+      error_message: normalizeString(context.errorMessage),
+      input: {
+        document_type: normalizeDocumentType(req.body.document_type),
+        document_number: normalizeString(req.body.document_number),
+        name: normalizeString(req.body.name),
+        first_name: normalizeString(req.body.first_name),
+        last_name: normalizeString(req.body.last_name),
+        phone: normalizeString(req.body.phone),
+        mobile: normalizeString(req.body.mobile),
+        email: normalizeString(req.body.email),
+        advisor: normalizeString(req.body.advisor),
+        payment_method: normalizeString(req.body.payment_method),
+        communication_type: normalizeString(req.body.communication_type),
+        portal_code: normalizeString(req.body.portal_code).toUpperCase()
+      }
+    };
+    logAction(userId, action, JSON.stringify(payload), companyId);
+  };
 app.get('/tracking', (req, res) => {
   const query = normalizeString(req.query.q);
   if (!query) {
@@ -787,7 +829,7 @@ app.post('/customers/import', requireAuth, requirePermission('customers', 'creat
            (customer_code, document_type, document_number, name, first_name, last_name, phone, mobile, email, address, full_address, house_number, street_number,
             zone, municipality, department, country, payment_method, communication_type, advisor, notes,
             sat_verified, sat_name, sat_checked_at, portal_code, portal_password_hash, portal_password_reset_required, company_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             customerCode || null,
             documentType,
@@ -855,7 +897,14 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
   const portalCodeInput = normalizeString(req.body.portal_code).toUpperCase();
   const portalPasswordInput = normalizeString(req.body.portal_password);
 
-  if (!name) return renderCustomers(req, res, res.locals.t('errors.customer_name_required'));
+  if (!name) {
+    auditCustomerSaveFailure(req, 'customer_create_failed', {
+      stage: 'validation',
+      errorCode: 'CUSTOMER_NAME_REQUIRED',
+      errorMessage: res.locals.t('errors.customer_name_required')
+    });
+    return renderCustomers(req, res, res.locals.t('errors.customer_name_required'));
+  }
 
   const satFields = resolveSatFields({
     documentType,
@@ -873,7 +922,7 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
        (customer_code, document_type, document_number, name, first_name, last_name, phone, mobile, email, address, full_address, house_number, street_number,
         zone, municipality, department, country, payment_method, communication_type, advisor, notes,
         sat_verified, sat_name, sat_checked_at, portal_code, portal_password_hash, portal_password_reset_required, company_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         customerCode || null,
         documentType,
@@ -905,7 +954,14 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
         companyId
       ],
       function (err) {
-        if (err) return renderCustomers(req, res, res.locals.t('errors.customer_create_failed'));
+        if (err) {
+          auditCustomerSaveFailure(req, 'customer_create_failed', {
+            stage: 'insert',
+            errorCode: err.code,
+            errorMessage: err.message
+          });
+          return renderCustomers(req, res, formatCustomerSaveError(res, err, 'errors.customer_create_failed'));
+        }
         setFlash(
           req,
           'info',
@@ -914,17 +970,21 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
             portal_password: portalPasswordPlain
           })
         );
-        const createdId = this && this.lastID ? this.lastID : null;
-        const shouldRoute = Boolean(fullAddress);
-        if (!createdId || !shouldRoute) return res.redirect('/customers');
-        return res.redirect(`/customers/${createdId}?route=1&provider=google`);
+        return res.redirect('/customers');
       }
     );
   };
 
   const createWithPortalCode = (portalCode) => {
     generateCustomerCode(companyId, 0, (codeErr, customerCode) => {
-      if (codeErr) return renderCustomers(req, res, res.locals.t('errors.customer_create_failed'));
+      if (codeErr) {
+        auditCustomerSaveFailure(req, 'customer_create_failed', {
+          stage: 'customer_code_generation',
+          errorCode: codeErr.code || codeErr.message,
+          errorMessage: codeErr.message || String(codeErr)
+        });
+        return renderCustomers(req, res, formatCustomerSaveError(res, codeErr, 'errors.customer_create_failed'));
+      }
       return insertCustomer(portalCode, customerCode);
     });
   };
@@ -934,7 +994,22 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
       'SELECT id FROM customers WHERE portal_code = ? AND company_id = ?',
       [portalCodeInput, companyId],
       (dupErr, dupRow) => {
-        if (dupErr || dupRow) return renderCustomers(req, res, res.locals.t('errors.customer_create_failed'));
+        if (dupErr) {
+          auditCustomerSaveFailure(req, 'customer_create_failed', {
+            stage: 'portal_code_lookup',
+            errorCode: dupErr.code,
+            errorMessage: dupErr.message
+          });
+          return renderCustomers(req, res, formatCustomerSaveError(res, dupErr, 'errors.customer_create_failed'));
+        }
+        if (dupRow) {
+          auditCustomerSaveFailure(req, 'customer_create_failed', {
+            stage: 'portal_code_duplicate',
+            errorCode: 'PORTAL_CODE_DUPLICATE',
+            errorMessage: res.locals.t('errors.customer_portal_code_duplicate')
+          });
+          return renderCustomers(req, res, res.locals.t('errors.customer_portal_code_duplicate'));
+        }
         return createWithPortalCode(portalCodeInput);
       }
     );
@@ -942,7 +1017,14 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
   }
 
   generatePortalCode(companyId, 0, (codeErr, portalCode) => {
-    if (codeErr) return renderCustomers(req, res, res.locals.t('errors.customer_create_failed'));
+    if (codeErr) {
+      auditCustomerSaveFailure(req, 'customer_create_failed', {
+        stage: 'portal_code_generation',
+        errorCode: codeErr.code || codeErr.message,
+        errorMessage: codeErr.message || String(codeErr)
+      });
+      return renderCustomers(req, res, formatCustomerSaveError(res, codeErr, 'errors.customer_create_failed'));
+    }
     return createWithPortalCode(portalCode);
   });
 });
@@ -1004,6 +1086,7 @@ app.post('/customers/:id/void', requireAuth, requirePermission('customers', 'voi
 app.post('/customers/:id/update', requireAuth, requirePermission('customers', 'edit'), (req, res) => {
   const companyId = getCompanyId(req);
   const id = Number(req.params.id);
+  const detailUrl = `/customers/${id}#editar`;
   if (!Number.isInteger(id) || id <= 0) return res.redirect('/customers');
 
   const documentType = normalizeDocumentType(req.body.document_type);
@@ -1032,7 +1115,16 @@ app.post('/customers/:id/update', requireAuth, requirePermission('customers', 'e
   const portalCodeInput = normalizeString(req.body.portal_code).toUpperCase();
   const portalPassword = normalizeString(req.body.portal_password);
 
-  if (!name) return res.redirect(`/customers/${id}`);
+  if (!name) {
+    auditCustomerSaveFailure(req, 'customer_update_failed', {
+      stage: 'validation',
+      customerId: id,
+      errorCode: 'CUSTOMER_NAME_REQUIRED',
+      errorMessage: res.locals.t('errors.customer_name_required')
+    });
+    setFlash(req, 'error', res.locals.t('errors.customer_name_required'));
+    return res.redirect(detailUrl);
+  }
 
   const satFields = resolveSatFields({
     documentType,
@@ -1045,7 +1137,16 @@ app.post('/customers/:id/update', requireAuth, requirePermission('customers', 'e
     'SELECT portal_password_hash, portal_password_reset_required FROM customers WHERE id = ? AND company_id = ?',
     [id, companyId],
     (pwErr, row) => {
-    if (pwErr || !row) return res.redirect(`/customers/${id}`);
+    if (pwErr || !row) {
+      auditCustomerSaveFailure(req, 'customer_update_failed', {
+        stage: 'load_existing',
+        customerId: id,
+        errorCode: pwErr && pwErr.code ? pwErr.code : 'CUSTOMER_NOT_FOUND',
+        errorMessage: pwErr && pwErr.message ? pwErr.message : 'Customer not found for update.'
+      });
+      setFlash(req, 'error', formatCustomerSaveError(res, pwErr, 'errors.customer_update_failed'));
+      return res.redirect(detailUrl);
+    }
     const portalPasswordHash = portalPassword ? bcrypt.hashSync(portalPassword, 10) : row.portal_password_hash;
     const portalResetRequired = portalPassword ? 1 : Number(row.portal_password_reset_required) || 0;
 
@@ -1086,7 +1187,19 @@ app.post('/customers/:id/update', requireAuth, requirePermission('customers', 'e
           id,
           companyId
         ],
-        () => res.redirect(`/customers/${id}`)
+        (err) => {
+          if (err) {
+            auditCustomerSaveFailure(req, 'customer_update_failed', {
+              stage: 'update',
+              customerId: id,
+              errorCode: err.code,
+              errorMessage: err.message
+            });
+            setFlash(req, 'error', formatCustomerSaveError(res, err, 'errors.customer_update_failed'));
+            return res.redirect(detailUrl);
+          }
+          return res.redirect(`/customers/${id}`);
+        }
       );
     };
 
@@ -1096,7 +1209,26 @@ app.post('/customers/:id/update', requireAuth, requirePermission('customers', 'e
       'SELECT id FROM customers WHERE portal_code = ? AND company_id = ? AND id != ?',
       [portalCodeInput, companyId, id],
       (dupErr, dupRow) => {
-        if (dupErr || dupRow) return res.redirect(`/customers/${id}`);
+        if (dupErr) {
+          auditCustomerSaveFailure(req, 'customer_update_failed', {
+            stage: 'portal_code_lookup',
+            customerId: id,
+            errorCode: dupErr.code,
+            errorMessage: dupErr.message
+          });
+          setFlash(req, 'error', formatCustomerSaveError(res, dupErr, 'errors.customer_update_failed'));
+          return res.redirect(detailUrl);
+        }
+        if (dupRow) {
+          auditCustomerSaveFailure(req, 'customer_update_failed', {
+            stage: 'portal_code_duplicate',
+            customerId: id,
+            errorCode: 'PORTAL_CODE_DUPLICATE',
+            errorMessage: res.locals.t('errors.customer_portal_code_duplicate')
+          });
+          setFlash(req, 'error', res.locals.t('errors.customer_portal_code_duplicate'));
+          return res.redirect(detailUrl);
+        }
         return updateCustomer(portalCodeInput);
       }
     );

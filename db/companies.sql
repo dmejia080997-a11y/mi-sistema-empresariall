@@ -11,6 +11,13 @@ CREATE TABLE IF NOT EXISTS companies (
   logo TEXT,
   primary_color TEXT,
   secondary_color TEXT,
+  theme_background_color TEXT,
+  theme_title_color TEXT,
+  theme_text_color TEXT,
+  theme_font_family TEXT,
+  theme_logo_size INTEGER,
+  theme_icon_size INTEGER,
   accounting_framework TEXT,
+  default_launcher TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

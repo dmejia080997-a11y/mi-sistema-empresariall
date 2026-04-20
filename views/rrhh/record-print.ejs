@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="page hr-print-page" onload="window.print()">
+  <main class="container hr-print-shell">
+    <section class="panel hr-print-panel">
+      <div class="panel-header">
+        <div>
+          <div class="eyebrow">RRHH</div>
+          <h1><%= title %></h1>
+          <% if (record.employee_name) { %>
+            <p class="muted"><%= record.employee_name %></p>
+          <% } %>
+        </div>
+      </div>
+
+      <% if (tab === 'warnings') { %>
+        <div class="hr-print-grid">
+          <div><strong>Fecha:</strong> <%= record.warning_date || '-' %></div>
+          <div><strong>Tipo:</strong> <%= record.warning_type || '-' %></div>
+          <div><strong>Estado:</strong> <%= record.status || '-' %></div>
+          <div><strong>Emitida por:</strong> <%= record.issued_by || '-' %></div>
+          <div class="full-row"><strong>Motivo:</strong> <%= record.reason || '-' %></div>
+          <div class="full-row"><strong>Descripción:</strong> <%= record.detailed_description || '-' %></div>
+          <div class="full-row"><strong>Acción correctiva:</strong> <%= record.corrective_action || '-' %></div>
+        </div>
+      <% } %>
+
+      <% if (tab === 'descriptions') { %>
+        <div class="hr-print-grid">
+          <div><strong>Puesto:</strong> <%= record.position_name || '-' %></div>
+          <div><strong>Departamento:</strong> <%= record.department || '-' %></div>
+          <div><strong>Jefe inmediato:</strong> <%= record.immediate_boss_title || '-' %></div>
+          <div><strong>Horario:</strong> <%= record.work_schedule || '-' %></div>
+          <div><strong>Salario sugerido:</strong> Q<%= Number(record.suggested_salary || 0).toFixed(2) %></div>
+          <div><strong>Estado:</strong> <%= record.status || '-' %></div>
+          <div class="full-row"><strong>Objetivo:</strong> <%= record.job_objective || '-' %></div>
+          <div class="full-row"><strong>Funciones principales:</strong> <%= record.main_functions || '-' %></div>
+          <div class="full-row"><strong>Funciones secundarias:</strong> <%= record.secondary_functions || '-' %></div>
+          <div class="full-row"><strong>Requisitos académicos:</strong> <%= record.academic_requirements || '-' %></div>
+          <div class="full-row"><strong>Experiencia:</strong> <%= record.required_experience || '-' %></div>
+          <div class="full-row"><strong>Habilidades:</strong> <%= record.skills || '-' %></div>
+          <div class="full-row"><strong>Competencias:</strong> <%= record.competencies || '-' %></div>
+          <div class="full-row"><strong>Notas:</strong> <%= record.notes || '-' %></div>
+        </div>
+      <% } %>
+
+      <% if (tab === 'permissions') { %>
+        <div class="hr-print-grid">
+          <div><strong>Tipo:</strong> <%= record.permission_type || '-' %></div>
+          <div><strong>Inicio:</strong> <%= record.start_date || '-' %></div>
+          <div><strong>Fin:</strong> <%= record.end_date || '-' %></div>
+          <div><strong>Días:</strong> <%= Number(record.total_days || 0).toFixed(2) %></div>
+          <div><strong>Con goce:</strong> <%= record.with_pay ? 'Sí' : 'No' %></div>
+          <div><strong>Aprobado por:</strong> <%= record.approved_by || '-' %></div>
+          <div><strong>Estado:</strong> <%= record.status || '-' %></div>
+          <div class="full-row"><strong>Motivo:</strong> <%= record.reason || '-' %></div>
+          <% if (record.attachment_path) { %>
+            <div class="full-row"><strong>Adjunto:</strong> <%= buildFileUrl(record.attachment_path || null) || '-' %></div>
+          <% } %>
+        </div>
+      <% } %>
+    </section>
+  </main>
+</body>
+</html>
