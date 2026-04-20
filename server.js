@@ -2356,19 +2356,222 @@ function rebuildCategoriesTable() {
   logMigrationEvent('warn', 'categories_table', 'Se bloqueo una reconstruccion destructiva de la tabla categories. La actualizacion segura no elimina ni recrea tablas en produccion.');
 }
 
+function countLegacyUserReferences(userId, callback) {
+  db.all(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != 'users' ORDER BY name",
+    (err, tables) => {
+      if (err || !tables || tables.length === 0) {
+        return callback(err || null, []);
+      }
+      let pending = tables.length;
+      const references = [];
+      const done = () => {
+        pending -= 1;
+        if (pending === 0) {
+          callback(null, references);
+        }
+      };
+
+      tables.forEach(({ name }) => {
+        db.all(`PRAGMA table_info(${name})`, (infoErr, columns) => {
+          if (infoErr || !columns || columns.length === 0) {
+            return done();
+          }
+          const candidateColumns = columns
+            .map((column) => column.name)
+            .filter((column) => ['user_id', 'created_by', 'changed_by'].includes(column));
+          if (candidateColumns.length === 0) {
+            return done();
+          }
+          const where = candidateColumns.map((column) => `${column} = ?`).join(' OR ');
+          const params = candidateColumns.map(() => userId);
+          db.get(`SELECT COUNT(*) AS total FROM ${name} WHERE ${where}`, params, (countErr, row) => {
+            if (!countErr && row && Number(row.total) > 0) {
+              references.push({ table: name, total: Number(row.total) });
+            }
+            done();
+          });
+        });
+      });
+    }
+  );
+}
+
+function resolveLegacyUsersOutsideActiveCompanies(companies, callback) {
+  db.all(
+    `SELECT u.id, u.username, u.password_hash, u.role, u.is_active, u.created_at, u.company_id
+     FROM users u
+     LEFT JOIN companies c ON c.id = u.company_id
+     WHERE u.company_id IS NULL OR c.id IS NULL
+     ORDER BY u.id ASC`,
+    (userErr, users) => {
+      if (userErr) return callback(userErr);
+      if (!users || users.length === 0) {
+        return callback(null, { assigned: [], orphaned: [], unresolved: [] });
+      }
+      db.all(
+        `SELECT u.company_id, u.username
+         FROM users u
+         JOIN companies c ON c.id = u.company_id`,
+        (scopedErr, scopedUsers) => {
+          if (scopedErr) return callback(scopedErr);
+          const usernamesByCompany = new Map();
+          (scopedUsers || []).forEach((row) => {
+            if (!row || row.company_id == null) return;
+            const normalized = String(row.username || '').trim().toLowerCase();
+            if (!normalized) return;
+            if (!usernamesByCompany.has(row.company_id)) {
+              usernamesByCompany.set(row.company_id, new Set());
+            }
+            usernamesByCompany.get(row.company_id).add(normalized);
+          });
+
+          const normalizedCompanies = (companies || []).map((company) => ({
+            ...company,
+            normalizedUsername: String(company.username || '').trim().toLowerCase()
+          }));
+          const assigned = [];
+          const orphaned = [];
+          const unresolved = [];
+
+          const processNext = (index) => {
+            if (index >= users.length) {
+              return callback(null, { assigned, orphaned, unresolved });
+            }
+            const user = users[index];
+            const normalizedUsername = String(user.username || '').trim().toLowerCase();
+            const existingMatch = (companyId) => {
+              const usernames = usernamesByCompany.get(companyId);
+              return usernames ? usernames.has(normalizedUsername) : false;
+            };
+
+            const candidateMatches = [];
+            const usernameMatches = normalizedCompanies.filter((company) => company.normalizedUsername === normalizedUsername);
+            if (usernameMatches.length === 1) {
+              candidateMatches.push({
+                companyId: usernameMatches[0].id,
+                reason: 'company_username'
+              });
+            }
+            if (user.role === 'admin' && user.password_hash) {
+              const passwordMatches = normalizedCompanies.filter(
+                (company) => company.password_hash && company.password_hash === user.password_hash
+              );
+              if (passwordMatches.length === 1) {
+                candidateMatches.push({
+                  companyId: passwordMatches[0].id,
+                  reason: 'company_password_hash'
+                });
+              }
+              const companiesMissingAdmin = normalizedCompanies.filter((company) => !existingMatch(company.id));
+              if (normalizedUsername === 'admin' && companiesMissingAdmin.length === 1) {
+                candidateMatches.push({
+                  companyId: companiesMissingAdmin[0].id,
+                  reason: 'missing_company_admin'
+                });
+              }
+            }
+
+            const uniqueCandidates = [...new Set(candidateMatches.map((match) => match.companyId))];
+            if (uniqueCandidates.length === 1 && !existingMatch(uniqueCandidates[0])) {
+              const companyId = uniqueCandidates[0];
+              const reason = candidateMatches.find((match) => match.companyId === companyId).reason;
+              return db.run(
+                'UPDATE users SET company_id = ?, is_active = 1 WHERE id = ?',
+                [companyId, user.id],
+                function (updateErr) {
+                  if (updateErr || this.changes === 0) {
+                    unresolved.push({
+                      id: user.id,
+                      username: user.username,
+                      reason: updateErr ? updateErr.message || String(updateErr) : 'no_changes'
+                    });
+                  } else {
+                    if (!usernamesByCompany.has(companyId)) {
+                      usernamesByCompany.set(companyId, new Set());
+                    }
+                    usernamesByCompany.get(companyId).add(normalizedUsername);
+                    assigned.push({
+                      id: user.id,
+                      username: user.username,
+                      companyId,
+                      reason
+                    });
+                  }
+                  processNext(index + 1);
+                }
+              );
+            }
+
+            return countLegacyUserReferences(user.id, (referenceErr, references) => {
+              if (!referenceErr && (!references || references.length === 0)) {
+                return db.run(
+                  'UPDATE users SET company_id = NULL, is_active = 0 WHERE id = ?',
+                  [user.id],
+                  (deactivateErr) => {
+                    if (deactivateErr) {
+                      unresolved.push({
+                        id: user.id,
+                        username: user.username,
+                        reason: deactivateErr.message || String(deactivateErr)
+                      });
+                    } else {
+                      orphaned.push({
+                        id: user.id,
+                        username: user.username
+                      });
+                    }
+                    processNext(index + 1);
+                  }
+                );
+              }
+              unresolved.push({
+                id: user.id,
+                username: user.username,
+                references: references || [],
+                reason: referenceErr ? referenceErr.message || String(referenceErr) : 'ambiguous'
+              });
+              processNext(index + 1);
+            });
+          };
+
+          processNext(0);
+        }
+      );
+    }
+  );
+}
+
 function backfillCompanyIdForExisting() {
-  db.all('SELECT id FROM companies ORDER BY id ASC', (err, rows) => {
+  db.all('SELECT id, username, password_hash FROM companies ORDER BY id ASC', (err, rows) => {
     if (err || !rows || rows.length === 0) return;
     const companyId = rows.length === 1 ? rows[0].id : null;
     const tables = ['users', 'items', 'categories', 'brands', 'customers', 'invoices', 'invoice_items', 'audit_logs', 'awbs'];
     if (!companyId) {
-      let pending = tables.length;
-      const unresolved = [];
-      tables.forEach((table) => {
-        db.get(`SELECT COUNT(*) AS total FROM ${table} WHERE company_id IS NULL`, (countErr, result) => {
-          if (!countErr && result && Number(result.total) > 0) {
-            unresolved.push({ table, total: Number(result.total) });
+      resolveLegacyUsersOutsideActiveCompanies(rows, (resolveErr, userResolution) => {
+        if (resolveErr) {
+          logMigrationEvent('warn', 'company_id_backfill', 'No se pudo evaluar users fuera de una empresa valida durante la migracion segura.', {
+            error: resolveErr.message || String(resolveErr)
+          });
+        } else {
+          if (userResolution.assigned.length > 0) {
+            logMigrationEvent('info', 'company_id_backfill', 'Se reasignaron usuarios heredados a una empresa usando reglas seguras.', {
+              users: userResolution.assigned
+            });
           }
+          if (userResolution.orphaned.length > 0) {
+            logMigrationEvent('warn', 'company_id_backfill', 'Se desactivaron usuarios heredados fuera de una empresa valida y sin referencias activas.', {
+              users: userResolution.orphaned
+            });
+          }
+        }
+
+        const userUnresolvedTotal =
+          userResolution && Array.isArray(userResolution.unresolved) ? userResolution.unresolved.length : null;
+        const tableChecks = tables.filter((table) => table !== 'users');
+        let pending = tableChecks.length + 1;
+        const unresolved = [];
+        const finalize = () => {
           pending -= 1;
           if (pending === 0 && unresolved.length > 0) {
             logMigrationEvent('warn', 'company_id_backfill', 'Se omitio el relleno automatico de company_id porque la base tiene varias empresas y existen filas ambiguas.', {
@@ -2376,6 +2579,34 @@ function backfillCompanyIdForExisting() {
               unresolved
             });
           }
+        };
+
+        if (typeof userUnresolvedTotal === 'number' && userUnresolvedTotal > 0) {
+          unresolved.push({ table: 'users', total: userUnresolvedTotal });
+        } else if (resolveErr) {
+          db.get(
+            `SELECT COUNT(*) AS total
+             FROM users u
+             LEFT JOIN companies c ON c.id = u.company_id
+             WHERE u.company_id IS NULL OR c.id IS NULL`,
+            (countErr, result) => {
+            if (!countErr && result && Number(result.total) > 0) {
+              unresolved.push({ table: 'users', total: Number(result.total) });
+            }
+            finalize();
+            }
+          );
+          return;
+        }
+        finalize();
+
+        tableChecks.forEach((table) => {
+          db.get(`SELECT COUNT(*) AS total FROM ${table} WHERE company_id IS NULL`, (countErr, result) => {
+            if (!countErr && result && Number(result.total) > 0) {
+              unresolved.push({ table, total: Number(result.total) });
+            }
+            finalize();
+          });
         });
       });
       return;
