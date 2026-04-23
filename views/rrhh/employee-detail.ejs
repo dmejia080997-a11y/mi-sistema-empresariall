@@ -4,25 +4,25 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= employee.full_name %></title>
-  <link rel="stylesheet" href="/styles.css" />
+  <%- include('../partials/head-assets') %>
 </head>
-<body class="page hr-page">
-  <header class="topbar">
-    <div class="brand">RRHH</div>
-    <nav class="nav">
-      <a href="/rrhh?tab=employees">Empleados</a>
-      <a href="/dashboard">Dashboard</a>
-      <a href="/logout"><%= t('nav.logout') %></a>
-    </nav>
-  </header>
+<body class="page hr-page app-module-page">
+  <%- include('../partials/header', {
+    headerBrandText: 'RRHH',
+    headerNavItems: [
+      { href: '/rrhh?tab=employees', label: 'Empleados' },
+      { href: '/dashboard', label: 'Dashboard' },
+      { href: '/logout', label: t('nav.logout') }
+    ]
+  }) %>
 
-  <main class="container hr-shell">
+  <main class="container hr-shell app-module app-module-shell">
     <section class="panel">
       <div class="panel-header">
         <div>
-          <div class="eyebrow">Ficha de empleado</div>
+          <div class="eyebrow app-page-eyebrow">Ficha de empleado</div>
           <h1><%= employee.full_name %></h1>
-          <p class="muted"><%= employee.position || 'Sin puesto asignado' %> · <%= employee.department || 'Sin departamento' %></p>
+          <p class="muted"><%= employee.position || 'Sin puesto asignado' %> - <%= employee.department || 'Sin departamento' %></p>
         </div>
         <div class="actions">
           <a class="btn" href="/rrhh/employees/<%= employee.id %>/edit">Editar</a>
@@ -30,85 +30,147 @@
         </div>
       </div>
 
-      <div class="hr-detail-grid">
+      <section class="hr-detail-summary">
+        <div class="hr-detail-profile">
+          <% if (employee.photo_url) { %>
+            <img src="<%= employee.photo_url %>" alt="<%= employee.full_name %>" class="hr-detail-photo" />
+          <% } else { %>
+            <div class="hr-avatar-placeholder hr-avatar-placeholder--large"><%= (employee.first_name || '?').charAt(0) %></div>
+          <% } %>
+          <div>
+            <span class="status-badge <%= employee.is_active ? 'status-delivered' : 'status-default' %>"><%= employee.is_active ? 'Activo' : 'Inactivo' %></span>
+            <div class="helper">Codigo: <%= employee.employee_code || '-' %></div>
+            <div class="helper">Ingreso: <%= employee.hire_date || '-' %></div>
+            <div class="helper">Jefe inmediato: <%= employee.immediate_boss_name || 'No asignado' %></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="hr-detail-grid hr-detail-sections">
         <section class="hr-detail-card">
-          <div class="hr-detail-profile">
-            <% if (employee.photo_url) { %>
-              <img src="<%= employee.photo_url %>" alt="<%= employee.full_name %>" class="hr-detail-photo" />
-            <% } else { %>
-              <div class="hr-avatar-placeholder hr-avatar-placeholder--large"><%= employee.first_name.charAt(0) %></div>
-            <% } %>
+          <div class="hr-section-card__header">
+            <span class="hr-section-number">01</span>
             <div>
-              <span class="status-badge <%= employee.is_active ? 'status-delivered' : 'status-default' %>"><%= employee.is_active ? 'Activo' : 'Inactivo' %></span>
-              <div class="helper">Código: <%= employee.employee_code || '-' %></div>
-              <div class="helper">Ingreso: <%= employee.hire_date || '-' %></div>
-              <div class="helper">Jefe inmediato: <%= employee.immediate_boss_name || 'No asignado' %></div>
+              <h2>Datos personales</h2>
+              <p class="muted">Identificacion y contacto.</p>
             </div>
           </div>
-        </section>
-
-        <section class="hr-detail-card">
-          <h2>Datos personales</h2>
-          <div class="hr-detail-list">
+          <div class="hr-detail-list hr-detail-list--grid">
+            <div><strong>Nombres:</strong> <%= employee.first_name || '-' %></div>
+            <div><strong>Apellidos:</strong> <%= employee.last_name || '-' %></div>
             <div><strong>DPI:</strong> <%= employee.dpi_number || '-' %></div>
-            <div><strong>Emitido en:</strong> <%= employee.dpi_issued_at || '-' %></div>
+            <div><strong>Lugar de emision:</strong> <%= employee.dpi_issued_at || '-' %></div>
             <div><strong>Estado civil:</strong> <%= employee.marital_status || '-' %></div>
             <div><strong>Apellido de casada:</strong> <%= employee.married_last_name || '-' %></div>
-            <div><strong>Género:</strong> <%= employee.gender || '-' %></div>
+            <div><strong>Genero:</strong> <%= employee.gender || '-' %></div>
             <div><strong>Nacimiento:</strong> <%= employee.birth_date || '-' %></div>
-            <div><strong>Teléfono:</strong> <%= employee.phone || '-' %></div>
+            <div><strong>Telefono:</strong> <%= employee.phone || '-' %></div>
             <div><strong>Correo:</strong> <%= employee.email || '-' %></div>
-            <div><strong>Dirección:</strong> <%= employee.address || '-' %></div>
-            <div><strong>Educación:</strong> <%= employee.education_level || '-' %></div>
-            <div><strong>Etnia:</strong> <%= employee.ethnicity || '-' %></div>
-            <div><strong>Idiomas:</strong> <%= employee.languages || '-' %></div>
+            <div class="full-row"><strong>Direccion:</strong> <%= employee.address || '-' %></div>
           </div>
         </section>
 
         <section class="hr-detail-card">
-          <h2>Datos laborales</h2>
-          <div class="hr-detail-list">
+          <div class="hr-section-card__header">
+            <span class="hr-section-number">02</span>
+            <div>
+              <h2>Datos laborales</h2>
+              <p class="muted">Puesto, jerarquia y estado contractual.</p>
+            </div>
+          </div>
+          <div class="hr-detail-list hr-detail-list--grid">
             <div><strong>Puesto:</strong> <%= employee.position || '-' %></div>
             <div><strong>Departamento:</strong> <%= employee.department || '-' %></div>
-            <div><strong>Estado:</strong> <%= employee.employment_status || '-' %></div>
-            <div><strong>Contrato:</strong> <%= employee.contract_type || '-' %></div>
-            <div><strong>Planilla:</strong> <%= employee.payroll_calculation_type || '-' %></div>
-            <div><strong>Salario base:</strong> Q<%= Number(employee.salary_base || 0).toFixed(2) %></div>
-            <div><strong>Bono:</strong> Q<%= Number(employee.bonus_amount || 0).toFixed(2) %></div>
-            <div><strong>Descripción asignada:</strong> <%= employee.description_position_name || '-' %></div>
+            <div><strong>Jefe inmediato:</strong> <%= employee.immediate_boss_name || '-' %></div>
+            <div><strong>Codigo:</strong> <%= employee.employee_code || '-' %></div>
+            <div><strong>Fecha de ingreso:</strong> <%= employee.hire_date || '-' %></div>
+            <div><strong>Tipo de contrato:</strong> <%= employee.contract_type || '-' %></div>
+            <div><strong>Estado laboral:</strong> <%= employee.employment_status || '-' %></div>
+            <div><strong>Descripcion asignada:</strong> <%= employee.description_position_name || '-' %></div>
+            <div class="full-row"><strong>Observaciones laborales:</strong> <%= employee.labor_observations || '-' %></div>
           </div>
         </section>
 
         <section class="hr-detail-card">
-          <h2>Datos bancarios</h2>
-          <div class="hr-detail-list">
-            <div><strong>Cuenta:</strong> <%= employee.bank_account_number || '-' %></div>
-            <div><strong>Tipo:</strong> <%= employee.bank_account_type || '-' %></div>
-            <div><strong>Banco:</strong> <%= employee.bank_name || '-' %></div>
-            <div><strong>Solicitud:</strong> <% if (employee.job_application_url) { %><a href="<%= employee.job_application_url %>" target="_blank" rel="noopener">Abrir</a><% } else { %>-<% } %></div>
+          <div class="hr-section-card__header">
+            <span class="hr-section-number">03</span>
+            <div>
+              <h2>Educacion</h2>
+              <p class="muted">Formacion y competencias registradas.</p>
+            </div>
+          </div>
+          <div class="hr-detail-list hr-detail-list--grid">
+            <div><strong>Escolaridad:</strong> <%= employee.education_level || '-' %></div>
+            <div><strong>Etnia:</strong> <%= employee.ethnicity || '-' %></div>
+            <div><strong>Idiomas:</strong> <%= employee.languages || '-' %></div>
+            <div><strong>Profesion:</strong> <%= employee.profession || '-' %></div>
+            <div class="full-row"><strong>Cursos o certificaciones:</strong> <%= employee.courses_certifications || '-' %></div>
           </div>
         </section>
-      </div>
-    </section>
 
-    <section class="panel">
-      <div class="panel-header">
-        <h2>Adjuntos</h2>
-      </div>
-      <div class="table">
-        <div class="table-row header hr-generic">
-          <div>Tipo</div>
-          <div>Documento</div>
-          <div>Fecha</div>
-        </div>
-        <% if (!attachments.length) { %><div class="table-row empty">No hay adjuntos registrados.</div><% } %>
-        <% attachments.forEach((attachment) => { %>
-          <div class="table-row hr-generic">
-            <div><%= attachment.attachment_label %></div>
-            <div><a class="btn" href="<%= attachment.file_url %>" target="_blank" rel="noopener">Abrir</a></div>
-            <div><%= attachment.created_at || '-' %></div>
+        <section class="hr-detail-card">
+          <div class="hr-section-card__header">
+            <span class="hr-section-number">04</span>
+            <div>
+              <h2>Bancos y salarios</h2>
+              <p class="muted">Remuneracion y datos de pago.</p>
+            </div>
           </div>
-        <% }) %>
+          <div class="hr-detail-list hr-detail-list--grid">
+            <div><strong>Salario base:</strong> Q<%= Number(employee.salary_base || 0).toFixed(2) %></div>
+            <div><strong>Bono incentivo:</strong> Q<%= Number(employee.bonus_amount || 0).toFixed(2) %></div>
+            <div><strong>Otros bonos:</strong> Q<%= Number(employee.extra_bonus || 0).toFixed(2) %></div>
+            <div><strong>Tipo de calculo:</strong> <%= employee.payroll_calculation_type || '-' %></div>
+            <div><strong>Metodo de pago:</strong> <%= employee.payment_method || '-' %></div>
+            <div><strong>Banco:</strong> <%= employee.bank_name || '-' %></div>
+            <div><strong>Tipo de cuenta:</strong> <%= employee.bank_account_type || '-' %></div>
+            <div><strong>Numero de cuenta:</strong> <%= employee.bank_account_number || '-' %></div>
+          </div>
+        </section>
+
+        <section class="hr-detail-card">
+          <div class="hr-section-card__header">
+            <span class="hr-section-number">05</span>
+            <div>
+              <h2>Documentos</h2>
+              <p class="muted">Adjuntos principales de la ficha.</p>
+            </div>
+          </div>
+          <div class="hr-detail-list">
+            <div><strong>Solicitud de empleo:</strong> <% if (employee.job_application_url) { %><a href="<%= employee.job_application_url %>" target="_blank" rel="noopener">Abrir</a><% } else { %>-<% } %></div>
+          </div>
+          <div class="table hr-documents-table">
+            <div class="table-row header hr-generic">
+              <div>Tipo</div>
+              <div>Documento</div>
+              <div>Fecha</div>
+            </div>
+            <% if (!attachments.length) { %><div class="table-row empty">No hay adjuntos registrados.</div><% } %>
+            <% attachments.forEach((attachment) => { %>
+              <div class="table-row hr-generic">
+                <div><%= attachment.attachment_label %></div>
+                <div><a class="btn small" href="<%= attachment.file_url %>" target="_blank" rel="noopener">Abrir</a></div>
+                <div><%= attachment.created_at || '-' %></div>
+              </div>
+            <% }) %>
+          </div>
+        </section>
+
+        <section class="hr-detail-card">
+          <div class="hr-section-card__header">
+            <span class="hr-section-number">06</span>
+            <div>
+              <h2>Informacion adicional</h2>
+              <p class="muted">Emergencias, observaciones y notas internas.</p>
+            </div>
+          </div>
+          <div class="hr-detail-list hr-detail-list--grid">
+            <div><strong>Contacto de emergencia:</strong> <%= employee.emergency_contact_name || '-' %></div>
+            <div><strong>Telefono de emergencia:</strong> <%= employee.emergency_contact_phone || '-' %></div>
+            <div class="full-row"><strong>Observaciones generales:</strong> <%= employee.general_observations || '-' %></div>
+            <div class="full-row"><strong>Notas internas:</strong> <%= employee.notes || '-' %></div>
+          </div>
+        </section>
       </div>
     </section>
 
@@ -121,7 +183,7 @@
           <% contracts.forEach((row) => { %>
             <div class="hr-history-item">
               <strong><%= row.contract_type || '-' %></strong>
-              <div class="helper"><%= row.start_date || '-' %> · <%= row.status || '-' %></div>
+              <div class="helper"><%= row.start_date || '-' %> - <%= row.status || '-' %></div>
             </div>
           <% }) %>
         </article>
@@ -131,7 +193,7 @@
           <% salaries.forEach((row) => { %>
             <div class="hr-history-item">
               <strong>Q<%= Number(row.salary_base || 0).toFixed(2) %></strong>
-              <div class="helper"><%= row.effective_date || '-' %> · <%= row.status || '-' %></div>
+              <div class="helper"><%= row.effective_date || '-' %> - <%= row.status || '-' %></div>
             </div>
           <% }) %>
         </article>
@@ -140,8 +202,8 @@
           <% if (!warnings.length) { %><div class="helper">Sin registros</div><% } %>
           <% warnings.forEach((row) => { %>
             <div class="hr-history-item">
-              <strong><%= row.warning_type || 'Llamada de atención' %></strong>
-              <div class="helper"><%= row.warning_date || '-' %> · <%= row.status || '-' %></div>
+              <strong><%= row.warning_type || 'Llamada de atencion' %></strong>
+              <div class="helper"><%= row.warning_date || '-' %> - <%= row.status || '-' %></div>
             </div>
           <% }) %>
         </article>
@@ -161,7 +223,7 @@
           <% vacations.forEach((row) => { %>
             <div class="hr-history-item">
               <strong><%= row.vacation_period || '-' %></strong>
-              <div class="helper"><%= row.vacation_start || '-' %> · saldo <%= Number(row.available_days || 0).toFixed(2) %></div>
+              <div class="helper"><%= row.vacation_start || '-' %> - saldo <%= Number(row.available_days || 0).toFixed(2) %></div>
             </div>
           <% }) %>
         </article>

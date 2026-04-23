@@ -54,46 +54,44 @@ const activePagination =
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RRHH</title>
-  <link rel="stylesheet" href="/styles.css" />
+  <%- include('../partials/head-assets') %>
   <script src="/js/rrhh.js" defer></script>
 </head>
-<body class="page hr-page">
-  <header class="topbar">
-    <div class="brand">RRHH</div>
-    <nav class="nav">
-      <a href="/dashboard">Dashboard</a>
-      <a href="/logout"><%= t('nav.logout') %></a>
-    </nav>
-  </header>
+<body class="page hr-page app-module-page">
+  <%- include('../partials/header', {
+    headerBrandText: 'RRHH',
+    headerNavItems: [
+      { href: '/dashboard', label: 'Dashboard' },
+      { href: '/logout', label: t('nav.logout') }
+    ]
+  }) %>
 
-  <main class="container hr-shell">
-    <% if (flash) { %>
-      <div class="alert <%= flash.type || 'info' %>"><%= flash.message %></div>
-    <% } %>
+  <main class="container hr-shell app-module app-module-shell">
+    <%- include('../partials/toasts') %>
 
-    <section class="hr-hero">
+    <section class="hr-hero app-module-hero app-page-header">
       <div>
-        <div class="eyebrow">Talento humano</div>
+        <div class="eyebrow app-page-eyebrow">Talento humano</div>
         <h1>Módulo RRHH</h1>
         <p class="muted">Gestión multiempresa de empleados, contratos, salarios, asistencia, permisos y vacaciones.</p>
       </div>
       <div class="hr-summary-grid">
-        <article class="hr-summary-card">
+        <article class="hr-summary-card app-card app-metric-card">
           <span class="muted">Empleados</span>
           <strong><%= summary.employeeTotal %></strong>
           <span class="helper"><%= summary.activeEmployeeTotal %> activos</span>
         </article>
-        <article class="hr-summary-card">
+        <article class="hr-summary-card app-card app-metric-card">
           <span class="muted">Contratos</span>
           <strong><%= summary.contractTotal %></strong>
           <span class="helper"><%= summary.activeContractTotal %> vigentes</span>
         </article>
-        <article class="hr-summary-card">
+        <article class="hr-summary-card app-card app-metric-card">
           <span class="muted">Asistencias</span>
           <strong><%= summary.attendanceTotal %></strong>
           <span class="helper"><%= summary.lateAttendanceTotal %> tardanzas</span>
         </article>
-        <article class="hr-summary-card">
+        <article class="hr-summary-card app-card app-metric-card">
           <span class="muted">Vacaciones</span>
           <strong><%= summary.vacationTotal %></strong>
           <span class="helper"><%= summary.approvedVacationTotal %> aprobadas</span>
@@ -101,7 +99,7 @@ const activePagination =
       </div>
     </section>
 
-    <nav class="module-nav hr-tabs">
+    <nav class="module-nav hr-tabs app-toolbar app-module-tabs">
       <% hrTabs.forEach((tab) => { %>
         <a href="<%= tabUrl(tab.key, { page: 1, editId: null }) %>" class="<%= activeTab === tab.key ? 'active' : '' %>"><%= tab.label %></a>
       <% }) %>

@@ -4,17 +4,16 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Balance de comprobación</title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
 <body class="page">
-<header class="topbar">
-<div class="brand"><%= t('common.brand') %></div>
-<nav class="nav">
-<a href="/dashboard">Dashboard</a>
-<a href="/accounting/reports">Reportes</a>
-<a href="/logout"><%= t('nav.logout') %></a>
-</nav>
-</header>
+<%- include('partials/header', {
+  headerNavItems: [
+    { href: '/dashboard', label: 'Dashboard' },
+    { href: '/accounting/reports', label: 'Reportes' },
+    { href: '/logout', label: t('nav.logout') }
+  ]
+}) %>
 <main class="container">
 <h1>Balance de comprobación</h1>
 <nav class="subnav">

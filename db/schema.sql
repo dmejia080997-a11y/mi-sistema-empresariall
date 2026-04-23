@@ -4,7 +4,6 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'employee',
   company_id INTEGER NULL,
-  launcher_type TEXT NULL,
   is_active INTEGER NOT NULL DEFAULT 1,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -379,19 +378,58 @@ CREATE TABLE IF NOT EXISTS package_sender_settings (
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS launcher_notes (
+CREATE TABLE IF NOT EXISTS user_workspace_settings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  external_id TEXT NOT NULL UNIQUE,
-  user_id INTEGER NOT NULL,
   company_id INTEGER NOT NULL,
-  text TEXT NULL,
-  color TEXT NULL,
-  position INTEGER NOT NULL DEFAULT 0,
+  user_id INTEGER NOT NULL,
+  dock_enabled INTEGER NOT NULL DEFAULT 1,
+  dock_position TEXT NOT NULL DEFAULT 'left',
+  dock_mode TEXT NOT NULL DEFAULT 'auto-hide',
+  dock_auto_hide INTEGER NOT NULL DEFAULT 1,
+  dock_size INTEGER NULL,
+  show_labels INTEGER NOT NULL DEFAULT 1,
+  theme_color TEXT NULL,
+  accent_color TEXT NULL,
+  background_color TEXT NULL,
+  dock_color TEXT NULL,
+  icon_style TEXT NULL,
+  icon_size INTEGER NULL,
+  use_glass_effect INTEGER NOT NULL DEFAULT 1,
+  layout_mode TEXT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, company_id),
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (company_id) REFERENCES companies(id)
 );
+
+CREATE TABLE IF NOT EXISTS user_workspace_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  item_type TEXT NOT NULL,
+  module_key TEXT NULL,
+  folder_name TEXT NULL,
+  icon_name TEXT NULL,
+  color TEXT NULL,
+  pos_x REAL NULL,
+  pos_y REAL NULL,
+  sort_order INTEGER NULL,
+  parent_folder_id INTEGER NULL,
+  is_visible INTEGER NOT NULL DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (company_id) REFERENCES companies(id),
+  FOREIGN KEY (parent_folder_id) REFERENCES user_workspace_items(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_workspace_settings_user ON user_workspace_settings (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_workspace_settings_company ON user_workspace_settings (company_id);
+CREATE INDEX IF NOT EXISTS idx_user_workspace_items_user ON user_workspace_items (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_workspace_items_company ON user_workspace_items (company_id);
+CREATE INDEX IF NOT EXISTS idx_user_workspace_items_parent ON user_workspace_items (parent_folder_id);
+CREATE INDEX IF NOT EXISTS idx_user_workspace_items_module ON user_workspace_items (company_id, user_id, module_key);
 
 -- Contabilidad NIF
 CREATE TABLE IF NOT EXISTS accounts (
@@ -563,6 +601,8 @@ CREATE TABLE IF NOT EXISTS hr_employees (
   education_level TEXT,
   ethnicity TEXT,
   languages TEXT,
+  profession TEXT,
+  courses_certifications TEXT,
   position TEXT,
   department TEXT,
   immediate_boss_id INTEGER,
@@ -570,14 +610,20 @@ CREATE TABLE IF NOT EXISTS hr_employees (
   hire_date TEXT,
   employment_status TEXT NOT NULL DEFAULT 'Activo',
   contract_type TEXT,
+  labor_observations TEXT,
   salary_base REAL DEFAULT 0,
   bonus_amount REAL DEFAULT 0,
+  extra_bonus REAL DEFAULT 0,
   payroll_calculation_type TEXT,
+  payment_method TEXT,
   bank_account_number TEXT,
   bank_account_type TEXT,
   bank_name TEXT,
   photo_path TEXT,
   job_application_path TEXT,
+  emergency_contact_name TEXT,
+  emergency_contact_phone TEXT,
+  general_observations TEXT,
   notes TEXT,
   job_description_id INTEGER,
   is_active INTEGER NOT NULL DEFAULT 1,

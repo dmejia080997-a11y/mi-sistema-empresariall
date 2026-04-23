@@ -6,57 +6,30 @@
 <title>
 <%= t('users.title') %>
 </title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
 <body class="page">
-<header class="topbar">
-<div class="brand">
-<%= t('common.brand') %>
-</div>
-<nav class="nav">
-<a href="/dashboard">
-<%= t('nav.dashboard') %>
-</a>
-<a href="/logout">
-<%= t('nav.logout') %>
-</a>
-</nav>
-</header>
-<main class="container users-module">
-<div class="page-header">
-<div>
-<div class="eyebrow">
-<%= t('users.eyebrow') %>
-</div>
-<h1>
-<%= t('users.title') %>
-</h1>
-<p class="muted">
-<%= t('users.subtitle') %>
-</p>
-</div>
-<div class="actions">
-<a class="btn primary" href="#nuevo-usuario">
-<%= t('users.new_user') %>
-</a>
-<a class="btn" href="#lista-usuarios">
+<%- include('partials/header') %>
+<main class="container users-module app-module">
+<%- include('partials/page-shell', {
+  pageEyebrow: t('users.eyebrow'),
+  pageTitle: t('users.title'),
+  pageSubtitle: t('users.subtitle'),
+  pageActions: `<a class="btn primary app-btn app-btn-primary" href="#nuevo-usuario">${t('users.new_user')}</a><a class="btn app-btn" href="#lista-usuarios">${t('users.view_list')}</a>`
+}) %>
+<nav class="actions users-nav app-toolbar">
+<a class="btn app-btn" data-users-tab href="#lista-usuarios">
 <%= t('users.view_list') %>
 </a>
-</div>
-</div>
-<nav class="actions users-nav">
-<a class="btn" data-users-tab href="#lista-usuarios">
-<%= t('users.view_list') %>
-</a>
-<a class="btn" data-users-tab href="#nuevo-usuario">
+<a class="btn app-btn" data-users-tab href="#nuevo-usuario">
 <%= t('users.new_user') %>
 </a>
-<a class="btn" data-users-tab href="#permisos">
+<a class="btn app-btn" data-users-tab href="#permisos">
 <%= t('users.permissions_title') %>
 </a>
 </nav>
 <% if (error) { %>
-<div class="alert error">
+<div class="alert app-message app-message-error error">
 <%= error %>
 </div>
 <% } %>
@@ -75,7 +48,7 @@
 <%= t('users.created_subtitle') %>
 </p>
 </div>
-<button type="button" class="btn small" data-close-modal>?</button>
+<button type="button" class="btn small app-btn app-btn-small" data-close-modal>?</button>
 </div>
 <div class="access-block">
 <h3>
@@ -112,19 +85,19 @@
 </div>
 </div>
 <div class="actions">
-<button type="button" class="btn" data-copy-access>
+<button type="button" class="btn app-btn" data-copy-access>
 <%= t('users.copy_access') %>
 </button>
-<button type="button" class="btn" data-copy-username>
+<button type="button" class="btn app-btn" data-copy-username>
 <%= t('users.copy_username') %>
 </button>
-<button type="button" class="btn" data-copy-password>
+<button type="button" class="btn app-btn" data-copy-password>
 <%= t('users.copy_password') %>
 </button>
-<button type="button" class="btn" data-close-modal>
+<button type="button" class="btn app-btn" data-close-modal>
 <%= t('users.back_to_list') %>
 </button>
-<a class="btn primary" href="#nuevo-usuario" data-close-modal>
+<a class="btn primary app-btn app-btn-primary" href="#nuevo-usuario" data-close-modal>
 <%= t('users.create_another') %>
 </a>
 </div>
@@ -132,8 +105,8 @@
 </div>
 <% } %>
 <div class="users-tabs-content">
-<section class="panel card-elevated users-section" id="nuevo-usuario" data-users-view>
-<div class="panel-header">
+<section class="panel app-panel card-elevated users-section" id="nuevo-usuario" data-users-view>
+<div class="panel-header app-panel-header">
 <div>
 <h2>
 <%= t('users.create_user') %>
@@ -142,11 +115,11 @@
 <%= t('users.create_desc') %>
 </p>
 </div>
-<span class="pill">
+<span class="pill app-chip">
 <%= t('users.required_fields') %>
 </span>
 </div>
-<form method="POST" action="/users/create" class="form grid-2">
+<form method="POST" action="/users/create" class="form grid-2 app-form-grid">
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 <label>
 <%= t('users.username') %>
@@ -180,7 +153,7 @@
 <%= t('users.active') %>
 <div class="toggle-row">
 <input type="checkbox" name="is_active" checked />
-<span class="badge status active">
+<span class="badge app-badge status active">
 <%= t('users.status_active') %>
 </span>
 </div>
@@ -188,7 +161,7 @@
 <%= t('users.state_helper') %>
 </span>
 </label>
-<div class="form-section" style="grid-column: 1 / -1;">
+<div class="form-section full-row">
 <div class="section-title">
 <%= t('users.permissions') %>
 </div>
@@ -196,7 +169,7 @@
 <%= t('users.permissions_note') %>
 </div>
 </div>
-<div class="permission-grid" style="grid-column: 1 / -1;">
+<div class="permission-grid full-row">
 <% if (modules && modules.length) { %>
 <% modules.forEach(m => { %>
 <div class="permission-card">
@@ -225,17 +198,17 @@
 <% } %>
 </div>
 <div class="actions full-row">
-<button type="submit" class="btn primary">
+<button type="submit" class="btn primary app-btn app-btn-primary">
 <%= t('users.create_user_button') %>
 </button>
-<button type="reset" class="btn">
+<button type="reset" class="btn app-btn">
 <%= t('common.cancel') %>
 </button>
 </div>
 </form>
 </section>
-<section class="panel card-elevated users-section" id="lista-usuarios" data-users-view>
-<div class="panel-header">
+<section class="panel app-panel card-elevated users-section" id="lista-usuarios" data-users-view>
+<div class="panel-header app-panel-header">
 <div>
 <h2>
 <%= t('users.list') %>
@@ -244,12 +217,12 @@
 <%= t('users.list_desc') %>
 </p>
 </div>
-<span class="pill">
+<span class="pill app-chip">
 <%= users.length %>
 <%= t('users.total_users') %>
 </span>
 </div>
-<div class="table users-table">
+<div class="table users-table app-table-wrap">
 <div class="table-row header users">
 <div>
 <%= t('users.table.username') %>
@@ -297,7 +270,7 @@
 </option>
 </select>
 <div class="inline-meta">
-<span class="badge role <%= u.role === 'admin' ? 'admin' : 'employee' %>">
+<span class="badge app-badge role <%= u.role === 'admin' ? 'admin' : 'employee' %>">
 <%= u.role === 'admin' ? t('users.admin') : t('users.employee') %>
 </span>
 </div>
@@ -313,7 +286,7 @@
 </span>
 </label>
 <div class="inline-meta">
-<span class="badge status <%= u.is_active ? 'active' : 'inactive' %>">
+<span class="badge app-badge status <%= u.is_active ? 'active' : 'inactive' %>">
 <%= u.is_active ? t('users.status_active') : t('users.status_inactive') %>
 </span>
 </div>
@@ -331,13 +304,13 @@
 <input type="text" value="<%= new Date(u.created_at).toLocaleString() %>" disabled />
 </div>
 <div class="actions">
-<button type="submit" class="btn primary small">
+<button type="submit" class="btn primary small app-btn app-btn-primary app-btn-small">
 <%= t('common.save') %>
 </button>
-<a class="btn small" href="#permisos-<%= u.id %>">
+<a class="btn small app-btn app-btn-small" href="#permisos-<%= u.id %>">
 <%= t('users.permissions_short') %>
 </a>
-<button type="submit" class="btn danger small" formaction="/users/<%= u.id %>/delete" formmethod="POST">
+<button type="submit" class="btn danger small app-btn app-btn-danger app-btn-small" formaction="/users/<%= u.id %>/delete" formmethod="POST">
 <%= t('common.delete') %>
 </button>
 </div>
@@ -345,8 +318,8 @@
 <% }) %>
 </div>
 </section>
-<section class="panel card-elevated users-section" id="permisos" data-users-view>
-<div class="panel-header">
+<section class="panel app-panel card-elevated users-section" id="permisos" data-users-view>
+<div class="panel-header app-panel-header">
 <div>
 <h2>
 <%= t('users.permissions_title') %>
@@ -370,10 +343,10 @@
 <%= u.username %>
 </h3>
 <div class="inline-meta">
-<span class="badge role <%= u.role === 'admin' ? 'admin' : 'employee' %>">
+<span class="badge app-badge role <%= u.role === 'admin' ? 'admin' : 'employee' %>">
 <%= u.role === 'admin' ? t('users.admin') : t('users.employee') %>
 </span>
-<span class="badge status <%= u.is_active ? 'active' : 'inactive' %>">
+<span class="badge app-badge status <%= u.is_active ? 'active' : 'inactive' %>">
 <%= u.is_active ? t('users.status_active') : t('users.status_inactive') %>
 </span>
 </div>
@@ -385,7 +358,7 @@
 </div>
 </div>
 <% if (u.role === 'admin') { %>
-<div class="alert info">
+<div class="alert app-message app-message-info info">
 <%= t('users.admin_permissions_locked') %>
 </div>
 <% } else { %>
@@ -416,7 +389,7 @@
 <% }) %>
 </div>
 <div class="actions full-row">
-<button type="submit" class="btn primary">
+<button type="submit" class="btn primary app-btn app-btn-primary">
 <%= t('common.save') %>
 </button>
 </div>

@@ -4,16 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Catálogo de cuentas</title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
 <body class="page">
-<header class="topbar">
-<div class="brand"><%= t('common.brand') %></div>
-<nav class="nav">
-<a href="/dashboard">Dashboard</a>
-<a href="/logout"><%= t('nav.logout') %></a>
-</nav>
-</header>
+<%- include('partials/header') %>
 <main class="container">
 <h1>Catálogo de cuentas</h1>
 <nav class="subnav">
@@ -25,9 +19,7 @@
 <a href="/accounting/settings">Configuración</a>
 </nav>
 
-<% if (flash) { %>
-<div class="alert <%= flash.type %>"><%= flash.message %></div>
-<% } %>
+<%- include('partials/toasts') %>
 
 <section class="panel">
 <div class="panel-header">

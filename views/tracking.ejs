@@ -6,24 +6,15 @@
 <title>
 <%= t('tracking.title') %>
 </title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
 <body class="page" style="<% if (companyBrand) { %>--accent:<%= companyBrand.primary_color || '#d97757' %>; --accent-2:<%= companyBrand.secondary_color || '#3d7b6f' %>;<% } %>">
-<header class="topbar">
-<div class="brand tracking-brand">
-<% if (companyBrand && companyBrand.logo) { %>
-<img src="<%= companyBrand.logo %>" alt="Logo" class="brand-logo" />
-<% } %>
-<span>
-<%= companyBrand && companyBrand.name ? companyBrand.name : t('common.brand') %>
-</span>
-</div>
-<nav class="nav">
-<a href="/login">
-<%= t('tracking.admin_login') %>
-</a>
-</nav>
-</header>
+<%- include('partials/header', {
+  homeHref: false,
+  headerNavItems: [
+    { href: '/login', label: t('tracking.admin_login') }
+  ]
+}) %>
 <main class="container">
 <section class="panel tracking-hero">
 <h1>

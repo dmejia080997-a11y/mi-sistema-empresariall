@@ -88,6 +88,34 @@
     };
     logAction(userId, action, JSON.stringify(payload), companyId);
   };
+  const buildModuleRedirectUrl = (basePath, query = {}, keys = []) => {
+    const params = new URLSearchParams();
+    keys.forEach((key) => {
+      const value = normalizeString(query[key]);
+      if (value) params.set(key, value);
+    });
+    const search = params.toString();
+    return search ? `${basePath}?${search}` : basePath;
+  };
+  const buildCustomersModuleUrl = (path, query = {}) => buildModuleRedirectUrl(path, query, [
+    'name',
+    'document_number',
+    'customer_code',
+    'advisor',
+    'payment_method',
+    'communication_type',
+    'pkg_consignatario',
+    'pkg_status',
+    'pkg_action',
+    'pkg_code'
+  ]);
+  const buildConsignatariosModuleUrl = (path, query = {}) => buildModuleRedirectUrl(path, query, [
+    'name',
+    'document_number',
+    'customer_id',
+    'sort',
+    'dir'
+  ]);
 app.get('/tracking', (req, res) => {
   const query = normalizeString(req.query.q);
   if (!query) {
@@ -452,7 +480,21 @@ app.post('/customers/:id/consignatarios/create', requireAuth, requirePermission(
 });
 
 app.get('/consignatarios', requireAuth, requirePermission('consignatarios', 'view'), (req, res) => {
-  renderConsignatarios(req, res, null);
+  const hasAdvancedFilters = normalizeString(req.query.document_number) || normalizeString(req.query.customer_id);
+  const target = hasAdvancedFilters ? '/consignatarios/filters' : '/consignatarios/list';
+  return res.redirect(buildConsignatariosModuleUrl(target, req.query));
+});
+
+app.get('/consignatarios/list', requireAuth, requirePermission('consignatarios', 'view'), (req, res) => {
+  renderConsignatarios(req, res, null, { activeTab: 'list' });
+});
+
+app.get('/consignatarios/filters', requireAuth, requirePermission('consignatarios', 'view'), (req, res) => {
+  renderConsignatarios(req, res, null, { activeTab: 'filters' });
+});
+
+app.get('/consignatarios/manage', requireAuth, requirePermission('consignatarios', 'view'), (req, res) => {
+  renderConsignatarios(req, res, null, { activeTab: 'manage' });
 });
 
 app.get('/consignatarios/export', requireAuth, requirePermission('consignatarios', 'export'), (req, res) => {
@@ -521,20 +563,20 @@ app.post('/consignatarios/create', requireAuth, requirePermission('consignatario
   const companyId = getCompanyId(req);
   const customerId = Number(req.body.customer_id || 0);
   if (!Number.isInteger(customerId) || customerId <= 0) {
-    return renderConsignatarios(req, res, res.locals.t('errors.consignatario_customer_required'));
+    return renderConsignatarios(req, res, res.locals.t('errors.consignatario_customer_required'), { activeTab: 'manage' });
   }
 
   const payload = parseConsignatarioPayload(req);
   if (!payload.name) {
-    return renderConsignatarios(req, res, res.locals.t('errors.consignatario_name_required'));
+    return renderConsignatarios(req, res, res.locals.t('errors.consignatario_name_required'), { activeTab: 'manage' });
   }
 
   getCustomerStatusById(customerId, companyId, (custErr, status) => {
     if (custErr || !status || !status.ok) {
       if (status && status.reason === 'voided') {
-        return renderConsignatarios(req, res, res.locals.t('errors.customer_voided_not_allowed'));
+        return renderConsignatarios(req, res, res.locals.t('errors.customer_voided_not_allowed'), { activeTab: 'manage' });
       }
-      return renderConsignatarios(req, res, res.locals.t('errors.consignatario_customer_required'));
+      return renderConsignatarios(req, res, res.locals.t('errors.consignatario_customer_required'), { activeTab: 'manage' });
     }
     db.run(
       `INSERT INTO consignatarios
@@ -561,8 +603,8 @@ app.post('/consignatarios/create', requireAuth, requirePermission('consignatario
         payload.satFields.sat_checked_at
       ],
       (err) => {
-        if (err) return renderConsignatarios(req, res, res.locals.t('errors.consignatario_create_failed'));
-        return res.redirect(`/consignatarios?customer_id=${status.id}`);
+        if (err) return renderConsignatarios(req, res, res.locals.t('errors.consignatario_create_failed'), { activeTab: 'manage' });
+        return res.redirect(`/consignatarios/filters?customer_id=${status.id}`);
       }
     );
   });
@@ -635,7 +677,33 @@ app.post('/consignatarios/:id/update', requireAuth, requirePermission('consignat
   );
 });
 app.get('/customers', requireAuth, requirePermission('customers', 'view'), (req, res) => {
-  renderCustomers(req, res, null);
+  const hasPackageFilters =
+    normalizeString(req.query.pkg_consignatario) ||
+    normalizeString(req.query.pkg_status) ||
+    normalizeString(req.query.pkg_action) ||
+    normalizeString(req.query.pkg_code);
+  const target = hasPackageFilters ? '/customers/packages' : '/customers/list';
+  return res.redirect(buildCustomersModuleUrl(target, req.query));
+});
+
+app.get('/customers/list', requireAuth, requirePermission('customers', 'view'), (req, res) => {
+  renderCustomers(req, res, null, { activeTab: 'list' });
+});
+
+app.get('/customers/import', requireAuth, requirePermission('customers', 'view'), (req, res) => {
+  renderCustomers(req, res, null, { activeTab: 'import' });
+});
+
+app.get('/customers/create', requireAuth, requirePermission('customers', 'view'), (req, res) => {
+  renderCustomers(req, res, null, { activeTab: 'create' });
+});
+
+app.get('/customers/packages', requireAuth, requirePermission('customers', 'view'), (req, res) => {
+  renderCustomers(req, res, null, { activeTab: 'packages' });
+});
+
+app.get('/customers/voided', requireAuth, requirePermission('customers', 'view'), (req, res) => {
+  renderCustomers(req, res, null, { activeTab: 'voided' });
 });
 
 function normalizeImportHeader(value) {
@@ -774,20 +842,20 @@ app.get('/customers/export', requireAuth, requirePermission('customers', 'view')
 
 app.post('/customers/import', requireAuth, requirePermission('customers', 'create'), upload.single('file'), csrfMiddleware, (req, res) => {
   const companyId = getCompanyId(req);
-  if (!req.file) return renderCustomers(req, res, res.locals.t('errors.import_file_required'));
+  if (!req.file) return renderCustomers(req, res, res.locals.t('errors.import_file_required'), { activeTab: 'import' });
 
   let records;
   try {
     records = parseCustomersImportFile(req.file);
   } catch (err) {
-    return renderCustomers(req, res, res.locals.t('errors.invalid_import_file'));
+    return renderCustomers(req, res, res.locals.t('errors.invalid_import_file'), { activeTab: 'import' });
   }
 
-  if (!records) return renderCustomers(req, res, res.locals.t('errors.invalid_import_file'));
-  if (!records || records.length === 0) return renderCustomers(req, res, res.locals.t('errors.import_empty'));
+  if (!records) return renderCustomers(req, res, res.locals.t('errors.invalid_import_file'), { activeTab: 'import' });
+  if (!records || records.length === 0) return renderCustomers(req, res, res.locals.t('errors.import_empty'), { activeTab: 'import' });
 
   const next = (index) => {
-    if (index >= records.length) return res.redirect('/customers');
+    if (index >= records.length) return res.redirect('/customers/import');
     const rawRow = records[index] || {};
     const row = mapImportRow(rawRow);
 
@@ -903,7 +971,7 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
       errorCode: 'CUSTOMER_NAME_REQUIRED',
       errorMessage: res.locals.t('errors.customer_name_required')
     });
-    return renderCustomers(req, res, res.locals.t('errors.customer_name_required'));
+    return renderCustomers(req, res, res.locals.t('errors.customer_name_required'), { activeTab: 'create' });
   }
 
   const satFields = resolveSatFields({
@@ -960,7 +1028,7 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
             errorCode: err.code,
             errorMessage: err.message
           });
-          return renderCustomers(req, res, formatCustomerSaveError(res, err, 'errors.customer_create_failed'));
+          return renderCustomers(req, res, formatCustomerSaveError(res, err, 'errors.customer_create_failed'), { activeTab: 'create' });
         }
         setFlash(
           req,
@@ -970,7 +1038,7 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
             portal_password: portalPasswordPlain
           })
         );
-        return res.redirect('/customers');
+        return res.redirect('/customers/list');
       }
     );
   };
@@ -983,7 +1051,7 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
           errorCode: codeErr.code || codeErr.message,
           errorMessage: codeErr.message || String(codeErr)
         });
-        return renderCustomers(req, res, formatCustomerSaveError(res, codeErr, 'errors.customer_create_failed'));
+        return renderCustomers(req, res, formatCustomerSaveError(res, codeErr, 'errors.customer_create_failed'), { activeTab: 'create' });
       }
       return insertCustomer(portalCode, customerCode);
     });
@@ -1000,7 +1068,7 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
             errorCode: dupErr.code,
             errorMessage: dupErr.message
           });
-          return renderCustomers(req, res, formatCustomerSaveError(res, dupErr, 'errors.customer_create_failed'));
+          return renderCustomers(req, res, formatCustomerSaveError(res, dupErr, 'errors.customer_create_failed'), { activeTab: 'create' });
         }
         if (dupRow) {
           auditCustomerSaveFailure(req, 'customer_create_failed', {
@@ -1008,7 +1076,7 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
             errorCode: 'PORTAL_CODE_DUPLICATE',
             errorMessage: res.locals.t('errors.customer_portal_code_duplicate')
           });
-          return renderCustomers(req, res, res.locals.t('errors.customer_portal_code_duplicate'));
+          return renderCustomers(req, res, res.locals.t('errors.customer_portal_code_duplicate'), { activeTab: 'create' });
         }
         return createWithPortalCode(portalCodeInput);
       }
@@ -1023,7 +1091,7 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
         errorCode: codeErr.code || codeErr.message,
         errorMessage: codeErr.message || String(codeErr)
       });
-      return renderCustomers(req, res, formatCustomerSaveError(res, codeErr, 'errors.customer_create_failed'));
+      return renderCustomers(req, res, formatCustomerSaveError(res, codeErr, 'errors.customer_create_failed'), { activeTab: 'create' });
     }
     return createWithPortalCode(portalCode);
   });
@@ -1072,13 +1140,13 @@ app.post('/customers/:id/void', requireAuth, requirePermission('customers', 'voi
      WHERE id = ? AND company_id = ? AND is_voided = 0`,
     [userId || null, id, companyId],
     function (err) {
-      if (err) return renderCustomers(req, res, res.locals.t('errors.customer_void_failed'));
+      if (err) return renderCustomers(req, res, res.locals.t('errors.customer_void_failed'), { activeTab: 'voided' });
       if (this.changes > 0) {
         logAction(userId, 'customer_void', `customer:${id}`, companyId);
         setFlash(req, 'info', res.locals.t('customers.void_success'));
       }
       const canViewVoided = res.locals.can ? res.locals.can('customers', 'view_voided') : false;
-      return res.redirect(canViewVoided ? '/customers#clientes-anulados' : '/customers');
+      return res.redirect(canViewVoided ? '/customers/voided' : '/customers/list');
     }
   );
 });

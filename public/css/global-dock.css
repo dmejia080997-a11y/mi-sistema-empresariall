@@ -1,0 +1,665 @@
+.global-dock-shell {
+  --global-dock-theme: var(--color-primary);
+  --global-dock-accent: var(--color-secondary);
+  --global-dock-bg: var(--color-background);
+  --global-dock-color: var(--color-text);
+  --global-dock-icon-size: 66px;
+  --global-dock-depth: calc(var(--global-dock-icon-size) + 70px);
+  --global-dock-compact-depth: calc(var(--global-dock-icon-size) + 34px);
+  position: fixed;
+  z-index: 9998;
+  color: var(--color-text);
+  font-family: var(--page-font);
+  pointer-events: none;
+  transition: width var(--transition-medium), height var(--transition-medium), transform var(--transition-medium);
+}
+
+.app-global-dock-mount {
+  position: relative;
+  z-index: 9997;
+}
+
+.global-dock-shell.is-left {
+  top: 92px;
+  bottom: 24px;
+  left: 0;
+  width: calc(var(--global-dock-depth) + 44px);
+}
+
+.global-dock-shell.is-right {
+  top: 92px;
+  right: 0;
+  bottom: 24px;
+  width: calc(var(--global-dock-depth) + 44px);
+}
+
+.global-dock-shell.is-top,
+.global-dock-shell.is-bottom {
+  right: 18px;
+  left: 18px;
+  height: calc(var(--global-dock-depth) + 36px);
+}
+
+.global-dock-shell.is-top {
+  top: 0;
+}
+
+.global-dock-shell.is-bottom {
+  bottom: 0;
+}
+
+.global-dock-shell.is-center-top,
+.global-dock-shell.is-center-bottom {
+  left: 50%;
+  width: min(920px, calc(100vw - 36px));
+  height: calc(var(--global-dock-depth) + 36px);
+  transform: translateX(-50%);
+}
+
+.global-dock-shell.is-center-top {
+  top: 0;
+}
+
+.global-dock-shell.is-center-bottom {
+  bottom: 0;
+}
+
+.global-dock-shell.is-mode-auto-hide.is-left,
+.global-dock-shell.is-mode-auto-hide.is-right {
+  width: 42px;
+}
+
+.global-dock-shell.is-mode-auto-hide.is-top,
+.global-dock-shell.is-mode-auto-hide.is-bottom,
+.global-dock-shell.is-mode-auto-hide.is-center-top,
+.global-dock-shell.is-mode-auto-hide.is-center-bottom {
+  height: 42px;
+}
+
+.global-dock-shell.is-mode-auto-hide.is-revealed.is-left,
+.global-dock-shell.is-mode-auto-hide.is-revealed.is-right {
+  width: calc(var(--global-dock-depth) + 44px);
+}
+
+.global-dock-shell.is-mode-auto-hide.is-revealed.is-top,
+.global-dock-shell.is-mode-auto-hide.is-revealed.is-bottom,
+.global-dock-shell.is-mode-auto-hide.is-revealed.is-center-top,
+.global-dock-shell.is-mode-auto-hide.is-revealed.is-center-bottom {
+  height: calc(var(--global-dock-depth) + 36px);
+}
+
+.global-dock-shell.is-mode-expandable.is-left,
+.global-dock-shell.is-mode-expandable.is-right {
+  width: calc(var(--global-dock-compact-depth) + 34px);
+}
+
+.global-dock-shell.is-mode-expandable.is-expanded.is-left,
+.global-dock-shell.is-mode-expandable.is-expanded.is-right {
+  width: calc(var(--global-dock-depth) + 44px);
+}
+
+.global-dock-hotspot {
+  position: absolute;
+  z-index: 2;
+  border: 0;
+  background: transparent;
+  cursor: default;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.global-dock-hotspot::before {
+  content: "";
+  position: absolute;
+  display: block;
+  opacity: 0;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.global-dock-shell.is-mode-fixed .global-dock-hotspot {
+  display: none;
+}
+
+.global-dock-shell.is-left .global-dock-hotspot {
+  inset: 0 auto 0 0;
+  width: 42px;
+}
+
+.global-dock-shell.is-right .global-dock-hotspot {
+  inset: 0 0 0 auto;
+  width: 42px;
+}
+
+.global-dock-shell.is-top .global-dock-hotspot,
+.global-dock-shell.is-bottom .global-dock-hotspot {
+  right: 0;
+  left: 0;
+  height: 42px;
+}
+
+.global-dock-shell.is-top .global-dock-hotspot {
+  top: 0;
+}
+
+.global-dock-shell.is-bottom .global-dock-hotspot {
+  bottom: 0;
+}
+
+.global-dock-shell.is-center-top .global-dock-hotspot,
+.global-dock-shell.is-center-bottom .global-dock-hotspot {
+  left: 50%;
+  width: min(420px, 74vw);
+  height: 42px;
+  transform: translateX(-50%);
+}
+
+.global-dock-shell.is-center-top .global-dock-hotspot {
+  top: 0;
+}
+
+.global-dock-shell.is-center-bottom .global-dock-hotspot {
+  bottom: 0;
+}
+
+.global-dock-hotspot:focus-visible {
+  outline: 2px solid var(--focus-color);
+  outline-offset: -5px;
+}
+
+.global-dock {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  gap: 12px;
+  padding: 16px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-2xl);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(246, 249, 252, 0.5)),
+    color-mix(in srgb, var(--global-dock-bg) 34%, rgba(255, 255, 255, 0.62));
+  box-shadow:
+    var(--shadow-dock),
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.28);
+  opacity: 1;
+  pointer-events: auto;
+  backdrop-filter: blur(26px) saturate(160%);
+  transition: transform var(--transition-medium), opacity var(--transition-medium), width var(--transition-medium), height var(--transition-medium);
+}
+
+.global-dock::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), transparent 58%);
+}
+
+.global-dock-shell.is-dark .global-dock {
+  border-color: rgba(226, 232, 240, 0.18);
+  background:
+    linear-gradient(145deg, rgba(30, 41, 59, 0.74), rgba(15, 23, 42, 0.56)),
+    color-mix(in srgb, var(--global-dock-color) 68%, rgba(15, 23, 42, 0.7));
+  box-shadow:
+    0 34px 76px rgba(2, 6, 23, 0.52),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.global-dock-shell:not(.is-glass) .global-dock {
+  backdrop-filter: none;
+}
+
+.global-dock-shell.is-left .global-dock,
+.global-dock-shell.is-right .global-dock {
+  top: 0;
+  bottom: 0;
+  width: var(--global-dock-depth);
+  flex-direction: column;
+  align-items: center;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.global-dock-shell.is-left .global-dock {
+  left: 12px;
+}
+
+.global-dock-shell.is-right .global-dock {
+  right: 12px;
+}
+
+.global-dock-shell.is-top .global-dock,
+.global-dock-shell.is-bottom .global-dock {
+  right: 0;
+  left: 0;
+  height: var(--global-dock-depth);
+  flex-direction: row;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.global-dock-shell.is-top .global-dock {
+  top: 12px;
+}
+
+.global-dock-shell.is-bottom .global-dock {
+  bottom: 12px;
+}
+
+.global-dock-shell.is-center-top .global-dock,
+.global-dock-shell.is-center-bottom .global-dock {
+  left: 50%;
+  width: max-content;
+  max-width: 100%;
+  height: var(--global-dock-depth);
+  flex-direction: row;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  transform: translateX(-50%);
+}
+
+.global-dock-shell.is-center-top .global-dock {
+  top: 12px;
+}
+
+.global-dock-shell.is-center-bottom .global-dock {
+  bottom: 12px;
+}
+
+.global-dock-shell.is-mode-auto-hide .global-dock {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.global-dock-shell.is-mode-auto-hide.is-left .global-dock {
+  transform: translateX(calc(-100% - 14px));
+}
+
+.global-dock-shell.is-mode-auto-hide.is-right .global-dock {
+  transform: translateX(calc(100% + 14px));
+}
+
+.global-dock-shell.is-mode-auto-hide.is-top .global-dock,
+.global-dock-shell.is-mode-auto-hide.is-center-top .global-dock {
+  transform: translateY(calc(-100% - 14px));
+}
+
+.global-dock-shell.is-mode-auto-hide.is-bottom .global-dock,
+.global-dock-shell.is-mode-auto-hide.is-center-bottom .global-dock {
+  transform: translateY(calc(100% + 14px));
+}
+
+.global-dock-shell.is-mode-auto-hide.is-center-top .global-dock,
+.global-dock-shell.is-mode-auto-hide.is-center-bottom .global-dock {
+  transform: translate(-50%, calc(-100% - 14px));
+}
+
+.global-dock-shell.is-mode-auto-hide.is-center-bottom .global-dock {
+  transform: translate(-50%, calc(100% + 14px));
+}
+
+.global-dock-shell.is-mode-auto-hide.is-revealed .global-dock {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(0, 0);
+}
+
+.global-dock-shell.is-mode-auto-hide.is-revealed.is-center-top .global-dock,
+.global-dock-shell.is-mode-auto-hide.is-revealed.is-center-bottom .global-dock {
+  transform: translateX(-50%);
+}
+
+.global-dock-shell.is-mode-expandable:not(.is-expanded).is-left .global-dock,
+.global-dock-shell.is-mode-expandable:not(.is-expanded).is-right .global-dock {
+  width: var(--global-dock-compact-depth);
+}
+
+.global-dock-shell.is-mode-expandable:not(.is-expanded).is-top,
+.global-dock-shell.is-mode-expandable:not(.is-expanded).is-bottom,
+.global-dock-shell.is-mode-expandable:not(.is-expanded).is-center-top,
+.global-dock-shell.is-mode-expandable:not(.is-expanded).is-center-bottom {
+  height: calc(var(--global-dock-compact-depth) + 32px);
+}
+
+.global-dock-shell.is-mode-expandable:not(.is-expanded).is-top .global-dock,
+.global-dock-shell.is-mode-expandable:not(.is-expanded).is-bottom .global-dock,
+.global-dock-shell.is-mode-expandable:not(.is-expanded).is-center-top .global-dock,
+.global-dock-shell.is-mode-expandable:not(.is-expanded).is-center-bottom .global-dock {
+  height: var(--global-dock-compact-depth);
+}
+
+.global-dock__slot {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+}
+
+.global-dock__separator {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 1px;
+  min-height: 34px;
+  margin: 4px 10px;
+  background: linear-gradient(180deg, transparent, rgba(15, 23, 42, 0.16), transparent);
+}
+
+.global-dock-shell.is-dark .global-dock__separator {
+  background: linear-gradient(180deg, transparent, rgba(226, 232, 240, 0.2), transparent);
+}
+
+.global-dock-shell.is-left .global-dock__separator,
+.global-dock-shell.is-right .global-dock__separator {
+  width: 46%;
+  height: 1px;
+  min-height: 1px;
+  align-self: center;
+  background: linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.16), transparent);
+}
+
+.global-dock-app {
+  width: calc(var(--global-dock-icon-size) + 28px);
+  min-height: calc(var(--global-dock-icon-size) + 42px);
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 9px;
+  padding: 8px 6px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xl);
+  color: var(--color-text);
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.24);
+  touch-action: manipulation;
+  transition: transform var(--transition-base), background var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.global-dock-shell.is-dark .global-dock-app {
+  background: rgba(15, 23, 42, 0.22);
+}
+
+.global-dock-app:hover,
+.global-dock-app:focus-visible,
+.global-dock-app.is-active {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--item-color) 28%, rgba(255, 255, 255, 0.72));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.3)),
+    color-mix(in srgb, var(--item-color) 12%, transparent);
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.14);
+}
+
+.global-dock-shell.is-dark .global-dock-app:hover,
+.global-dock-shell.is-dark .global-dock-app:focus-visible,
+.global-dock-shell.is-dark .global-dock-app.is-active {
+  background:
+    linear-gradient(180deg, rgba(51, 65, 85, 0.56), rgba(15, 23, 42, 0.34)),
+    color-mix(in srgb, var(--item-color) 16%, transparent);
+  box-shadow: 0 18px 34px rgba(2, 6, 23, 0.28);
+}
+
+.global-dock-app__icon {
+  width: var(--global-dock-icon-size);
+  height: var(--global-dock-icon-size);
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: var(--radius-xl);
+  color: var(--item-color);
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.58)),
+    color-mix(in srgb, var(--item-color) 12%, #ffffff);
+  box-shadow:
+    0 18px 30px rgba(15, 23, 42, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -10px 20px color-mix(in srgb, var(--item-color) 8%, transparent);
+  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
+}
+
+.global-dock-shell.is-dark .global-dock-app__icon {
+  border-color: rgba(226, 232, 240, 0.18);
+  background:
+    linear-gradient(160deg, rgba(51, 65, 85, 0.92), rgba(15, 23, 42, 0.72)),
+    color-mix(in srgb, var(--item-color) 16%, #0f172a);
+}
+
+.global-dock-app:hover .global-dock-app__icon,
+.global-dock-app:focus-visible .global-dock-app__icon,
+.global-dock-app.is-active .global-dock-app__icon {
+  transform: translateY(-4px) scale(1.03);
+  border-color: color-mix(in srgb, var(--item-color) 38%, #ffffff);
+}
+
+.global-dock-shell.is-style-solid .global-dock-app__icon {
+  color: #ffffff;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--item-color) 88%, #ffffff), color-mix(in srgb, var(--item-color) 92%, #172033));
+}
+
+.global-dock-shell.is-style-outline .global-dock-app__icon {
+  background: rgba(255, 255, 255, 0.36);
+  border-color: color-mix(in srgb, var(--item-color) 64%, rgba(255, 255, 255, 0.7));
+}
+
+.global-dock-app__icon svg {
+  width: calc(var(--global-dock-icon-size) * 0.52);
+  height: calc(var(--global-dock-icon-size) * 0.52);
+}
+
+.global-dock-app__name {
+  max-width: calc(var(--global-dock-icon-size) + 18px);
+  color: color-mix(in srgb, var(--global-dock-color) 82%, #ffffff);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-heavy);
+  line-height: 1.14;
+  text-align: center;
+  overflow-wrap: anywhere;
+  opacity: 1;
+  transition: opacity var(--transition-base), max-height var(--transition-base);
+}
+
+.global-dock-shell.is-dark .global-dock-app__name {
+  color: #edf2f7;
+}
+
+.global-dock-shell.is-labels-hidden .global-dock-app,
+.global-dock-shell.is-mode-expandable:not(.is-expanded) .global-dock-app {
+  min-height: calc(var(--global-dock-icon-size) + 18px);
+}
+
+.global-dock-shell.is-labels-hidden .global-dock-app__name,
+.global-dock-shell.is-mode-expandable:not(.is-expanded) .global-dock-app__name {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.global-dock-empty {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  padding: 18px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-heavy);
+  text-align: center;
+}
+
+.global-dock-shell.is-dark .global-dock-empty {
+  color: #cbd5e1;
+}
+
+@media (max-width: 760px) {
+  .global-dock-shell {
+    --global-dock-icon-size: 56px;
+    right: 10px;
+    left: 10px;
+    width: auto;
+  }
+
+  .global-dock-shell.is-top,
+  .global-dock-shell.is-bottom,
+  .global-dock-shell.is-center-top,
+  .global-dock-shell.is-center-bottom {
+    right: 10px;
+    left: 10px;
+    width: auto;
+    height: calc(var(--global-dock-depth) + 24px);
+    transform: none;
+  }
+
+  .global-dock-shell.is-top {
+    top: 0;
+    bottom: auto;
+  }
+
+  .global-dock-shell.is-bottom {
+    top: auto;
+    bottom: 0;
+  }
+
+  .global-dock-shell.is-mode-auto-hide.is-top,
+  .global-dock-shell.is-mode-auto-hide.is-bottom {
+    height: calc(48px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .global-dock-shell.is-mode-auto-hide.is-revealed.is-top,
+  .global-dock-shell.is-mode-auto-hide.is-revealed.is-bottom {
+    height: calc(var(--global-dock-depth) + 24px);
+  }
+
+  .global-dock-shell.is-top .global-dock,
+  .global-dock-shell.is-bottom .global-dock {
+    right: 0;
+    left: 0;
+    height: var(--global-dock-depth);
+    border-radius: 24px;
+  }
+
+  .global-dock-shell.is-bottom .global-dock {
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .global-dock-shell.is-bottom .global-dock-hotspot {
+    bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .global-dock-hotspot {
+    min-height: 48px;
+  }
+
+  .global-dock-hotspot::before {
+    left: 50%;
+    width: 54px;
+    height: 5px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--global-dock-accent) 58%, rgba(15, 23, 42, 0.36));
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+    opacity: 0.72;
+    transform: translateX(-50%);
+  }
+
+  .global-dock-shell.is-top .global-dock-hotspot::before {
+    top: 12px;
+  }
+
+  .global-dock-shell.is-bottom .global-dock-hotspot::before {
+    bottom: 12px;
+  }
+
+  .global-dock-shell.is-revealed .global-dock-hotspot::before,
+  .global-dock-shell.is-expanded .global-dock-hotspot::before {
+    opacity: 0;
+  }
+
+  .global-dock {
+    gap: 8px;
+    padding: 10px;
+    max-width: 100%;
+    scroll-snap-type: x proximity;
+  }
+
+  .global-dock-app {
+    width: calc(var(--global-dock-icon-size) + 14px);
+    min-height: calc(var(--global-dock-icon-size) + 30px);
+    border-radius: 20px;
+    scroll-snap-align: start;
+  }
+
+  .global-dock-app__icon {
+    border-radius: 18px;
+  }
+
+  .global-dock-app__name {
+    font-size: 0.62rem;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .global-dock-hotspot {
+    cursor: pointer;
+  }
+
+  .global-dock-hotspot::before {
+    opacity: 0.72;
+  }
+
+  .global-dock-shell.is-left .global-dock-hotspot::before,
+  .global-dock-shell.is-right .global-dock-hotspot::before {
+    top: 50%;
+    width: 5px;
+    height: 54px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--global-dock-accent) 58%, rgba(15, 23, 42, 0.36));
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+    transform: translateY(-50%);
+  }
+
+  .global-dock-shell.is-left .global-dock-hotspot::before {
+    left: 12px;
+  }
+
+  .global-dock-shell.is-right .global-dock-hotspot::before {
+    right: 12px;
+  }
+
+  .global-dock-shell.is-top .global-dock-hotspot::before,
+  .global-dock-shell.is-bottom .global-dock-hotspot::before,
+  .global-dock-shell.is-center-top .global-dock-hotspot::before,
+  .global-dock-shell.is-center-bottom .global-dock-hotspot::before {
+    left: 50%;
+    width: 54px;
+    height: 5px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--global-dock-accent) 58%, rgba(15, 23, 42, 0.36));
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+    transform: translateX(-50%);
+  }
+
+  .global-dock-shell.is-top .global-dock-hotspot::before,
+  .global-dock-shell.is-center-top .global-dock-hotspot::before {
+    top: 12px;
+  }
+
+  .global-dock-shell.is-bottom .global-dock-hotspot::before,
+  .global-dock-shell.is-center-bottom .global-dock-hotspot::before {
+    bottom: 12px;
+  }
+
+  .global-dock-shell.is-revealed .global-dock-hotspot::before,
+  .global-dock-shell.is-expanded .global-dock-hotspot::before {
+    opacity: 0;
+  }
+}
+
+@media print {
+  .global-dock-shell,
+  [data-global-dock-mount] {
+    display: none !important;
+  }
+}

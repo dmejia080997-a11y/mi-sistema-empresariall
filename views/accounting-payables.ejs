@@ -4,16 +4,15 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Cuentas por pagar</title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
 <body class="page">
-<header class="topbar">
-<div class="brand"><%= t('common.brand') %></div>
-<nav class="nav">
-<a href="/accounting/settings">Configuración contable</a>
-<a href="/logout"><%= t('nav.logout') %></a>
-</nav>
-</header>
+<%- include('partials/header', {
+  headerNavItems: [
+    { href: '/accounting/settings', label: 'Configuraci?n contable' },
+    { href: '/logout', label: t('nav.logout') }
+  ]
+}) %>
 <main class="container">
 <h1>Cuentas por pagar</h1>
 <section class="panel">

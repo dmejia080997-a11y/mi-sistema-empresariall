@@ -6,14 +6,13 @@
 <title>
 <%= t('packages.pending_invoice.upload_title') %>
 </title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
 <body class="page">
-<header class="topbar">
-<div class="brand">
-<%= t('common.brand') %>
-</div>
-</header>
+<%- include('partials/header', {
+  homeHref: false,
+  showDefaultNav: false
+}) %>
 <main class="container access-card">
 <div class="access-block">
 <h2>

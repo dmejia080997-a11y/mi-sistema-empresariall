@@ -20,31 +20,72 @@
         <% } %>
       </div>
 
+      <h2>Datos personales</h2>
       <div class="hr-print-grid">
-        <div><strong>Código:</strong> <%= employee.employee_code || '-' %></div>
+        <div><strong>Nombres:</strong> <%= employee.first_name || '-' %></div>
+        <div><strong>Apellidos:</strong> <%= employee.last_name || '-' %></div>
         <div><strong>DPI:</strong> <%= employee.dpi_number || '-' %></div>
+        <div><strong>Lugar de emision:</strong> <%= employee.dpi_issued_at || '-' %></div>
+        <div><strong>Estado civil:</strong> <%= employee.marital_status || '-' %></div>
+        <div><strong>Apellido de casada:</strong> <%= employee.married_last_name || '-' %></div>
+        <div><strong>Genero:</strong> <%= employee.gender || '-' %></div>
+        <div><strong>Nacimiento:</strong> <%= employee.birth_date || '-' %></div>
+        <div><strong>Telefono:</strong> <%= employee.phone || '-' %></div>
+        <div><strong>Correo:</strong> <%= employee.email || '-' %></div>
+        <div class="full-row"><strong>Direccion:</strong> <%= employee.address || '-' %></div>
+      </div>
+
+      <h2>Datos laborales</h2>
+      <div class="hr-print-grid">
         <div><strong>Puesto:</strong> <%= employee.position || '-' %></div>
         <div><strong>Departamento:</strong> <%= employee.department || '-' %></div>
         <div><strong>Jefe inmediato:</strong> <%= employee.immediate_boss_name || '-' %></div>
+        <div><strong>Codigo:</strong> <%= employee.employee_code || '-' %></div>
         <div><strong>Fecha de ingreso:</strong> <%= employee.hire_date || '-' %></div>
+        <div><strong>Tipo de contrato:</strong> <%= employee.contract_type || '-' %></div>
         <div><strong>Estado:</strong> <%= employee.employment_status || '-' %></div>
-        <div><strong>Contrato:</strong> <%= employee.contract_type || '-' %></div>
-        <div><strong>Salario base:</strong> Q<%= Number(employee.salary_base || 0).toFixed(2) %></div>
-        <div><strong>Bono:</strong> Q<%= Number(employee.bonus_amount || 0).toFixed(2) %></div>
-        <div><strong>Teléfono:</strong> <%= employee.phone || '-' %></div>
-        <div><strong>Correo:</strong> <%= employee.email || '-' %></div>
-        <div class="full-row"><strong>Dirección:</strong> <%= employee.address || '-' %></div>
-        <div class="full-row"><strong>Notas:</strong> <%= employee.notes || '-' %></div>
+        <div><strong>Descripcion asignada:</strong> <%= employee.description_position_name || '-' %></div>
+        <div class="full-row"><strong>Observaciones laborales:</strong> <%= employee.labor_observations || '-' %></div>
       </div>
 
-      <h2>Adjuntos registrados</h2>
+      <h2>Educacion</h2>
+      <div class="hr-print-grid">
+        <div><strong>Escolaridad:</strong> <%= employee.education_level || '-' %></div>
+        <div><strong>Etnia:</strong> <%= employee.ethnicity || '-' %></div>
+        <div><strong>Idiomas:</strong> <%= employee.languages || '-' %></div>
+        <div><strong>Profesion:</strong> <%= employee.profession || '-' %></div>
+        <div class="full-row"><strong>Cursos o certificaciones:</strong> <%= employee.courses_certifications || '-' %></div>
+      </div>
+
+      <h2>Bancos y salarios</h2>
+      <div class="hr-print-grid">
+        <div><strong>Salario base:</strong> Q<%= Number(employee.salary_base || 0).toFixed(2) %></div>
+        <div><strong>Bono incentivo:</strong> Q<%= Number(employee.bonus_amount || 0).toFixed(2) %></div>
+        <div><strong>Otros bonos:</strong> Q<%= Number(employee.extra_bonus || 0).toFixed(2) %></div>
+        <div><strong>Tipo de calculo:</strong> <%= employee.payroll_calculation_type || '-' %></div>
+        <div><strong>Metodo de pago:</strong> <%= employee.payment_method || '-' %></div>
+        <div><strong>Banco:</strong> <%= employee.bank_name || '-' %></div>
+        <div><strong>Tipo de cuenta:</strong> <%= employee.bank_account_type || '-' %></div>
+        <div><strong>Numero de cuenta:</strong> <%= employee.bank_account_number || '-' %></div>
+      </div>
+
+      <h2>Documentos</h2>
       <div class="hr-print-list">
+        <div><strong>Solicitud de empleo:</strong> <%= employee.job_application_url ? 'Documento cargado' : '-' %></div>
         <% if (!attachments.length) { %>
           <div>-</div>
         <% } %>
         <% attachments.forEach((attachment) => { %>
           <div><strong><%= attachment.attachment_label %>:</strong> <%= attachment.original_name || 'Documento cargado' %></div>
         <% }) %>
+      </div>
+
+      <h2>Informacion adicional</h2>
+      <div class="hr-print-grid">
+        <div><strong>Contacto de emergencia:</strong> <%= employee.emergency_contact_name || '-' %></div>
+        <div><strong>Telefono de emergencia:</strong> <%= employee.emergency_contact_phone || '-' %></div>
+        <div class="full-row"><strong>Observaciones generales:</strong> <%= employee.general_observations || '-' %></div>
+        <div class="full-row"><strong>Notas internas:</strong> <%= employee.notes || '-' %></div>
       </div>
     </section>
   </main>

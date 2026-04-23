@@ -4,28 +4,26 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= mode === 'edit' ? 'Editar contrato' : 'Nuevo contrato' %></title>
-  <link rel="stylesheet" href="/styles.css" />
+  <%- include('../partials/head-assets') %>
   <script src="/js/rrhh.js" defer></script>
 </head>
-<body class="page hr-page">
-  <header class="topbar">
-    <div class="brand">RRHH</div>
-    <nav class="nav">
-      <a href="/rrhh?tab=contracts">Volver a contratos</a>
-      <a href="/dashboard">Dashboard</a>
-      <a href="/logout"><%= t('nav.logout') %></a>
-    </nav>
-  </header>
+<body class="page hr-page app-module-page">
+  <%- include('../partials/header', {
+    headerBrandText: 'RRHH',
+    headerNavItems: [
+      { href: '/rrhh?tab=contracts', label: 'Volver a contratos' },
+      { href: '/dashboard', label: 'Dashboard' },
+      { href: '/logout', label: t('nav.logout') }
+    ]
+  }) %>
 
-  <main class="container hr-shell">
-    <% if (flash) { %>
-      <div class="alert <%= flash.type || 'info' %>"><%= flash.message %></div>
-    <% } %>
+  <main class="container hr-shell app-module app-module-shell">
+    <%- include('../partials/toasts') %>
 
     <section class="panel">
       <div class="panel-header">
         <div>
-          <div class="eyebrow">Contratos</div>
+          <div class="eyebrow app-page-eyebrow">Contratos</div>
           <h1><%= mode === 'edit' ? 'Editar contrato' : 'Nuevo contrato' %></h1>
           <p class="muted">Al elegir empleado se autocompletan los datos base y se genera un texto profesional editable.</p>
         </div>

@@ -1,0 +1,54 @@
+<%
+  const resolvedBrandText =
+    typeof headerBrandText !== 'undefined' && headerBrandText
+      ? headerBrandText
+      : (typeof companyBrand !== 'undefined' && companyBrand && companyBrand.name
+        ? companyBrand.name
+        : (typeof t === 'function' ? t('common.brand') : 'Sistema'));
+  const resolvedHomeHref = typeof homeHref !== 'undefined' ? homeHref : '/dashboard';
+  const shouldLinkBrand = resolvedHomeHref !== false && resolvedHomeHref !== null;
+  const shouldShowDefaultNav = typeof showDefaultNav === 'undefined' ? true : Boolean(showDefaultNav);
+  const resolvedHeaderClass = ['topbar', 'app-header', typeof headerClassName !== 'undefined' ? headerClassName : '']
+    .filter(Boolean)
+    .join(' ');
+%>
+<header class="<%= resolvedHeaderClass %>">
+  <div class="app-header__inner">
+  <% if (shouldLinkBrand) { %>
+    <a class="brand brand-link app-brand" href="<%= resolvedHomeHref %>">
+      <% if (typeof companyBrand !== 'undefined' && companyBrand && companyBrand.logo && !(typeof hideBrandLogo !== 'undefined' && hideBrandLogo)) { %>
+        <img src="<%= companyBrand.logo %>" alt="Logo" class="brand-logo" />
+      <% } %>
+      <span class="brand-name"><%= resolvedBrandText %></span>
+    </a>
+  <% } else { %>
+    <div class="brand app-brand">
+      <% if (typeof companyBrand !== 'undefined' && companyBrand && companyBrand.logo && !(typeof hideBrandLogo !== 'undefined' && hideBrandLogo)) { %>
+        <img src="<%= companyBrand.logo %>" alt="Logo" class="brand-logo" />
+      <% } %>
+      <span class="brand-name"><%= resolvedBrandText %></span>
+    </div>
+  <% } %>
+
+  <% if (typeof headerActionsHtml !== 'undefined' && headerActionsHtml) { %>
+    <div class="app-header__actions"><%- headerActionsHtml %></div>
+  <% } else if (typeof headerNavItems !== 'undefined' && Array.isArray(headerNavItems)) { %>
+    <nav class="nav app-nav">
+      <% if (typeof headerNavText !== 'undefined' && headerNavText) { %>
+        <span class="muted app-nav__text"><%= headerNavText %></span>
+      <% } %>
+      <% headerNavItems.forEach((item) => { %>
+        <a href="<%= item.href %>"<%= item.className ? ` class="${item.className}"` : '' %>><%= item.label %></a>
+      <% }) %>
+    </nav>
+  <% } else if (shouldShowDefaultNav) { %>
+    <nav class="nav app-nav">
+      <a href="/dashboard"><%= typeof t === 'function' ? t('nav.dashboard') : 'Dashboard' %></a>
+      <% if (typeof showSettingsLink !== 'undefined' && showSettingsLink && typeof can === 'function' && can('settings', 'view')) { %>
+        <a href="/settings"><%= t('settings.title') %></a>
+      <% } %>
+      <a href="/logout"><%= typeof t === 'function' ? t('nav.logout') : 'Salir' %></a>
+    </nav>
+  <% } %>
+  </div>
+</header>

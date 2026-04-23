@@ -6,26 +6,15 @@
 <title>
 <%= t('inventory.title') %>
 </title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
-<body class="page">
-<header class="topbar">
-<div class="brand">
-<%= t('common.brand') %>
-</div>
-<nav class="nav">
-<a href="/dashboard">
-<%= t('nav.dashboard') %>
-</a>
-<a href="/logout">
-<%= t('nav.logout') %>
-</a>
-</nav>
-</header>
-<main class="container">
-<h1>
-<%= t('inventory.title') %>
-</h1>
+<body class="page inventory-page">
+<%- include('partials/header') %>
+<main class="container inventory-module app-module">
+<%- include('partials/page-shell', {
+  pageTitle: t('inventory.title'),
+  pageSubtitle: t('inventory.value', { value: Number(totalValue || 0).toFixed(2) })
+}) %>
 <div class="subnav">
 <a class="active" href="/inventory">
 <%= t('inventory.items') %>
@@ -37,16 +26,20 @@
 <%= t('inventory.brands') %>
 </a>
 </div>
-<section class="panel">
+<section class="panel app-panel">
+<div class="panel-header app-panel-header">
+<div>
 <h2>
 <%= t('inventory.add_item') %>
 </h2>
+</div>
+</div>
 <% if (error) { %>
-<div class="alert">
+<div class="alert app-message app-message-error error">
 <%= error %>
 </div>
 <% } %>
-<form method="POST" action="/inventory/add" class="form grid-2" style="<%= can('inventory', 'create') ? '' : 'display:none' %>">
+<form method="POST" action="/inventory/add" class="form grid-2 app-form-grid" style="<%= can('inventory', 'create') ? '' : 'display:none' %>">
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 <label>
 <%= t('inventory.name') %>
@@ -118,46 +111,54 @@
 <input type="number" name="price" min="0" step="0.01" value="0" />
 </label>
 <div>
-<button type="submit" class="btn primary">
+<button type="submit" class="btn primary app-btn app-btn-primary">
 <%= t('inventory.add_item_button') %>
 </button>
 </div>
 </form>
 </section>
-<section class="panel">
+<section class="panel app-panel">
+<div class="panel-header app-panel-header">
+<div>
 <h2>
 <%= t('inventory.import_export') %>
 </h2>
 <p class="muted">
 <%= t('inventory.csv_headers') %>
 </p>
+</div>
+</div>
 <div class="actions">
-<form method="POST" action="/inventory/import" enctype="multipart/form-data" class="form" style="<%= can('inventory', 'create') ? '' : 'display:none' %>">
+<form method="POST" action="/inventory/import" enctype="multipart/form-data" class="form app-form-row" style="<%= can('inventory', 'create') ? '' : 'display:none' %>">
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 <input type="file" name="csv" accept=".csv" required />
-<button type="submit" class="btn">
+<button type="submit" class="btn app-btn">
 <%= t('inventory.import_csv') %>
 </button>
 </form>
-<a class="btn primary" href="/inventory/export" style="<%= can('inventory', 'export') ? '' : 'display:none' %>">
+<a class="btn primary app-btn app-btn-primary" href="/inventory/export" style="<%= can('inventory', 'export') ? '' : 'display:none' %>">
 <%= t('inventory.export_csv') %>
 </a>
 </div>
 </section>
-<section class="panel">
+<section class="panel app-panel">
+<div class="panel-header app-panel-header">
+<div>
 <h2>
 <%= t('inventory.items') %>
 </h2>
 <p class="muted">
 <%= t('inventory.value', { value: Number(totalValue || 0).toFixed(2) }) %>
 </p>
+</div>
+</div>
 <% if (lowStockCount > 0) { %>
-<div class="alert">
+<div class="alert app-message app-message-warning warning">
 <%= t('inventory.low_stock_warning', { count: lowStockCount }) %>
 </div>
 <% } %>
 <% const filterQuery = selectedCategory && selectedCategory !== 'all' ? '?category=' + selectedCategory : ''; %>
-<form method="GET" action="/inventory" class="form grid-2">
+<form method="GET" action="/inventory" class="form grid-2 app-filter-bar">
 <label>
 <%= t('inventory.filter_by_category') %>
 <select name="category">
@@ -172,15 +173,15 @@
 </select>
 </label>
 <div class="actions">
-<button type="submit" class="btn">
+<button type="submit" class="btn app-btn">
 <%= t('inventory.apply_filter') %>
 </button>
-<a class="btn" href="/inventory">
+<a class="btn app-btn" href="/inventory">
 <%= t('common.reset') %>
 </a>
 </div>
 </form>
-<div class="table">
+<div class="table app-table-wrap inventory-table">
 <div class="table-row header items">
 <div>
 <%= t('inventory.items_table.name') %>
@@ -223,14 +224,14 @@
 </div>
 </div>
 <% if (items.length === 0) { %>
-<div class="table-row empty">
+<div class="table-row empty app-empty-state">
 <%= t('inventory.no_items') %>
 </div>
 <% } %>
 <% items.forEach(item => { %>
 <% const isLowStock = Number(item.qty) <= Number(item.min_stock); %>
 <% const isManual = Number(item.code_manual) === 1; %>
-<form method="POST" action="/inventory/<%= item.id %>/update<%= filterQuery %>" class="table-row items <%= isLowStock ? 'warning' : '' %>">
+<form method="POST" action="/inventory/<%= item.id %>/update<%= filterQuery %>" class="table-row items app-table-row <%= isLowStock ? 'warning' : '' %>">
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 <input type="text" name="name" value="<%= item.name %>" <%= can('inventory', 'edit') ? '' : 'disabled' %> required />
 <div class="muted">
@@ -274,12 +275,12 @@
 </select>
 <div class="actions">
 <% if (can('inventory', 'edit')) { %>
-<button type="submit" class="btn">
+<button type="submit" class="btn app-btn">
 <%= t('common.save') %>
 </button>
 <% } %>
 <% if (can('inventory', 'delete')) { %>
-<button type="submit" class="btn danger" formaction="/inventory/<%= item.id %>/delete<%= filterQuery %>" formmethod="POST">
+<button type="submit" class="btn danger app-btn app-btn-danger" formaction="/inventory/<%= item.id %>/delete<%= filterQuery %>" formmethod="POST">
 <%= t('common.delete') %>
 </button>
 <% } %>

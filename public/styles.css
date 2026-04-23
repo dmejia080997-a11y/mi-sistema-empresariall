@@ -1470,15 +1470,20 @@ button[disabled],
 
 .reception-module {
   max-width: 1500px;
-  overflow-x: auto;
+}
+
+.reception-module .page-header,
+.reception-module .panel-header {
+  flex-wrap: wrap;
+  align-items: flex-start;
 }
 
 .reception-layout {
   display: grid;
-  gap: 20px;
-  grid-template-columns: minmax(320px, 1fr) minmax(260px, 0.8fr) minmax(380px, 1.4fr);
+  gap: 24px;
+  grid-template-columns: minmax(340px, 1.05fr) minmax(260px, 0.8fr) minmax(380px, 1.2fr);
   align-items: start;
-  min-width: 980px;
+  min-width: 0;
 }
 
 .reception-layout.reception-layout-single {
@@ -1496,9 +1501,31 @@ button[disabled],
   margin-top: 0;
 }
 
+.reception-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.reception-panel-quick {
+  gap: 18px;
+}
+
+.reception-panel-header > div:first-child {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
 .reception-form {
+  display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px 16px;
   align-items: end;
+}
+
+.reception-field,
+.reception-actions,
+.reception-secondary-grid {
+  min-width: 0;
 }
 
 .tracking-field {
@@ -1513,8 +1540,13 @@ button[disabled],
 
 .reception-actions {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
+  grid-column: 1 / -1;
+  padding-top: 6px;
+  border-top: 1px solid #e2e8f0;
 }
 
 .reception-bulk-toggle {
@@ -1551,7 +1583,7 @@ button[disabled],
 
 .carrier-input {
   display: grid;
-  grid-template-columns: 140px 1fr;
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -1560,22 +1592,37 @@ button[disabled],
   font-size: 0.85rem;
 }
 
-.carrier-field {
-  position: relative;
+.carrier-field,
+.reception-secondary-grid {
+  grid-column: 1 / -1;
+}
+
+.reception-secondary-grid {
+  display: grid;
+  gap: 14px 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.reception-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .carrier-field .btn.small {
-  margin-left: 6px;
+  margin-left: 0;
   padding: 4px 10px;
   font-size: 0.75rem;
 }
 
 .reception-form.compact {
-  gap: 10px;
+  gap: 14px 16px;
 }
 
 .reception-field.wide {
-  grid-column: span 2;
+  grid-column: 1 / -1;
 }
 
 .reception-form input[name='tracking_number'] {
@@ -1590,13 +1637,14 @@ button[disabled],
 
 .reception-session {
   display: grid;
-  gap: 6px;
-  padding: 10px 14px;
-  border-radius: 12px;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
   border: 1px solid #e2e8f0;
-  background: #ffffff;
-  min-width: 200px;
-  text-align: right;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(241, 245, 249, 0.9));
+  min-width: min(100%, 280px);
+  text-align: left;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
 }
 
 .reception-session .session-label {
@@ -1615,7 +1663,7 @@ button[disabled],
 
 .reception-session .session-meta {
   display: inline-flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 8px;
   font-size: 0.82rem;
   color: #475569;
@@ -1623,22 +1671,19 @@ button[disabled],
 }
 
 .reception-carrier-bar {
-  position: sticky;
-  top: 12px;
-  z-index: 6;
   display: grid;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 14px;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
   border: 1px solid #e2e8f0;
-  background: #ffffff;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.9), rgba(255, 255, 255, 0.96));
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
   grid-column: 1 / -1;
 }
 
 .carrier-bar-main {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
@@ -1674,21 +1719,26 @@ button[disabled],
 }
 
 .reception-today {
-  margin-top: 12px;
   display: grid;
   gap: 8px;
 }
 
 .reception-session-summary {
-  margin-top: 12px;
   display: grid;
   gap: 8px;
 }
 
 .reception-recent {
-  margin-top: 14px;
   display: grid;
   gap: 8px;
+}
+
+.reception-section-card {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
 }
 
 .recent-list {
@@ -1698,7 +1748,7 @@ button[disabled],
 
 .recent-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
@@ -1728,6 +1778,7 @@ button[disabled],
 .recent-meta {
   font-size: 0.8rem;
   color: #64748b;
+  white-space: nowrap;
 }
 
 .reception-carriers .summary-item {
@@ -4195,6 +4246,18 @@ button[disabled],
     grid-column: span 1;
   }
 
+  .reception-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reception-secondary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reception-actions {
+    align-items: stretch;
+  }
+
   .carrier-input {
     grid-template-columns: 1fr;
   }
@@ -4209,6 +4272,34 @@ button[disabled],
 @media (max-width: 720px) {
   .reception-module {
     padding: 20px;
+  }
+
+  .reception-panel-header {
+    flex-direction: column;
+  }
+
+  .reception-session {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .carrier-bar-main,
+  .reception-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mode-toggle {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .recent-item {
+    flex-direction: column;
+  }
+
+  .recent-meta {
+    white-space: normal;
   }
 }
 
@@ -6005,6 +6096,218 @@ button[disabled],
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.hr-employee-form {
+  display: grid;
+  gap: 18px;
+}
+
+.hr-dossier-cover {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr);
+  gap: 18px;
+  align-items: center;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--color-border, rgba(21, 94, 117, 0.1));
+  border-radius: var(--radius-lg, 18px);
+  background:
+    linear-gradient(135deg, rgba(var(--color-primary-rgb, 38, 68, 95), 0.08), rgba(var(--color-secondary-rgb, 36, 124, 122), 0.08)),
+    var(--glass-bg, rgba(255, 255, 255, 0.9));
+  box-shadow: var(--shadow-sm, 0 16px 28px rgba(15, 23, 42, 0.08));
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+.hr-dossier-cover__identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.hr-dossier-cover__identity h2 {
+  margin: 8px 0 4px;
+}
+
+.hr-dossier-cover__identity p {
+  margin: 0;
+}
+
+.hr-dossier-photo {
+  width: 86px;
+  height: 86px;
+  object-fit: cover;
+  border: 1px solid var(--color-border, rgba(21, 94, 117, 0.12));
+  border-radius: 20px;
+}
+
+.hr-dossier-cover__meta {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.hr-dossier-cover__meta div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--color-border, rgba(148, 163, 184, 0.22));
+  border-radius: var(--radius-sm, 12px);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.hr-dossier-cover__meta span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--color-text-muted, var(--muted));
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.hr-dossier-cover__meta strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-primary-strong, #155e75);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hr-dossier-layout {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.26fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.hr-dossier-index {
+  position: sticky;
+  top: 18px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--color-border, rgba(21, 94, 117, 0.1));
+  border-radius: var(--radius-lg, 18px);
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow: var(--shadow-xs, 0 8px 18px rgba(15, 23, 42, 0.06));
+  backdrop-filter: blur(14px) saturate(135%);
+}
+
+.hr-dossier-index__title {
+  margin-bottom: 4px;
+  color: var(--color-primary-strong, #155e75);
+  font-weight: 800;
+}
+
+.hr-dossier-index a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 12px);
+  color: var(--color-text, var(--ink));
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.hr-dossier-index a:hover {
+  border-color: var(--color-border, rgba(148, 163, 184, 0.24));
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.hr-dossier-index a span,
+.hr-section-number {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  border: 1px solid rgba(var(--color-primary-rgb, 38, 68, 95), 0.16);
+  border-radius: var(--radius-sm, 10px);
+  background: rgba(var(--color-primary-rgb, 38, 68, 95), 0.08);
+  color: var(--color-primary-strong, #155e75);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.hr-dossier-sections {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.hr-section-card,
+.hr-detail-summary {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--color-border, rgba(21, 94, 117, 0.1));
+  border-radius: var(--radius-lg, 18px);
+  background: var(--glass-bg, rgba(255, 255, 255, 0.92));
+  box-shadow: var(--shadow-sm, 0 16px 28px rgba(15, 23, 42, 0.08));
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+.hr-section-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border, rgba(148, 163, 184, 0.22));
+}
+
+.hr-section-card__header h2 {
+  margin: 0 0 4px;
+}
+
+.hr-section-card__header p {
+  margin: 0;
+}
+
+.hr-section-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.hr-section-grid label,
+.hr-employee-form label {
+  min-width: 0;
+}
+
+.hr-section-grid textarea {
+  min-height: 96px;
+}
+
+.hr-file-field {
+  align-content: start;
+  padding: 12px;
+  border: 1px dashed var(--color-border, rgba(148, 163, 184, 0.32));
+  border-radius: var(--radius-sm, 12px);
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.hr-file-field input[type='file'] {
+  width: 100%;
+  min-width: 0;
+}
+
+.hr-form-actions {
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
+.hr-documents-table {
+  margin-top: 16px;
+}
+
+.hr-documents-table .table-row.hr-generic {
+  grid-template-columns: minmax(120px, 0.9fr) minmax(160px, 1.1fr) minmax(120px, 0.8fr);
+}
+
 .hr-attachments-panel,
 .hr-contract-panel {
   padding: 18px;
@@ -6189,6 +6492,10 @@ button[disabled],
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.hr-detail-sections {
+  margin-top: 18px;
+}
+
 .hr-detail-card,
 .hr-history-card {
   padding: 18px;
@@ -6206,6 +6513,15 @@ button[disabled],
 .hr-detail-list {
   display: grid;
   gap: 10px;
+}
+
+.hr-detail-list--grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.hr-detail-list > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .hr-history-grid {
@@ -6278,10 +6594,25 @@ button[disabled],
   .grid-3,
   .hr-form-grid,
   .hr-form-grid--wide,
+  .hr-section-grid,
   .hr-summary-grid,
   .hr-detail-grid,
   .hr-print-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hr-dossier-cover,
+  .hr-dossier-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .hr-dossier-index {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hr-dossier-index__title {
+    grid-column: 1 / -1;
   }
 }
 
@@ -6297,7 +6628,10 @@ button[disabled],
   .hr-print-grid,
   .grid-3,
   .hr-form-grid,
-  .hr-form-grid--wide {
+  .hr-form-grid--wide,
+  .hr-section-grid,
+  .hr-detail-list--grid,
+  .hr-documents-table .table-row.hr-generic {
     grid-template-columns: 1fr;
   }
 
@@ -6309,5 +6643,25 @@ button[disabled],
   .hr-org-node__card {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .hr-section-card,
+  .hr-detail-summary,
+  .hr-dossier-cover {
+    padding: 16px;
+  }
+
+  .hr-form-actions {
+    justify-content: stretch;
+  }
+
+  .hr-dossier-cover__identity {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .hr-dossier-cover__meta,
+  .hr-dossier-index {
+    grid-template-columns: 1fr;
   }
 }

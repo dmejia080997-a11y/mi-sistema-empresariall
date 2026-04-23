@@ -4,29 +4,35 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= mode === 'edit' ? 'Editar empleado' : 'Nuevo empleado' %></title>
-  <link rel="stylesheet" href="/styles.css" />
+  <%- include('../partials/head-assets') %>
 </head>
-<body class="page hr-page">
-  <header class="topbar">
-    <div class="brand">RRHH</div>
-    <nav class="nav">
-      <a href="/rrhh?tab=employees">Volver a empleados</a>
-      <a href="/dashboard">Dashboard</a>
-      <a href="/logout"><%= t('nav.logout') %></a>
-    </nav>
-  </header>
+<body class="page hr-page app-module-page">
+  <%- include('../partials/header', {
+    headerBrandText: 'RRHH',
+    headerNavItems: [
+      { href: '/rrhh?tab=employees', label: 'Volver a empleados' },
+      { href: '/dashboard', label: 'Dashboard' },
+      { href: '/logout', label: t('nav.logout') }
+    ]
+  }) %>
 
-  <main class="container hr-shell">
-    <% if (flash) { %>
-      <div class="alert <%= flash.type || 'info' %>"><%= flash.message %></div>
-    <% } %>
+  <main class="container hr-shell app-module app-module-shell">
+    <%- include('../partials/toasts') %>
+    <%
+      const attachmentLookup = {};
+      (attachments || []).forEach((entry) => {
+        if (!attachmentLookup[entry.attachment_type]) attachmentLookup[entry.attachment_type] = entry;
+      });
+      const dossierName = employee ? `${employee.first_name || ''} ${employee.last_name || ''}`.trim() : '';
+      const dossierInitial = ((employee && employee.first_name) || 'N').charAt(0);
+    %>
 
     <section class="panel">
       <div class="panel-header">
         <div>
-          <div class="eyebrow">Ficha de empleado</div>
+          <div class="eyebrow app-page-eyebrow">Ficha de empleado</div>
           <h1><%= mode === 'edit' ? 'Editar empleado' : 'Nuevo empleado' %></h1>
-          <p class="muted">Formulario completo con datos generales, laborales, bancarios y adjuntos.</p>
+          <p class="muted">Informacion personal, laboral, academica, salarial y documental organizada por secciones.</p>
         </div>
         <div class="actions">
           <% if (mode === 'edit' && employee) { %>
@@ -36,196 +42,306 @@
         </div>
       </div>
 
-      <form method="POST" enctype="multipart/form-data" action="<%= mode === 'edit' && employee ? `/rrhh/employees/${employee.id}/update` : '/rrhh/employees/create' %>" class="form hr-form-grid hr-form-grid--wide">
+      <form method="POST" enctype="multipart/form-data" action="<%= mode === 'edit' && employee ? `/rrhh/employees/${employee.id}/update` : '/rrhh/employees/create' %>" class="form hr-employee-form">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 
-        <label>
-          Nombres
-          <input type="text" name="first_name" required value="<%= (employee && employee.first_name) || '' %>" />
-        </label>
-        <label>
-          Apellidos
-          <input type="text" name="last_name" required value="<%= (employee && employee.last_name) || '' %>" />
-        </label>
-        <label>
-          Código de empleado
-          <input type="text" name="employee_code" required value="<%= (employee && employee.employee_code) || '' %>" />
-        </label>
-
-        <label>
-          DPI
-          <input type="text" name="dpi_number" value="<%= (employee && employee.dpi_number) || '' %>" />
-        </label>
-        <label>
-          Emitido en
-          <input type="text" name="dpi_issued_at" value="<%= (employee && employee.dpi_issued_at) || '' %>" />
-        </label>
-        <label>
-          Fecha de nacimiento
-          <input type="date" name="birth_date" value="<%= (employee && employee.birth_date) || '' %>" />
-        </label>
-
-        <label>
-          Estado civil
-          <input type="text" name="marital_status" value="<%= (employee && employee.marital_status) || '' %>" />
-        </label>
-        <label>
-          Apellido de casada
-          <input type="text" name="married_last_name" value="<%= (employee && employee.married_last_name) || '' %>" />
-        </label>
-        <label>
-          Género
-          <input type="text" name="gender" value="<%= (employee && employee.gender) || '' %>" />
-        </label>
-
-        <label>
-          Teléfono
-          <input type="text" name="phone" value="<%= (employee && employee.phone) || '' %>" />
-        </label>
-        <label>
-          Correo
-          <input type="email" name="email" value="<%= (employee && employee.email) || '' %>" />
-        </label>
-        <label>
-          Dirección
-          <input type="text" name="address" value="<%= (employee && employee.address) || '' %>" />
-        </label>
-
-        <label>
-          Nivel educativo
-          <input type="text" name="education_level" value="<%= (employee && employee.education_level) || '' %>" />
-        </label>
-        <label>
-          Etnia
-          <input type="text" name="ethnicity" value="<%= (employee && employee.ethnicity) || '' %>" />
-        </label>
-        <label>
-          Idiomas
-          <input type="text" name="languages" value="<%= (employee && employee.languages) || '' %>" placeholder="Español, Inglés" />
-        </label>
-
-        <label>
-          Puesto
-          <input type="text" name="position" value="<%= (employee && employee.position) || '' %>" />
-        </label>
-        <label>
-          Departamento
-          <input type="text" name="department" value="<%= (employee && employee.department) || '' %>" />
-        </label>
-        <label>
-          Jefe inmediato
-          <select name="immediate_boss_id">
-            <option value="">Sin asignar</option>
-            <% employees.forEach((boss) => { if (!(employee && String(employee.id) === String(boss.id))) { %>
-              <option value="<%= boss.id %>" <%= String((employee && employee.immediate_boss_id) || '') === String(boss.id) ? 'selected' : '' %>><%= `${boss.first_name} ${boss.last_name}` %></option>
-            <% } }) %>
-          </select>
-        </label>
-
-        <label>
-          Fecha de ingreso
-          <input type="date" name="hire_date" required value="<%= (employee && employee.hire_date) || '' %>" />
-        </label>
-        <label>
-          Estado laboral
-          <input type="text" name="employment_status" value="<%= (employee && employee.employment_status) || 'Activo' %>" />
-        </label>
-        <label>
-          Tipo de contrato
-          <input type="text" name="contract_type" value="<%= (employee && employee.contract_type) || '' %>" />
-        </label>
-
-        <label>
-          Salario base
-          <input type="number" step="0.01" name="salary_base" value="<%= (employee && employee.salary_base) || '' %>" />
-        </label>
-        <label>
-          Bono
-          <input type="number" step="0.01" name="bonus_amount" value="<%= (employee && employee.bonus_amount) || '' %>" />
-        </label>
-        <label>
-          Tipo de cálculo de planilla
-          <input type="text" name="payroll_calculation_type" value="<%= (employee && employee.payroll_calculation_type) || '' %>" />
-        </label>
-
-        <label>
-          Cuenta bancaria
-          <input type="text" name="bank_account_number" value="<%= (employee && employee.bank_account_number) || '' %>" />
-        </label>
-        <label>
-          Tipo de cuenta
-          <input type="text" name="bank_account_type" value="<%= (employee && employee.bank_account_type) || '' %>" />
-        </label>
-        <label>
-          Banco
-          <input type="text" name="bank_name" value="<%= (employee && employee.bank_name) || '' %>" />
-        </label>
-
-        <label>
-          Descripción de puesto
-          <select name="job_description_id">
-            <option value="">No asignada</option>
-            <% descriptions.forEach((description) => { %>
-              <option value="<%= description.id %>" <%= String((employee && employee.job_description_id) || '') === String(description.id) ? 'selected' : '' %>><%= `${description.position_name} - ${description.department}` %></option>
-            <% }) %>
-          </select>
-        </label>
-        <label>
-          Activo
-          <div class="toggle-row">
-            <input type="checkbox" name="is_active" <%= !employee || employee.is_active ? 'checked' : '' %> />
-            <span class="badge status active">Visible en RRHH</span>
-          </div>
-        </label>
-
-        <label class="full-row">
-          Notas
-          <textarea name="notes" rows="4"><%= (employee && employee.notes) || '' %></textarea>
-        </label>
-
-        <section class="hr-attachments-panel full-row">
-          <div class="panel-header">
+        <section class="hr-dossier-cover">
+          <div class="hr-dossier-cover__identity">
+            <% if (employee && employee.photo_url) { %>
+              <img src="<%= employee.photo_url %>" alt="<%= dossierName || 'Empleado' %>" class="hr-dossier-photo" />
+            <% } else { %>
+              <div class="hr-avatar-placeholder"><%= dossierInitial %></div>
+            <% } %>
             <div>
-              <h2>Adjuntos</h2>
-              <p class="muted">Los archivos se guardan organizados por módulo y empresa.</p>
+              <span class="badge status active">Expediente RRHH</span>
+              <h2><%= dossierName || 'Nuevo colaborador' %></h2>
+              <p class="muted"><%= (employee && employee.position) || 'Puesto por definir' %> - <%= (employee && employee.department) || 'Departamento por definir' %></p>
             </div>
           </div>
+          <div class="hr-dossier-cover__meta">
+            <div>
+              <span>Codigo</span>
+              <strong><%= (employee && employee.employee_code) || 'Pendiente' %></strong>
+            </div>
+            <div>
+              <span>Ingreso</span>
+              <strong><%= (employee && employee.hire_date) || 'Pendiente' %></strong>
+            </div>
+            <div>
+              <span>Estado</span>
+              <strong><%= (employee && employee.employment_status) || 'Activo' %></strong>
+            </div>
+          </div>
+        </section>
 
-          <div class="hr-form-grid">
+        <div class="hr-dossier-layout">
+          <aside class="hr-dossier-index" aria-label="Indice del expediente">
+            <div class="hr-dossier-index__title">Indice del expediente</div>
+            <a href="#datos-personales"><span>01</span> Datos personales</a>
+            <a href="#datos-laborales"><span>02</span> Datos laborales</a>
+            <a href="#educacion"><span>03</span> Educacion</a>
+            <a href="#bancos-salarios"><span>04</span> Bancos y salarios</a>
+            <a href="#documentos"><span>05</span> Documentos</a>
+            <a href="#informacion-adicional"><span>06</span> Informacion adicional</a>
+          </aside>
+
+          <div class="hr-dossier-sections">
+        <section class="hr-section-card" id="datos-personales">
+          <div class="hr-section-card__header">
+            <span class="hr-section-number">01</span>
+            <div>
+              <h2>Datos personales</h2>
+              <p class="muted">Identificacion, contacto y direccion del colaborador.</p>
+            </div>
+          </div>
+          <div class="hr-section-grid">
             <label>
+              Nombres
+              <input type="text" name="first_name" required value="<%= (employee && employee.first_name) || '' %>" />
+            </label>
+            <label>
+              Apellidos
+              <input type="text" name="last_name" required value="<%= (employee && employee.last_name) || '' %>" />
+            </label>
+            <label>
+              DPI
+              <input type="text" name="dpi_number" value="<%= (employee && employee.dpi_number) || '' %>" />
+            </label>
+            <label>
+              Lugar de emision
+              <input type="text" name="dpi_issued_at" value="<%= (employee && employee.dpi_issued_at) || '' %>" />
+            </label>
+            <label>
+              Estado civil
+              <input type="text" name="marital_status" value="<%= (employee && employee.marital_status) || '' %>" />
+            </label>
+            <label>
+              Apellido de casada
+              <input type="text" name="married_last_name" value="<%= (employee && employee.married_last_name) || '' %>" />
+            </label>
+            <label>
+              Genero
+              <input type="text" name="gender" value="<%= (employee && employee.gender) || '' %>" />
+            </label>
+            <label>
+              Fecha de nacimiento
+              <input type="date" name="birth_date" value="<%= (employee && employee.birth_date) || '' %>" />
+            </label>
+            <label>
+              Telefono
+              <input type="text" name="phone" value="<%= (employee && employee.phone) || '' %>" />
+            </label>
+            <label>
+              Correo
+              <input type="email" name="email" value="<%= (employee && employee.email) || '' %>" />
+            </label>
+            <label class="full-row">
+              Direccion
+              <input type="text" name="address" value="<%= (employee && employee.address) || '' %>" />
+            </label>
+            <label class="hr-file-field full-row">
               Foto
               <input type="file" name="photo" accept="image/*" />
               <% if (employee && employee.photo_url) { %>
                 <a class="helper" href="<%= employee.photo_url %>" target="_blank" rel="noopener">Ver foto actual</a>
               <% } %>
             </label>
+          </div>
+        </section>
+
+        <section class="hr-section-card" id="datos-laborales">
+          <div class="hr-section-card__header">
+            <span class="hr-section-number">02</span>
+            <div>
+              <h2>Datos laborales</h2>
+              <p class="muted">Puesto, jerarquia, fechas y estado dentro de la empresa.</p>
+            </div>
+          </div>
+          <div class="hr-section-grid">
             <label>
+              Puesto
+              <input type="text" name="position" value="<%= (employee && employee.position) || '' %>" />
+            </label>
+            <label>
+              Departamento
+              <input type="text" name="department" value="<%= (employee && employee.department) || '' %>" />
+            </label>
+            <label>
+              Jefe inmediato
+              <select name="immediate_boss_id">
+                <option value="">Sin asignar</option>
+                <% employees.forEach((boss) => { if (!(employee && String(employee.id) === String(boss.id))) { %>
+                  <option value="<%= boss.id %>" <%= String((employee && employee.immediate_boss_id) || '') === String(boss.id) ? 'selected' : '' %>><%= `${boss.first_name} ${boss.last_name}` %></option>
+                <% } }) %>
+              </select>
+            </label>
+            <label>
+              Codigo de empleado
+              <input type="text" name="employee_code" required value="<%= (employee && employee.employee_code) || '' %>" />
+            </label>
+            <label>
+              Fecha de ingreso
+              <input type="date" name="hire_date" required value="<%= (employee && employee.hire_date) || '' %>" />
+            </label>
+            <label>
+              Tipo de contrato
+              <input type="text" name="contract_type" value="<%= (employee && employee.contract_type) || '' %>" />
+            </label>
+            <label>
+              Estado laboral
+              <input type="text" name="employment_status" value="<%= (employee && employee.employment_status) || 'Activo' %>" />
+            </label>
+            <label>
+              Descripcion de puesto
+              <select name="job_description_id">
+                <option value="">No asignada</option>
+                <% descriptions.forEach((description) => { %>
+                  <option value="<%= description.id %>" <%= String((employee && employee.job_description_id) || '') === String(description.id) ? 'selected' : '' %>><%= `${description.position_name} - ${description.department}` %></option>
+                <% }) %>
+              </select>
+            </label>
+            <label>
+              Activo
+              <div class="toggle-row">
+                <input type="checkbox" name="is_active" <%= !employee || employee.is_active ? 'checked' : '' %> />
+                <span class="badge status active">Visible en RRHH</span>
+              </div>
+            </label>
+            <label class="full-row">
+              Observaciones laborales
+              <textarea name="labor_observations" rows="3"><%= (employee && employee.labor_observations) || '' %></textarea>
+            </label>
+          </div>
+        </section>
+
+        <section class="hr-section-card" id="educacion">
+          <div class="hr-section-card__header">
+            <span class="hr-section-number">03</span>
+            <div>
+              <h2>Educacion</h2>
+              <p class="muted">Formacion academica, idiomas y certificaciones relevantes.</p>
+            </div>
+          </div>
+          <div class="hr-section-grid">
+            <label>
+              Escolaridad
+              <input type="text" name="education_level" value="<%= (employee && employee.education_level) || '' %>" />
+            </label>
+            <label>
+              Etnia
+              <input type="text" name="ethnicity" value="<%= (employee && employee.ethnicity) || '' %>" />
+            </label>
+            <label>
+              Idiomas
+              <input type="text" name="languages" value="<%= (employee && employee.languages) || '' %>" placeholder="Espanol, Ingles" />
+            </label>
+            <label>
+              Profesion
+              <input type="text" name="profession" value="<%= (employee && employee.profession) || '' %>" />
+            </label>
+            <label class="full-row">
+              Cursos o certificaciones
+              <textarea name="courses_certifications" rows="3"><%= (employee && employee.courses_certifications) || '' %></textarea>
+            </label>
+          </div>
+        </section>
+
+        <section class="hr-section-card" id="bancos-salarios">
+          <div class="hr-section-card__header">
+            <span class="hr-section-number">04</span>
+            <div>
+              <h2>Bancos y salarios</h2>
+              <p class="muted">Datos de pago, cuenta bancaria y calculo de planilla.</p>
+            </div>
+          </div>
+          <div class="hr-section-grid">
+            <label>
+              Salario base
+              <input type="number" step="0.01" name="salary_base" value="<%= (employee && employee.salary_base) || '' %>" />
+            </label>
+            <label>
+              Bono incentivo
+              <input type="number" step="0.01" name="bonus_amount" value="<%= (employee && employee.bonus_amount) || '' %>" />
+            </label>
+            <label>
+              Otros bonos
+              <input type="number" step="0.01" name="extra_bonus" value="<%= (employee && employee.extra_bonus) || '' %>" />
+            </label>
+            <label>
+              Tipo de calculo
+              <input type="text" name="payroll_calculation_type" value="<%= (employee && employee.payroll_calculation_type) || '' %>" />
+            </label>
+            <label>
+              Metodo de pago
+              <input type="text" name="payment_method" value="<%= (employee && employee.payment_method) || '' %>" />
+            </label>
+            <label>
+              Banco
+              <input type="text" name="bank_name" value="<%= (employee && employee.bank_name) || '' %>" />
+            </label>
+            <label>
+              Tipo de cuenta
+              <input type="text" name="bank_account_type" value="<%= (employee && employee.bank_account_type) || '' %>" />
+            </label>
+            <label>
+              Numero de cuenta
+              <input type="text" name="bank_account_number" value="<%= (employee && employee.bank_account_number) || '' %>" />
+            </label>
+          </div>
+        </section>
+
+        <section class="hr-section-card" id="documentos">
+          <div class="hr-section-card__header">
+            <span class="hr-section-number">05</span>
+            <div>
+              <h2>Documentos</h2>
+              <p class="muted">Archivos principales de contratacion e identificacion.</p>
+            </div>
+          </div>
+          <div class="hr-section-grid hr-section-grid--documents">
+            <label class="hr-file-field">
               Solicitud de empleo
               <input type="file" name="job_application" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" />
               <% if (employee && employee.job_application_url) { %>
                 <a class="helper" href="<%= employee.job_application_url %>" target="_blank" rel="noopener">Ver solicitud actual</a>
               <% } %>
             </label>
-            <label>
+            <label class="hr-file-field">
               DPI frente
               <input type="file" name="dpi_front" accept=".pdf,.png,.jpg,.jpeg,.webp" />
+              <% if (attachmentLookup.dpi_front) { %>
+                <a class="helper" href="<%= attachmentLookup.dpi_front.file_url %>" target="_blank" rel="noopener">Ver DPI frente actual</a>
+              <% } %>
             </label>
-            <label>
+            <label class="hr-file-field">
               DPI reverso
               <input type="file" name="dpi_back" accept=".pdf,.png,.jpg,.jpeg,.webp" />
+              <% if (attachmentLookup.dpi_back) { %>
+                <a class="helper" href="<%= attachmentLookup.dpi_back.file_url %>" target="_blank" rel="noopener">Ver DPI reverso actual</a>
+              <% } %>
             </label>
-            <label>
+            <label class="hr-file-field">
               Contrato firmado
               <input type="file" name="signed_contract" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" />
+              <% if (attachmentLookup.signed_contract) { %>
+                <a class="helper" href="<%= attachmentLookup.signed_contract.file_url %>" target="_blank" rel="noopener">Ver contrato actual</a>
+              <% } %>
             </label>
-            <label>
-              Otros documentos
+            <label class="hr-file-field">
+              Antecedentes
+              <input type="file" name="background_check" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" />
+              <% if (attachmentLookup.background_check) { %>
+                <a class="helper" href="<%= attachmentLookup.background_check.file_url %>" target="_blank" rel="noopener">Ver antecedentes actuales</a>
+              <% } %>
+            </label>
+            <label class="hr-file-field">
+              Otros adjuntos
               <input type="file" name="other_documents" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" multiple />
             </label>
           </div>
 
           <% if (attachments && attachments.length) { %>
-            <div class="table">
+            <div class="table hr-documents-table">
               <div class="table-row header hr-generic">
                 <div>Tipo</div>
                 <div>Documento</div>
@@ -234,7 +350,7 @@
               <% attachments.forEach((attachment) => { %>
                 <div class="table-row hr-generic">
                   <div><%= attachment.attachment_label %></div>
-                  <div><a class="btn" href="<%= attachment.file_url %>" target="_blank" rel="noopener">Abrir documento</a></div>
+                  <div><a class="btn small" href="<%= attachment.file_url %>" target="_blank" rel="noopener">Abrir documento</a></div>
                   <div><%= attachment.created_at || '-' %></div>
                 </div>
               <% }) %>
@@ -242,7 +358,37 @@
           <% } %>
         </section>
 
-        <div class="actions full-row">
+        <section class="hr-section-card" id="informacion-adicional">
+          <div class="hr-section-card__header">
+            <span class="hr-section-number">06</span>
+            <div>
+              <h2>Informacion adicional</h2>
+              <p class="muted">Contacto de emergencia, observaciones generales y notas internas.</p>
+            </div>
+          </div>
+          <div class="hr-section-grid">
+            <label>
+              Contacto de emergencia
+              <input type="text" name="emergency_contact_name" value="<%= (employee && employee.emergency_contact_name) || '' %>" />
+            </label>
+            <label>
+              Telefono de emergencia
+              <input type="text" name="emergency_contact_phone" value="<%= (employee && employee.emergency_contact_phone) || '' %>" />
+            </label>
+            <label class="full-row">
+              Observaciones generales
+              <textarea name="general_observations" rows="3"><%= (employee && employee.general_observations) || '' %></textarea>
+            </label>
+            <label class="full-row">
+              Notas internas
+              <textarea name="notes" rows="3"><%= (employee && employee.notes) || '' %></textarea>
+            </label>
+          </div>
+        </section>
+          </div>
+        </div>
+
+        <div class="actions hr-form-actions">
           <button type="submit" class="btn primary"><%= mode === 'edit' ? 'Guardar cambios' : 'Crear empleado' %></button>
           <% if (mode === 'edit' && employee) { %>
             <a class="btn" href="/rrhh/employees/<%= employee.id %>">Cancelar</a>

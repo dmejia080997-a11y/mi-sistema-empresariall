@@ -7,22 +7,10 @@
 <title>
 <%= t('cuscar.manifest.detail') %>
 </title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
 <body class="page">
-<header class="topbar">
-<div class="brand">
-<%= t('common.brand') %>
-</div>
-<nav class="nav">
-<a href="/dashboard">
-<%= t('nav.dashboard') %>
-</a>
-<a href="/logout">
-<%= t('nav.logout') %>
-</a>
-</nav>
-</header>
+<%- include('partials/header') %>
 <main class="container">
 <div class="page-header">
 <div>
@@ -322,12 +310,12 @@
 <% }) %>
 </select>
 </label>
-<label style="grid-column: 1 / -1;">
+<label class="full-row">
 <%= t('cuscar.fields.observations') %>
 <textarea name="observations" rows="3" <%= isEditable && canEdit ? '' : 'disabled' %>><%= manifest.observations || '' %></textarea>
 </label>
 <% if (isEditable && canEdit) { %>
-<div style="grid-column: 1 / -1;">
+<div class="full-row">
 <button type="submit" class="btn primary">
 <%= t('common.save') %>
 </button>
@@ -433,11 +421,11 @@
 <% }) %>
 </select>
 </label>
-<label style="grid-column: 1 / -1;">
+<label class="full-row">
 <%= t('cuscar.fields.observations') %>
 <textarea name="observations" rows="2"></textarea>
 </label>
-<div style="grid-column: 1 / -1;">
+<div class="full-row">
 <button type="submit" class="btn">
 <%= t('cuscar.manifest.add_item') %>
 </button>

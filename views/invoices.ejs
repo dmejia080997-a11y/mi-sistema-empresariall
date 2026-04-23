@@ -6,38 +6,31 @@
 <title>
 <%= t('invoices.title') %>
 </title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
-<body class="page">
-<header class="topbar">
-<div class="brand">
-<%= t('common.brand') %>
-</div>
-<nav class="nav">
-<a href="/dashboard">
-<%= t('nav.dashboard') %>
-</a>
-<a href="/logout">
-<%= t('nav.logout') %>
-</a>
-</nav>
-</header>
-<main class="container">
-<h1>
-<%= t('invoices.title') %>
-</h1>
-<section class="panel">
+<body class="page invoices-page">
+<%- include('partials/header') %>
+<main class="container invoices-module app-module">
+<%- include('partials/page-shell', {
+  pageTitle: t('invoices.title'),
+  pageSubtitle: t('invoices.history')
+}) %>
+<section class="panel app-panel">
+<div class="panel-header app-panel-header">
+<div>
 <h2>
 <%= t('invoices.create_invoice') %>
 </h2>
+</div>
+</div>
 <% if (error) { %>
-<div class="alert">
+<div class="alert app-message app-message-error error">
 <%= error %>
 </div>
 <% } %>
-<form method="POST" action="/invoices/create" class="form" id="invoice-form" data-base-currency="<%= companySettings.baseCurrency %>">
+<form method="POST" action="/invoices/create" class="form app-form-grid" id="invoice-form" data-base-currency="<%= companySettings.baseCurrency %>">
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-<div class="grid-2">
+<div class="invoice-form-grid">
 <label>
 <%= t('invoices.customer') %>
 <select name="customer_id">
@@ -85,7 +78,7 @@
 <input type="number" name="discount_value" min="0" step="0.01" value="0" id="discount-value" />
 </label>
 </div>
-<div class="table">
+<div class="table app-table-wrap invoice-lines-table">
 <div class="table-row header invoice-items">
 <div>
 <%= t('invoices.table.product') %>
@@ -118,7 +111,7 @@
 <input type="number" name="unit_price" min="0" step="0.01" value="0" class="line-price" />
 <input type="text" class="line-total" value="<%= companySettings.baseCurrency %> 0.00" disabled />
 <div class="actions">
-<button type="button" class="btn danger line-remove">
+<button type="button" class="btn danger app-btn app-btn-danger line-remove">
 <%= t('invoices.remove') %>
 </button>
 </div>
@@ -126,7 +119,7 @@
 </div>
 </div>
 <div class="invoice-actions">
-<button type="button" class="btn" id="add-line">
+<button type="button" class="btn app-btn" id="add-line">
 <%= t('invoices.add_line') %>
 </button>
 <div class="invoice-summary">
@@ -147,17 +140,21 @@
 </span>
 <strong id="invoice-total"><%= companySettings.baseCurrency %> 0.00</strong>
 </div>
-<button type="submit" class="btn primary">
+<button type="submit" class="btn primary app-btn app-btn-primary">
 <%= t('invoices.create_invoice_button') %>
 </button>
 </div>
 </form>
 </section>
-<section class="panel">
+<section class="panel app-panel">
+<div class="panel-header app-panel-header">
+<div>
 <h2>
 <%= t('invoices.history') %>
 </h2>
-<div class="table">
+</div>
+</div>
+<div class="table app-table-wrap invoices-table">
 <div class="table-row header invoices">
 <div>
 <%= t('invoices.table.invoice') %>
@@ -185,12 +182,12 @@
 </div>
 </div>
 <% if (invoices.length === 0) { %>
-<div class="table-row empty">
+<div class="table-row empty app-empty-state">
 <%= t('invoices.no_invoices') %>
 </div>
 <% } %>
 <% invoices.forEach(inv => { %>
-<div class="table-row invoices">
+<div class="table-row invoices app-table-row">
 <div>#<%= inv.id %>
 </div>
 <div>
@@ -208,12 +205,12 @@
 <%= new Date(inv.created_at).toLocaleString() %>
 </div>
 <div class="actions">
-<a class="btn" href="/invoices/<%= inv.id %>">
+<a class="btn app-btn" href="/invoices/<%= inv.id %>">
 <%= t('common.view') %>
 </a>
 </div>
 </div>
-<div class="table-row invoices-mobile">
+<div class="table-row invoices-mobile app-card">
 <div class="invoice-mobile-main">
 <div>
 <strong>#<%= inv.id %>
@@ -225,7 +222,7 @@
 </div>
 </div>
 <details class="invoice-mobile-details">
-<summary class="btn">
+<summary class="btn app-btn">
 <%= t('invoices.view_breakdown') %>
 </summary>
 <div class="invoice-mobile-grid">
@@ -257,7 +254,7 @@
 </div>
 </div>
 <div class="actions">
-<a class="btn" href="/invoices/<%= inv.id %>">
+<a class="btn app-btn" href="/invoices/<%= inv.id %>">
 <%= t('invoices.view_invoice') %>
 </a>
 </div>
@@ -282,7 +279,7 @@
 <input type="number" name="unit_price" min="0" step="0.01" value="0" class="line-price" />
 <input type="text" class="line-total" value="<%= companySettings.baseCurrency %> 0.00" disabled />
 <div class="actions">
-<button type="button" class="btn danger line-remove">
+<button type="button" class="btn danger app-btn app-btn-danger line-remove">
 <%= t('invoices.remove') %>
 </button>
 </div>

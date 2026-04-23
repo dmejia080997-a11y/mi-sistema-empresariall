@@ -10,33 +10,20 @@
     getCarrierOptions
   } = deps;
 app.get('/carrier-reception', requireAuth, requirePermission('carrier_reception', 'view'), (req, res) => {
-  const companyId = getCompanyId(req);
   const filters = {
     tracking: normalizeString(req.query.tracking),
     carrier: normalizeString(req.query.carrier),
     status: normalizeString(req.query.status),
     date: normalizeString(req.query.date)
   };
-  const message = req.session ? req.session.reception_message : null;
-  if (req.session) req.session.reception_message = null;
-
-  fetchCarrierReceptionStats(companyId, (summary) => {
-    fetchCarrierReceptionList(companyId, filters, (receptions) => {
-      getCarrierOptions(companyId, (carrierOptions) => {
-        res.render('carrier-reception', {
-          companyId,
-          stats: summary.stats,
-          carrierTotals: summary.carrierTotals,
-          carrierTodayTotals: summary.carrierTodayTotals,
-          carrierOptions,
-          receptions,
-          filters,
-          message,
-          user: req.session ? req.session.user : null
-        });
-      });
-    });
+  const params = new URLSearchParams();
+  Object.keys(filters).forEach((key) => {
+    if (filters[key]) params.set(key, filters[key]);
   });
+  const hasFilters = Array.from(params.keys()).length > 0;
+  const targetPath = hasFilters ? '/carrier-reception/list' : '/carrier-reception/quick';
+  const targetUrl = params.toString() ? `${targetPath}?${params.toString()}` : targetPath;
+  return res.redirect(targetUrl);
 });
 
 app.get('/carrier-reception/quick', requireAuth, requirePermission('carrier_reception', 'view'), (req, res) => {

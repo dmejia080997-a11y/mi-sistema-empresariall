@@ -13,6 +13,7 @@ const SQLiteStore = require('connect-sqlite3')(session);
 const bcrypt = require('bcryptjs');
 const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
+const ejs = require('ejs');
 const multer = require('multer');
 const crypto = require('crypto');
 const csrf = require('csurf');
@@ -50,7 +51,15 @@ const SESSION_COOKIE_NAME = getSessionCookieName(IS_PROD);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const SHOULD_AUTO_SELECT_PORT = !process.env.PORT && !IS_PROD;
+const MAX_PORT_RETRIES = 10;
 const DB_PATH = path.join(__dirname, 'data', 'app.db');
+const GLOBAL_DOCK_PARTIAL_PATH = path.join(__dirname, 'views', 'partials', 'global-dock.ejs');
+const DESIGN_SYSTEM_ASSETS = [
+  '<link rel="stylesheet" href="/css/theme.css" data-design-system-asset />',
+  '<link rel="stylesheet" href="/css/layout.css" data-design-system-asset />',
+  '<link rel="stylesheet" href="/css/components.css" data-design-system-asset />'
+];
 const UPLOAD_ROOT = path.join(__dirname, 'data', 'uploads');
 const CUSCAR_BASE_CATALOG_PATH = path.join(__dirname, 'data', 'cuscar-catalogs.json');
 const CUSCAR_CATALOGS = {
@@ -436,6 +445,142 @@ app.use((req, res, next) => {
 
 app.use((req, res, next) => {
   res.locals.packagesNav = 'list';
+  next();
+});
+
+function normalizeViewName(view) {
+  return String(view || '').replace(/\\/g, '/');
+}
+
+function shouldInjectGlobalDesignAssets(view, html) {
+  if (typeof html !== 'string' || !/<\/head>/i.test(html)) return false;
+  if (!html.includes('/styles.css')) return false;
+  const viewName = normalizeViewName(view);
+  const printableViews = new Set([
+    'package-label',
+    'package-label-batch',
+    'package-receipt',
+    'awb-print',
+    'awb-pdf-view',
+    'rrhh/employee-print',
+    'rrhh/contract-print',
+    'rrhh/record-print'
+  ]);
+  return !printableViews.has(viewName);
+}
+
+function injectGlobalDesignAssets(view, html) {
+  if (!shouldInjectGlobalDesignAssets(view, html)) return html;
+  const missingAssets = DESIGN_SYSTEM_ASSETS.filter((tag) => {
+    const hrefMatch = tag.match(/href="([^"]+)"/);
+    return hrefMatch && !html.includes(hrefMatch[1]);
+  });
+  if (!missingAssets.length) return html;
+  return html.replace(/<\/head>/i, `${missingAssets.join('\n')}\n</head>`);
+}
+
+function shouldInjectGlobalDock(req, view, html) {
+  if (!req.session || !req.session.user || !req.session.company) return false;
+  if (typeof html !== 'string' || !/<\/body>/i.test(html)) return false;
+  if (
+    html.includes('data-global-dock-asset') ||
+    html.includes('data-global-dock-mount') ||
+    html.includes('data-global-dock-root') ||
+    html.includes('id="workspace-dock"')
+  ) {
+    return false;
+  }
+  const viewName = normalizeViewName(view);
+  if (viewName === 'workspace' || viewName.endsWith('/workspace')) return false;
+  return true;
+}
+
+function injectGlobalDockMarkup(html, partialHtml) {
+  if (!partialHtml) return html;
+  const styleTag = '<link rel="stylesheet" href="/css/global-dock.css" data-global-dock-asset />';
+  let output = html;
+
+  if (!output.includes('/css/global-dock.css') && /<\/head>/i.test(output)) {
+    output = output.replace(/<\/head>/i, `${styleTag}\n</head>`);
+  }
+  if (!output.includes('data-global-dock-mount')) {
+    output = output.replace(/<\/body>/i, `${partialHtml}\n</body>`);
+  }
+
+  return output;
+}
+
+function buildGlobalDockBootstrap(req, res, payload) {
+  const labels = buildWorkspaceLabels(res.locals.lang);
+  return JSON.stringify({
+    ok: true,
+    state: payload.workspaceState,
+    companyBrand: payload.companyBrand,
+    icons: payload.icons,
+    currentPath: req.originalUrl || req.path || '/',
+    labels: {
+      modulesTitle: labels.modulesTitle,
+      noModules: labels.noModules,
+      showDock: res.locals.lang === 'en' ? 'Show dock' : 'Mostrar dock',
+      hideDock: res.locals.lang === 'en' ? 'Hide dock' : 'Ocultar dock'
+    }
+  }).replace(/</g, '\\u003c');
+}
+
+function renderGlobalDockPartial(req, res, callback) {
+  buildWorkspaceResponse(req, res, (err, payload) => {
+    if (err || !payload || !payload.workspaceState) {
+      callback(null, '');
+      return;
+    }
+    const settings = payload.workspaceState.settings || {};
+    if (settings.dockEnabled === false) {
+      callback(null, '');
+      return;
+    }
+    ejs.renderFile(
+      GLOBAL_DOCK_PARTIAL_PATH,
+      { globalDockBootstrap: buildGlobalDockBootstrap(req, res, payload) },
+      {},
+      (renderErr, partialHtml) => callback(renderErr || null, partialHtml || '')
+    );
+  });
+}
+
+app.use((req, res, next) => {
+  const originalRender = res.render.bind(res);
+  res.render = (view, options, callback) => {
+    let renderOptions = options;
+    let renderCallback = callback;
+    if (typeof renderOptions === 'function') {
+      renderCallback = renderOptions;
+      renderOptions = undefined;
+    }
+
+    return originalRender(view, renderOptions, (err, html) => {
+      if (err) {
+        if (renderCallback) return renderCallback(err);
+        return next(err);
+      }
+
+      const htmlWithDesignSystem = injectGlobalDesignAssets(view, html);
+
+      if (!shouldInjectGlobalDock(req, view, htmlWithDesignSystem)) {
+        if (renderCallback) return renderCallback(null, htmlWithDesignSystem);
+        return res.send(htmlWithDesignSystem);
+      }
+
+      return renderGlobalDockPartial(req, res, (dockErr, partialHtml) => {
+        if (dockErr) {
+          if (renderCallback) return renderCallback(dockErr);
+          return next(dockErr);
+        }
+        const renderedHtml = injectGlobalDockMarkup(htmlWithDesignSystem, partialHtml);
+        if (renderCallback) return renderCallback(null, renderedHtml);
+        return res.send(renderedHtml);
+      });
+    });
+  };
   next();
 });
 
@@ -1883,8 +2028,7 @@ function getCompanySettings(companyId, callback) {
         ...company,
         base_currency: baseCurrency,
         allowed_currencies: allowedCurrencies,
-        accounting_framework: company.accounting_framework || 'NIF',
-        default_launcher: normalizeLauncherType(company.default_launcher, { allowEmpty: true })
+        accounting_framework: company.accounting_framework || 'NIF'
       });
     }
   );
@@ -3132,7 +3276,6 @@ db.serialize(() => {
  phone TEXT,
  username TEXT,
  password_hash TEXT,
- default_launcher TEXT,
  accounting_framework TEXT,
  logo TEXT,
  primary_color TEXT,
@@ -3226,13 +3369,25 @@ db.serialize(() => {
   db.run('CREATE INDEX IF NOT EXISTS idx_user_permissions_company ON user_permissions (company_id)');
 
   db.run(
-    `CREATE TABLE IF NOT EXISTS launcher_preferences (
+    `CREATE TABLE IF NOT EXISTS user_workspace_settings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
       company_id INTEGER NOT NULL,
-      visible_modules TEXT NULL,
-      widget_prefs TEXT NULL,
-      layout_prefs TEXT NULL,
+      user_id INTEGER NOT NULL,
+      dock_enabled INTEGER NOT NULL DEFAULT 1,
+      dock_position TEXT NOT NULL DEFAULT 'left',
+      dock_mode TEXT NOT NULL DEFAULT 'auto-hide',
+      dock_auto_hide INTEGER NOT NULL DEFAULT 1,
+      dock_size INTEGER NULL,
+      show_labels INTEGER NOT NULL DEFAULT 1,
+      theme_color TEXT NULL,
+      accent_color TEXT NULL,
+      background_color TEXT NULL,
+      dock_color TEXT NULL,
+      dock_modules TEXT NULL,
+      icon_style TEXT NULL,
+      icon_size INTEGER NULL,
+      use_glass_effect INTEGER NOT NULL DEFAULT 1,
+      layout_mode TEXT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(user_id, company_id),
@@ -3240,44 +3395,35 @@ db.serialize(() => {
       FOREIGN KEY (company_id) REFERENCES companies(id)
     )`
   );
-  db.run('CREATE INDEX IF NOT EXISTS idx_launcher_preferences_user ON launcher_preferences (user_id)');
-  db.run('CREATE INDEX IF NOT EXISTS idx_launcher_preferences_company ON launcher_preferences (company_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_user_workspace_settings_user ON user_workspace_settings (user_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_user_workspace_settings_company ON user_workspace_settings (company_id)');
 
   db.run(
-    `CREATE TABLE IF NOT EXISTS launcher_notes (
+    `CREATE TABLE IF NOT EXISTS user_workspace_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      external_id TEXT NOT NULL UNIQUE,
-      user_id INTEGER NOT NULL,
       company_id INTEGER NOT NULL,
-      text TEXT NULL,
+      user_id INTEGER NOT NULL,
+      item_type TEXT NOT NULL,
+      module_key TEXT NULL,
+      folder_name TEXT NULL,
+      icon_name TEXT NULL,
       color TEXT NULL,
-      position INTEGER NOT NULL DEFAULT 0,
+      pos_x REAL NULL,
+      pos_y REAL NULL,
+      sort_order INTEGER NULL,
+      parent_folder_id INTEGER NULL,
+      is_visible INTEGER NOT NULL DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id),
-      FOREIGN KEY (company_id) REFERENCES companies(id)
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      FOREIGN KEY (parent_folder_id) REFERENCES user_workspace_items(id)
     )`
   );
-  db.run('CREATE INDEX IF NOT EXISTS idx_launcher_notes_user ON launcher_notes (user_id)');
-  db.run('CREATE INDEX IF NOT EXISTS idx_launcher_notes_company ON launcher_notes (company_id)');
-
-  db.run(
-    `CREATE TABLE IF NOT EXISTS launcher_planner_entries (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      company_id INTEGER NOT NULL,
-      entry_date TEXT NOT NULL,
-      text TEXT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(user_id, company_id, entry_date),
-      FOREIGN KEY (user_id) REFERENCES users(id),
-      FOREIGN KEY (company_id) REFERENCES companies(id)
-    )`
-  );
-  db.run('CREATE INDEX IF NOT EXISTS idx_launcher_planner_user ON launcher_planner_entries (user_id)');
-  db.run('CREATE INDEX IF NOT EXISTS idx_launcher_planner_company ON launcher_planner_entries (company_id)');
-  db.run('CREATE INDEX IF NOT EXISTS idx_launcher_planner_date ON launcher_planner_entries (entry_date)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_user_workspace_items_user ON user_workspace_items (user_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_user_workspace_items_company ON user_workspace_items (company_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_user_workspace_items_parent ON user_workspace_items (parent_folder_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_user_workspace_items_module ON user_workspace_items (company_id, user_id, module_key)');
 
   db.run(
     `CREATE TABLE IF NOT EXISTS package_label_layouts (
@@ -3387,14 +3533,45 @@ db.serialize(() => {
   db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_username ON companies (username)');
 
   ensureColumn('users', 'is_active', 'INTEGER NOT NULL DEFAULT 1');
-  ensureColumn('launcher_preferences', 'widget_prefs', 'TEXT');
-  ensureColumn('launcher_preferences', 'layout_prefs', 'TEXT');
-  ensureColumnsOnTable('companies', [{ name: 'default_launcher', type: 'TEXT' }], () => {
-    db.run("UPDATE companies SET default_launcher = NULL WHERE default_launcher IS NOT NULL AND default_launcher NOT IN ('classic', 'icons', 'executive', 'original')");
-  });
-  ensureColumnsOnTable('users', [{ name: 'launcher_type', type: 'TEXT' }], () => {
-    db.run("UPDATE users SET launcher_type = NULL WHERE launcher_type IS NOT NULL AND launcher_type NOT IN ('classic', 'icons', 'executive', 'original')");
-  });
+  ensureColumnsOnTable(
+    'user_workspace_settings',
+    [
+      { name: 'dock_enabled', type: 'INTEGER NOT NULL DEFAULT 1' },
+      { name: 'dock_position', type: "TEXT NOT NULL DEFAULT 'left'" },
+      { name: 'dock_mode', type: "TEXT NOT NULL DEFAULT 'auto-hide'" },
+      { name: 'dock_auto_hide', type: 'INTEGER NOT NULL DEFAULT 1' },
+      { name: 'dock_size', type: 'INTEGER' },
+      { name: 'show_labels', type: 'INTEGER NOT NULL DEFAULT 1' },
+      { name: 'theme_color', type: 'TEXT' },
+      { name: 'accent_color', type: 'TEXT' },
+      { name: 'background_color', type: 'TEXT' },
+      { name: 'dock_color', type: 'TEXT' },
+      { name: 'dock_modules', type: 'TEXT' },
+      { name: 'icon_style', type: 'TEXT' },
+      { name: 'icon_size', type: 'INTEGER' },
+      { name: 'use_glass_effect', type: 'INTEGER NOT NULL DEFAULT 1' },
+      { name: 'layout_mode', type: 'TEXT' },
+      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+    ]
+  );
+  ensureColumnsOnTable(
+    'user_workspace_items',
+    [
+      { name: 'item_type', type: 'TEXT' },
+      { name: 'module_key', type: 'TEXT' },
+      { name: 'folder_name', type: 'TEXT' },
+      { name: 'icon_name', type: 'TEXT' },
+      { name: 'color', type: 'TEXT' },
+      { name: 'pos_x', type: 'REAL' },
+      { name: 'pos_y', type: 'REAL' },
+      { name: 'sort_order', type: 'INTEGER' },
+      { name: 'parent_folder_id', type: 'INTEGER' },
+      { name: 'is_visible', type: 'INTEGER NOT NULL DEFAULT 1' },
+      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+    ]
+  );
   ensureColumn('items', 'company_id', 'INTEGER');
   ensureColumnsOnTable(
     'items',
@@ -4792,9 +4969,7 @@ function slugifyStatusKey(value) {
     .replace(/^_+|_+$/g, '');
 }
 
-const LAUNCHER_TYPES = ['classic', 'icons', 'executive', 'original'];
-const DEFAULT_LAUNCHER_TYPE = 'classic';
-const LAUNCHER_FONT_CHOICES = [
+const COMPANY_FONT_CHOICES = [
   { value: 'space-grotesk', label: 'Space Grotesk' },
   { value: 'manrope', label: 'Manrope' },
   { value: 'nunito', label: 'Nunito' },
@@ -4822,47 +4997,6 @@ function normalizeBooleanFlag(value, fallback = false) {
   return Boolean(fallback);
 }
 
-function normalizeLauncherType(value, options = {}) {
-  const allowEmpty = Boolean(options.allowEmpty);
-  const normalized = normalizeString(value).toLowerCase();
-  if (!normalized) return allowEmpty ? null : DEFAULT_LAUNCHER_TYPE;
-  if (LAUNCHER_TYPES.includes(normalized)) return normalized;
-  if (allowEmpty && (normalized === 'inherit' || normalized === 'company' || normalized === 'default')) {
-    return null;
-  }
-  return allowEmpty ? null : DEFAULT_LAUNCHER_TYPE;
-}
-
-function resolveLauncherType(userLauncherType, companyLauncherType) {
-  return (
-    normalizeLauncherType(userLauncherType, { allowEmpty: true }) ||
-    normalizeLauncherType(companyLauncherType, { allowEmpty: true }) ||
-    DEFAULT_LAUNCHER_TYPE
-  );
-}
-
-function getLauncherChoices(t, options = {}) {
-  const includeInherit = Boolean(options.includeInherit);
-  const choices = [];
-  if (includeInherit) {
-    choices.push({
-      value: '',
-      key: 'inherit',
-      name: t('launcher.type.inherit.name'),
-      desc: t('launcher.type.inherit.desc')
-    });
-  }
-  LAUNCHER_TYPES.forEach((type) => {
-    choices.push({
-      value: type,
-      key: type,
-      name: t(`launcher.type.${type}.name`),
-      desc: t(`launcher.type.${type}.desc`)
-    });
-  });
-  return choices;
-}
-
 function clampNumber(value, min, max, fallback) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
@@ -4871,7 +5005,7 @@ function clampNumber(value, min, max, fallback) {
 
 function normalizeCompanyFontFamily(value, fallback) {
   const normalized = normalizeString(value).toLowerCase();
-  if (LAUNCHER_FONT_CHOICES.some((entry) => entry.value === normalized)) return normalized;
+  if (COMPANY_FONT_CHOICES.some((entry) => entry.value === normalized)) return normalized;
   return fallback || DEFAULT_COMPANY_APPEARANCE.fontFamily;
 }
 
@@ -5464,60 +5598,6 @@ function buildLauncherIconLayout(modules, layoutPrefs) {
   };
 }
 
-function getLauncherConfiguration(userId, companyId, callback) {
-  if (!userId || !companyId) {
-    return callback({
-      userLauncherType: null,
-      companyLauncherType: null,
-      effectiveLauncherType: DEFAULT_LAUNCHER_TYPE
-    });
-  }
-  db.get(
-    `SELECT u.launcher_type AS user_launcher_type,
-            c.default_launcher AS company_launcher_type
-     FROM users u
-     JOIN companies c ON c.id = u.company_id
-     WHERE u.id = ? AND u.company_id = ?
-     LIMIT 1`,
-    [userId, companyId],
-    (err, row) => {
-      const userLauncherType = normalizeLauncherType(row && row.user_launcher_type, { allowEmpty: true });
-      const companyLauncherType = normalizeLauncherType(row && row.company_launcher_type, { allowEmpty: true });
-      return callback({
-        userLauncherType,
-        companyLauncherType,
-        effectiveLauncherType: resolveLauncherType(userLauncherType, companyLauncherType)
-      });
-    }
-  );
-}
-
-function saveUserLauncherType(userId, companyId, launcherType, callback) {
-  if (!userId || !companyId) {
-    if (callback) callback(new Error('Missing user or company'));
-    return;
-  }
-  const normalized = normalizeLauncherType(launcherType, { allowEmpty: true });
-  db.run(
-    'UPDATE users SET launcher_type = ? WHERE id = ? AND company_id = ?',
-    [normalized, userId, companyId],
-    (err) => callback && callback(err || null)
-  );
-}
-
-function saveCompanyLauncherType(companyId, launcherType, callback) {
-  if (!companyId) {
-    if (callback) callback(new Error('Missing company'));
-    return;
-  }
-  const normalized = normalizeLauncherType(launcherType, { allowEmpty: true });
-  db.run(
-    'UPDATE companies SET default_launcher = ? WHERE id = ?',
-    [normalized, companyId],
-    (err) => callback && callback(err || null)
-  );
-}
-
 function getlauncherPreferences(userId, companyId, callback) {
   if (!userId || !companyId) return callback(null);
   db.get(
@@ -5637,6 +5717,826 @@ function applylauncherPreferences(modules, prefs) {
     const nextMod = orderedConfigurable[configurableIndex];
     configurableIndex += 1;
     return nextMod || mod;
+  });
+}
+
+const WORKSPACE_DOCK_POSITIONS = ['left', 'right', 'top', 'bottom', 'center-top', 'center-bottom'];
+const WORKSPACE_DOCK_MODES = ['fixed', 'auto-hide', 'expandable'];
+const WORKSPACE_ICON_STYLES = ['soft', 'solid', 'outline'];
+const WORKSPACE_LAYOUT_MODES = ['light', 'dark'];
+const WORKSPACE_DOCK_PRIORITY_KEYS = ['notes', 'planner'];
+const DEFAULT_WORKSPACE_SETTINGS = {
+  dockEnabled: true,
+  dockPosition: 'left',
+  dockMode: 'auto-hide',
+  dockAutoHide: true,
+  showLabels: true,
+  themeColor: '#1f3b63',
+  accentColor: '#2563eb',
+  backgroundColor: '#eef3fb',
+  dockColor: '#0f172a',
+  iconStyle: 'soft',
+  iconSize: 92,
+  useGlassEffect: true,
+  layoutMode: 'light'
+};
+const WORKSPACE_MAX_FOLDERS = 24;
+const WORKSPACE_MAX_MODULES = 96;
+const WORKSPACE_DOCK_DEFAULT_COUNT = 5;
+const WORKSPACE_DESKTOP_START_X = 72;
+const WORKSPACE_DESKTOP_START_Y = 72;
+const WORKSPACE_DESKTOP_STEP_X = 152;
+const WORKSPACE_DESKTOP_STEP_Y = 152;
+const WORKSPACE_FOLDER_ICON = 'inventory';
+
+function normalizeWorkspaceDockPosition(value, fallback = DEFAULT_WORKSPACE_SETTINGS.dockPosition) {
+  const normalized = normalizeString(value).toLowerCase();
+  if (WORKSPACE_DOCK_POSITIONS.includes(normalized)) return normalized;
+  return fallback;
+}
+
+function normalizeWorkspaceDockMode(value, fallback = DEFAULT_WORKSPACE_SETTINGS.dockMode) {
+  const normalized = normalizeString(value).toLowerCase();
+  if (WORKSPACE_DOCK_MODES.includes(normalized)) return normalized;
+  return fallback;
+}
+
+function normalizeWorkspaceIconStyle(value, fallback = DEFAULT_WORKSPACE_SETTINGS.iconStyle) {
+  const normalized = normalizeString(value).toLowerCase();
+  if (WORKSPACE_ICON_STYLES.includes(normalized)) return normalized;
+  return fallback;
+}
+
+function normalizeWorkspaceLayoutMode(value, fallback = DEFAULT_WORKSPACE_SETTINGS.layoutMode) {
+  const normalized = normalizeString(value).toLowerCase();
+  if (WORKSPACE_LAYOUT_MODES.includes(normalized)) return normalized;
+  return fallback;
+}
+
+function normalizeWorkspaceIconName(value, fallback = 'default') {
+  const normalized = normalizeString(value).toLowerCase();
+  if (normalized && Object.prototype.hasOwnProperty.call(launcher_ICON_MAP, normalized)) return normalized;
+  return fallback;
+}
+
+function buildWorkspaceSettingsFallback(companyBrand) {
+  const safeBrand = companyBrand || {};
+  return normalizeWorkspaceSettings({
+    dockEnabled: DEFAULT_WORKSPACE_SETTINGS.dockEnabled,
+    dockPosition: DEFAULT_WORKSPACE_SETTINGS.dockPosition,
+    dockMode: DEFAULT_WORKSPACE_SETTINGS.dockMode,
+    dockAutoHide: DEFAULT_WORKSPACE_SETTINGS.dockAutoHide,
+    showLabels: DEFAULT_WORKSPACE_SETTINGS.showLabels,
+    themeColor: safeBrand.primary_color || DEFAULT_WORKSPACE_SETTINGS.themeColor,
+    accentColor: safeBrand.secondary_color || DEFAULT_WORKSPACE_SETTINGS.accentColor,
+    backgroundColor: safeBrand.background_color || DEFAULT_WORKSPACE_SETTINGS.backgroundColor,
+    dockColor: safeBrand.title_color || safeBrand.text_color || DEFAULT_WORKSPACE_SETTINGS.dockColor,
+    iconStyle: DEFAULT_WORKSPACE_SETTINGS.iconStyle,
+    iconSize: Number.isFinite(Number(safeBrand.icon_size)) ? Number(safeBrand.icon_size) + 18 : DEFAULT_WORKSPACE_SETTINGS.iconSize,
+    useGlassEffect: true,
+    layoutMode: DEFAULT_WORKSPACE_SETTINGS.layoutMode
+  });
+}
+
+function parseWorkspaceDockModules(raw) {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((entry) => normalizeString(entry))
+      .filter(Boolean);
+  }
+  const text = normalizeString(raw);
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text);
+    if (!Array.isArray(parsed)) return null;
+    return parsed
+      .map((entry) => normalizeString(entry))
+      .filter(Boolean);
+  } catch (err) {
+    return null;
+  }
+}
+
+function normalizeWorkspaceDockModulesList(list, allowedSet) {
+  const unique = [];
+  const safeList = Array.isArray(list) ? list : [];
+  safeList.forEach((entry) => {
+    const key = normalizeString(entry);
+    if (!key) return;
+    if (allowedSet instanceof Set && !allowedSet.has(key)) return;
+    if (unique.includes(key)) return;
+    unique.push(key);
+  });
+  return unique;
+}
+
+function buildDefaultWorkspaceDockModules(modules) {
+  const safeModules = Array.isArray(modules) ? modules : [];
+  const allowedKeys = safeModules
+    .map((module) => normalizeString(module && (module.key || module.moduleKey)))
+    .filter(Boolean);
+  const defaults = [];
+  const allowedSet = new Set(allowedKeys);
+
+  WORKSPACE_DOCK_PRIORITY_KEYS.forEach((key) => {
+    if (!allowedSet.has(key) || defaults.includes(key)) return;
+    defaults.push(key);
+  });
+
+  allowedKeys.forEach((key) => {
+    if (defaults.length >= WORKSPACE_DOCK_DEFAULT_COUNT) return;
+    if (defaults.includes(key)) return;
+    defaults.push(key);
+  });
+
+  return defaults;
+}
+
+function resolveWorkspaceDockModules(rawValue, modules, fallbackValue = undefined) {
+  const safeModules = Array.isArray(modules) ? modules : [];
+  const allowedKeys = safeModules
+    .map((module) => normalizeString(module && (module.key || module.moduleKey)))
+    .filter(Boolean);
+  if (!allowedKeys.length) return [];
+
+  const allowedSet = new Set(allowedKeys);
+  const resolvedValue = parseWorkspaceDockModules(rawValue);
+  if (resolvedValue !== null) {
+    return normalizeWorkspaceDockModulesList(resolvedValue, allowedSet);
+  }
+
+  if (typeof fallbackValue !== 'undefined') {
+    const resolvedFallback = parseWorkspaceDockModules(fallbackValue);
+    if (resolvedFallback !== null) {
+      return normalizeWorkspaceDockModulesList(resolvedFallback, allowedSet);
+    }
+  }
+
+  return buildDefaultWorkspaceDockModules(safeModules);
+}
+
+function normalizeWorkspaceSettings(raw, fallback = {}) {
+  const fallbackDockModules = parseWorkspaceDockModules(
+    Object.prototype.hasOwnProperty.call(fallback, 'dockModules') ? fallback.dockModules : fallback.dock_modules
+  );
+  const rawDockModules = parseWorkspaceDockModules(
+    raw && (Object.prototype.hasOwnProperty.call(raw, 'dockModules') ? raw.dockModules : raw.dock_modules)
+  );
+  const safeFallback = {
+    dockEnabled: normalizeBooleanFlag(
+      Object.prototype.hasOwnProperty.call(fallback, 'dockEnabled') ? fallback.dockEnabled : fallback.dock_enabled,
+      DEFAULT_WORKSPACE_SETTINGS.dockEnabled
+    ),
+    dockPosition: normalizeWorkspaceDockPosition(fallback.dockPosition || fallback.dock_position || DEFAULT_WORKSPACE_SETTINGS.dockPosition),
+    dockMode: normalizeWorkspaceDockMode(fallback.dockMode || fallback.dock_mode || DEFAULT_WORKSPACE_SETTINGS.dockMode),
+    dockAutoHide: normalizeBooleanFlag(
+      Object.prototype.hasOwnProperty.call(fallback, 'dockAutoHide') ? fallback.dockAutoHide : fallback.dock_auto_hide,
+      DEFAULT_WORKSPACE_SETTINGS.dockAutoHide
+    ),
+    showLabels: normalizeBooleanFlag(
+      Object.prototype.hasOwnProperty.call(fallback, 'showLabels') ? fallback.showLabels : fallback.show_labels,
+      DEFAULT_WORKSPACE_SETTINGS.showLabels
+    ),
+    themeColor: normalizeThemeColor(fallback.themeColor || fallback.theme_color, DEFAULT_WORKSPACE_SETTINGS.themeColor),
+    accentColor: normalizeThemeColor(fallback.accentColor || fallback.accent_color, DEFAULT_WORKSPACE_SETTINGS.accentColor),
+    backgroundColor: normalizeThemeColor(fallback.backgroundColor || fallback.background_color, DEFAULT_WORKSPACE_SETTINGS.backgroundColor),
+    dockColor: normalizeThemeColor(fallback.dockColor || fallback.dock_color, DEFAULT_WORKSPACE_SETTINGS.dockColor),
+    dockModules: fallbackDockModules,
+    iconStyle: normalizeWorkspaceIconStyle(fallback.iconStyle || fallback.icon_style || DEFAULT_WORKSPACE_SETTINGS.iconStyle),
+    iconSize: clampNumber(fallback.iconSize || fallback.icon_size || fallback.dockSize || fallback.dock_size, 72, 132, DEFAULT_WORKSPACE_SETTINGS.iconSize),
+    useGlassEffect: normalizeBooleanFlag(
+      Object.prototype.hasOwnProperty.call(fallback, 'useGlassEffect') ? fallback.useGlassEffect : fallback.use_glass_effect,
+      DEFAULT_WORKSPACE_SETTINGS.useGlassEffect
+    ),
+    layoutMode: normalizeWorkspaceLayoutMode(fallback.layoutMode || fallback.layout_mode, DEFAULT_WORKSPACE_SETTINGS.layoutMode)
+  };
+
+  return {
+    dockEnabled: normalizeBooleanFlag(
+      raw && (Object.prototype.hasOwnProperty.call(raw, 'dockEnabled') ? raw.dockEnabled : raw.dock_enabled),
+      safeFallback.dockEnabled
+    ),
+    dockPosition: normalizeWorkspaceDockPosition(raw && (raw.dockPosition || raw.dock_position), safeFallback.dockPosition),
+    dockMode: normalizeWorkspaceDockMode(raw && (raw.dockMode || raw.dock_mode), safeFallback.dockMode),
+    dockAutoHide: normalizeBooleanFlag(
+      raw && (Object.prototype.hasOwnProperty.call(raw, 'dockAutoHide') ? raw.dockAutoHide : raw.dock_auto_hide),
+      safeFallback.dockAutoHide
+    ),
+    showLabels: normalizeBooleanFlag(
+      raw && (Object.prototype.hasOwnProperty.call(raw, 'showLabels') ? raw.showLabels : raw.show_labels),
+      safeFallback.showLabels
+    ),
+    themeColor: normalizeThemeColor(raw && (raw.themeColor || raw.theme_color), safeFallback.themeColor),
+    accentColor: normalizeThemeColor(raw && (raw.accentColor || raw.accent_color), safeFallback.accentColor),
+    backgroundColor: normalizeThemeColor(raw && (raw.backgroundColor || raw.background_color), safeFallback.backgroundColor),
+    dockColor: normalizeThemeColor(raw && (raw.dockColor || raw.dock_color), safeFallback.dockColor),
+    dockModules: rawDockModules === null ? safeFallback.dockModules : rawDockModules,
+    iconStyle: normalizeWorkspaceIconStyle(raw && (raw.iconStyle || raw.icon_style), safeFallback.iconStyle),
+    iconSize: clampNumber(raw && (raw.iconSize || raw.icon_size || raw.dockSize || raw.dock_size), 72, 132, safeFallback.iconSize),
+    useGlassEffect: normalizeBooleanFlag(
+      raw && (Object.prototype.hasOwnProperty.call(raw, 'useGlassEffect') ? raw.useGlassEffect : raw.use_glass_effect),
+      safeFallback.useGlassEffect
+    ),
+    layoutMode: normalizeWorkspaceLayoutMode(raw && (raw.layoutMode || raw.layout_mode), safeFallback.layoutMode),
+    dockSize: clampNumber(raw && (raw.dockSize || raw.dock_size || raw.iconSize || raw.icon_size), 72, 132, safeFallback.iconSize)
+  };
+}
+
+function clampWorkspaceCoordinate(value, fallback) {
+  return clampNumber(value, 0, 5000, fallback);
+}
+
+function normalizeWorkspaceLocation(value, fallback = 'desktop') {
+  const normalized = normalizeString(value).toLowerCase();
+  if (normalized === 'dock' || normalized === 'desktop' || normalized === 'folder') return normalized;
+  return fallback;
+}
+
+function buildWorkspaceGridPosition(index, options = {}) {
+  const startX = Number.isFinite(Number(options.startX)) ? Number(options.startX) : WORKSPACE_DESKTOP_START_X;
+  const startY = Number.isFinite(Number(options.startY)) ? Number(options.startY) : WORKSPACE_DESKTOP_START_Y;
+  const columns = Number.isFinite(Number(options.columns)) ? Number(options.columns) : 4;
+  const safeIndex = Math.max(0, Number(index) || 0);
+  return {
+    posX: startX + (safeIndex % columns) * WORKSPACE_DESKTOP_STEP_X,
+    posY: startY + Math.floor(safeIndex / columns) * WORKSPACE_DESKTOP_STEP_Y
+  };
+}
+
+function getWorkspaceModuleGroup(moduleKey) {
+  const key = normalizeString(moduleKey);
+  if (key.startsWith('packages_status_') || ['packages', 'carrier_reception', 'manifests', 'cuscar', 'airway_bills'].includes(key)) {
+    return 'operations';
+  }
+  if (['customers', 'consignatarios', 'portal', 'tracking'].includes(key)) {
+    return 'people';
+  }
+  if (['inventory', 'billing', 'accounting', 'reports'].includes(key)) {
+    return 'business';
+  }
+  if (['users', 'settings', 'rrhh', 'agenda_medica'].includes(key)) {
+    return 'admin';
+  }
+  return 'general';
+}
+
+function buildDefaultWorkspaceLayout(modules) {
+  const safeModules = Array.isArray(modules) ? modules : [];
+  return {
+    folders: [],
+    modules: safeModules.slice(0, WORKSPACE_MAX_MODULES).map((module, index) => {
+      const desktopPosition = buildWorkspaceGridPosition(index);
+      return {
+        moduleKey: module.key,
+        name: module.name,
+        desc: module.desc,
+        href: module.href,
+        iconName: normalizeWorkspaceIconName(module.icon, 'default'),
+        color: module.color || DEFAULT_launcher_COLOR,
+        group: module.group || getWorkspaceModuleGroup(module.key),
+        location: 'desktop',
+        folderId: null,
+        posX: desktopPosition.posX,
+        posY: desktopPosition.posY,
+        sortOrder: index,
+        isVisible: true
+      };
+    })
+  };
+}
+
+function getUserWorkspaceSettings(userId, companyId, callback) {
+  if (!userId || !companyId) return callback(null);
+  db.get(
+    `SELECT dock_enabled, dock_position, dock_mode, dock_auto_hide, dock_size, show_labels,
+            theme_color, accent_color, background_color, dock_color, dock_modules,
+            icon_style, icon_size, use_glass_effect, layout_mode
+     FROM user_workspace_settings
+     WHERE user_id = ? AND company_id = ?
+     LIMIT 1`,
+    [userId, companyId],
+    (err, row) => callback(err || !row ? null : normalizeWorkspaceSettings(row))
+  );
+}
+
+function getUserWorkspaceItems(userId, companyId, callback) {
+  if (!userId || !companyId) return callback([]);
+  db.all(
+    `SELECT id, item_type, module_key, folder_name, icon_name, color, pos_x, pos_y,
+            sort_order, parent_folder_id, is_visible
+     FROM user_workspace_items
+     WHERE user_id = ? AND company_id = ?
+     ORDER BY CASE WHEN item_type = 'folder' THEN 0 ELSE 1 END, sort_order ASC, id ASC`,
+    [userId, companyId],
+    (err, rows) => callback(err || !rows ? [] : rows)
+  );
+}
+
+function buildWorkspaceState(modules, companyBrand, savedSettings, itemRows) {
+  const safeModules = Array.isArray(modules) ? modules.slice(0, WORKSPACE_MAX_MODULES) : [];
+  const fallbackSettings = buildWorkspaceSettingsFallback(companyBrand);
+  const settings = normalizeWorkspaceSettings(savedSettings || {}, fallbackSettings);
+  settings.dockModules = resolveWorkspaceDockModules(settings.dockModules, safeModules, fallbackSettings.dockModules);
+  const defaultLayout = buildDefaultWorkspaceLayout(safeModules);
+  const defaultModuleMap = new Map(defaultLayout.modules.map((entry) => [entry.moduleKey, entry]));
+  const rows = Array.isArray(itemRows) ? itemRows : [];
+  const folderRows = rows.filter((row) => normalizeString(row.item_type).toLowerCase() === 'folder').slice(0, WORKSPACE_MAX_FOLDERS);
+  const folderIdMap = new Map();
+  const folders = folderRows.map((row, index) => {
+    const defaults = buildWorkspaceGridPosition(index, { startX: 96, startY: 96 });
+    const folder = {
+      id: `folder:${row.id}`,
+      name: normalizeString(row.folder_name).slice(0, 42) || `Carpeta ${index + 1}`,
+      color: normalizeThemeColor(row.color, settings.accentColor),
+      iconName: normalizeWorkspaceIconName(row.icon_name, WORKSPACE_FOLDER_ICON),
+      posX: clampWorkspaceCoordinate(row.pos_x, defaults.posX),
+      posY: clampWorkspaceCoordinate(row.pos_y, defaults.posY),
+      sortOrder: row && Number.isFinite(Number(row.sort_order)) ? Number(row.sort_order) : index,
+      isVisible: row.is_visible !== 0
+    };
+    folderIdMap.set(Number(row.id), folder.id);
+    return folder;
+  });
+  const moduleRows = new Map();
+  rows.forEach((row) => {
+    if (normalizeString(row.item_type).toLowerCase() !== 'module') return;
+    const key = normalizeString(row.module_key);
+    if (!key || moduleRows.has(key)) return;
+    moduleRows.set(key, row);
+  });
+  const modulesState = safeModules.map((module, index) => {
+    const defaults = defaultModuleMap.get(module.key) || {};
+    const row = moduleRows.get(module.key);
+    return {
+      moduleKey: module.key,
+      name: module.name,
+      desc: module.desc,
+      href: module.href,
+      iconName: normalizeWorkspaceIconName(row && row.icon_name, normalizeWorkspaceIconName(module.icon, 'default')),
+      color: normalizeThemeColor(row && row.color, module.color || settings.accentColor),
+      group: module.group || getWorkspaceModuleGroup(module.key),
+      location: row && folderIdMap.has(Number(row.parent_folder_id)) ? 'folder' : 'desktop',
+      folderId: row && folderIdMap.has(Number(row.parent_folder_id)) ? folderIdMap.get(Number(row.parent_folder_id)) : null,
+      posX: row && folderIdMap.has(Number(row.parent_folder_id))
+        ? null
+        : clampWorkspaceCoordinate(row && row.pos_x, defaults.posX == null ? WORKSPACE_DESKTOP_START_X : defaults.posX),
+      posY: row && folderIdMap.has(Number(row.parent_folder_id))
+        ? null
+        : clampWorkspaceCoordinate(row && row.pos_y, defaults.posY == null ? WORKSPACE_DESKTOP_START_Y : defaults.posY),
+      sortOrder: row && Number.isFinite(Number(row.sort_order)) ? Number(row.sort_order) : index,
+      isVisible: row ? row.is_visible !== 0 : true
+    };
+  });
+
+  return {
+    settings,
+    folders,
+    modules: modulesState
+  };
+}
+
+function sanitizeWorkspacePayload(rawState, modules, companyBrand) {
+  const safeModules = Array.isArray(modules) ? modules.slice(0, WORKSPACE_MAX_MODULES) : [];
+  const defaultState = buildDefaultWorkspaceLayout(safeModules);
+  const defaultModuleMap = new Map(defaultState.modules.map((entry) => [entry.moduleKey, entry]));
+  const fallbackSettings = buildWorkspaceSettingsFallback(companyBrand);
+  const settings = normalizeWorkspaceSettings(rawState && rawState.settings ? rawState.settings : rawState, fallbackSettings);
+  settings.dockModules = resolveWorkspaceDockModules(settings.dockModules, safeModules, fallbackSettings.dockModules);
+  const rawFolders = rawState && Array.isArray(rawState.folders) ? rawState.folders : [];
+  const folders = [];
+  const folderIds = new Set();
+
+  rawFolders.slice(0, WORKSPACE_MAX_FOLDERS).forEach((folder, index) => {
+    const tempId = normalizeString(folder && (folder.id || folder.tempId || folder.temp_id)) || `folder:new:${index + 1}`;
+    if (folderIds.has(tempId)) return;
+    folderIds.add(tempId);
+    const defaults = buildWorkspaceGridPosition(index, { startX: 96, startY: 96 });
+    const rawPosX = folder && Object.prototype.hasOwnProperty.call(folder, 'posX') ? folder.posX : folder && folder.pos_x;
+    const rawPosY = folder && Object.prototype.hasOwnProperty.call(folder, 'posY') ? folder.posY : folder && folder.pos_y;
+    const rawSortOrder = folder && Object.prototype.hasOwnProperty.call(folder, 'sortOrder') ? folder.sortOrder : folder && folder.sort_order;
+    folders.push({
+      tempId,
+      folderName: normalizeString(folder && (folder.name || folder.folderName || folder.folder_name)).slice(0, 42) || `Carpeta ${folders.length + 1}`,
+      iconName: normalizeWorkspaceIconName(folder && (folder.iconName || folder.icon_name), WORKSPACE_FOLDER_ICON),
+      color: normalizeThemeColor(folder && folder.color, settings.accentColor),
+      posX: clampWorkspaceCoordinate(rawPosX, defaults.posX),
+      posY: clampWorkspaceCoordinate(rawPosY, defaults.posY),
+      sortOrder: Number.isFinite(Number(rawSortOrder)) ? Number(rawSortOrder) : folders.length,
+      isVisible: normalizeBooleanFlag(folder && (Object.prototype.hasOwnProperty.call(folder, 'isVisible') ? folder.isVisible : folder.is_visible), true)
+    });
+  });
+
+  const rawModules = rawState && Array.isArray(rawState.modules) ? rawState.modules : [];
+  const incomingModules = new Map();
+  rawModules.forEach((entry) => {
+    const key = normalizeString(entry && (entry.moduleKey || entry.module_key));
+    if (!key || incomingModules.has(key)) return;
+    incomingModules.set(key, entry || {});
+  });
+
+  const preparedModules = safeModules.map((module) => {
+    const defaults = defaultModuleMap.get(module.key) || {};
+    const entry = incomingModules.get(module.key) || defaults;
+    const rawPosX = entry && Object.prototype.hasOwnProperty.call(entry, 'posX') ? entry.posX : entry && entry.pos_x;
+    const rawPosY = entry && Object.prototype.hasOwnProperty.call(entry, 'posY') ? entry.posY : entry && entry.pos_y;
+    const rawSortOrder = entry && Object.prototype.hasOwnProperty.call(entry, 'sortOrder') ? entry.sortOrder : entry && entry.sort_order;
+    let location = normalizeWorkspaceLocation(entry && entry.location, defaults.location || 'desktop');
+    let folderId = null;
+    if (location === 'folder') {
+      const requestedFolderId = normalizeString(entry && (entry.folderId || entry.folder_id));
+      if (requestedFolderId && folderIds.has(requestedFolderId)) {
+        folderId = requestedFolderId;
+      } else {
+        location = 'desktop';
+      }
+    }
+    return {
+      moduleKey: module.key,
+      iconName: normalizeWorkspaceIconName(entry && (entry.iconName || entry.icon_name), normalizeWorkspaceIconName(module.icon, 'default')),
+      color: normalizeThemeColor(entry && entry.color, module.color || settings.accentColor),
+      location,
+      folderId,
+      posX: location === 'desktop'
+        ? clampWorkspaceCoordinate(rawPosX, defaults.posX == null ? WORKSPACE_DESKTOP_START_X : defaults.posX)
+        : null,
+      posY: location === 'desktop'
+        ? clampWorkspaceCoordinate(rawPosY, defaults.posY == null ? WORKSPACE_DESKTOP_START_Y : defaults.posY)
+        : null,
+      sortOrder: Number.isFinite(Number(rawSortOrder))
+        ? Number(rawSortOrder)
+        : (defaults.sortOrder == null ? 999 : defaults.sortOrder),
+      isVisible: normalizeBooleanFlag(entry && (Object.prototype.hasOwnProperty.call(entry, 'isVisible') ? entry.isVisible : entry.is_visible), true)
+    };
+  });
+
+  return {
+    settings,
+    folders,
+    modules: preparedModules
+  };
+}
+
+function saveUserWorkspaceState(userId, companyId, companyBrand, modules, rawState, callback) {
+  if (!userId || !companyId) {
+    callback(new Error('Missing user or company'));
+    return;
+  }
+  const payload = sanitizeWorkspacePayload(rawState, modules, companyBrand);
+  const settings = payload.settings;
+  const folders = payload.folders;
+  const moduleItems = payload.modules;
+
+  enqueueDbTransaction((finish) => {
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+      db.run(
+        `INSERT INTO user_workspace_settings
+           (company_id, user_id, dock_enabled, dock_position, dock_mode, dock_auto_hide, dock_size, show_labels,
+            theme_color, accent_color, background_color, dock_color, dock_modules,
+            icon_style, icon_size, use_glass_effect, layout_mode, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON CONFLICT(user_id, company_id) DO UPDATE SET
+           dock_enabled = excluded.dock_enabled,
+           dock_position = excluded.dock_position,
+           dock_mode = excluded.dock_mode,
+           dock_auto_hide = excluded.dock_auto_hide,
+           dock_size = excluded.dock_size,
+           show_labels = excluded.show_labels,
+           theme_color = excluded.theme_color,
+           accent_color = excluded.accent_color,
+           background_color = excluded.background_color,
+           dock_color = excluded.dock_color,
+           dock_modules = excluded.dock_modules,
+           icon_style = excluded.icon_style,
+           icon_size = excluded.icon_size,
+           use_glass_effect = excluded.use_glass_effect,
+           layout_mode = excluded.layout_mode,
+           updated_at = CURRENT_TIMESTAMP`,
+        [
+          companyId,
+          userId,
+          settings.dockEnabled ? 1 : 0,
+          settings.dockPosition,
+          settings.dockMode,
+          settings.dockAutoHide ? 1 : 0,
+          settings.dockSize || settings.iconSize,
+          settings.showLabels ? 1 : 0,
+          settings.themeColor,
+          settings.accentColor,
+          settings.backgroundColor,
+          settings.dockColor,
+          JSON.stringify(Array.isArray(settings.dockModules) ? settings.dockModules : []),
+          settings.iconStyle,
+          settings.iconSize,
+          settings.useGlassEffect ? 1 : 0,
+          settings.layoutMode
+        ],
+        (settingsErr) => {
+          if (settingsErr) {
+            rollbackTransaction(finish, () => callback(settingsErr));
+            return;
+          }
+          db.run(
+            'DELETE FROM user_workspace_items WHERE user_id = ? AND company_id = ?',
+            [userId, companyId],
+            (deleteErr) => {
+              if (deleteErr) {
+                rollbackTransaction(finish, () => callback(deleteErr));
+                return;
+              }
+
+              const folderIdMap = new Map();
+              const insertFolder = (index) => {
+                if (index >= folders.length) {
+                  insertModule(0);
+                  return;
+                }
+                const folder = folders[index];
+                db.run(
+                  `INSERT INTO user_workspace_items
+                     (company_id, user_id, item_type, module_key, folder_name, icon_name, color, pos_x, pos_y,
+                      sort_order, parent_folder_id, is_visible, created_at, updated_at)
+                   VALUES (?, ?, 'folder', NULL, ?, ?, ?, ?, ?, ?, NULL, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                  [
+                    companyId,
+                    userId,
+                    folder.folderName,
+                    folder.iconName,
+                    folder.color,
+                    folder.posX,
+                    folder.posY,
+                    folder.sortOrder,
+                    folder.isVisible ? 1 : 0
+                  ],
+                  function onFolderInserted(folderErr) {
+                    if (folderErr) {
+                      rollbackTransaction(finish, () => callback(folderErr));
+                      return;
+                    }
+                    folderIdMap.set(folder.tempId, this.lastID);
+                    insertFolder(index + 1);
+                  }
+                );
+              };
+
+              const insertModule = (index) => {
+                if (index >= moduleItems.length) {
+                  commitTransaction(finish, (commitErr) => callback(commitErr || null));
+                  return;
+                }
+                const item = moduleItems[index];
+                const parentFolderId = item.location === 'folder' ? folderIdMap.get(item.folderId) || null : null;
+                db.run(
+                  `INSERT INTO user_workspace_items
+                     (company_id, user_id, item_type, module_key, folder_name, icon_name, color, pos_x, pos_y,
+                      sort_order, parent_folder_id, is_visible, created_at, updated_at)
+                   VALUES (?, ?, 'module', ?, NULL, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                  [
+                    companyId,
+                    userId,
+                    item.moduleKey,
+                    item.iconName,
+                    item.color,
+                    item.location === 'desktop' ? item.posX : null,
+                    item.location === 'desktop' ? item.posY : null,
+                    item.sortOrder,
+                    parentFolderId,
+                    item.isVisible ? 1 : 0
+                  ],
+                  (itemErr) => {
+                    if (itemErr) {
+                      rollbackTransaction(finish, () => callback(itemErr));
+                      return;
+                    }
+                    insertModule(index + 1);
+                  }
+                );
+              };
+
+              insertFolder(0);
+            }
+          );
+        }
+      );
+    });
+  });
+}
+
+function saveUserWorkspaceSettingsOnly(userId, companyId, companyBrand, workspaceModules, rawSettings, callback) {
+  if (!userId || !companyId) {
+    callback(new Error('Missing user or company'));
+    return;
+  }
+  const settings = normalizeWorkspaceSettings(
+    rawSettings && rawSettings.settings ? rawSettings.settings : rawSettings,
+    buildWorkspaceSettingsFallback(companyBrand)
+  );
+  settings.dockModules = resolveWorkspaceDockModules(settings.dockModules, workspaceModules, settings.dockModules);
+
+  db.run(
+    `INSERT INTO user_workspace_settings
+       (company_id, user_id, dock_enabled, dock_position, dock_mode, dock_auto_hide, dock_size, show_labels,
+        theme_color, accent_color, background_color, dock_color, dock_modules,
+        icon_style, icon_size, use_glass_effect, layout_mode, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+     ON CONFLICT(user_id, company_id) DO UPDATE SET
+       dock_enabled = excluded.dock_enabled,
+       dock_position = excluded.dock_position,
+       dock_mode = excluded.dock_mode,
+       dock_auto_hide = excluded.dock_auto_hide,
+       dock_size = excluded.dock_size,
+       show_labels = excluded.show_labels,
+       theme_color = excluded.theme_color,
+       accent_color = excluded.accent_color,
+       background_color = excluded.background_color,
+       dock_color = excluded.dock_color,
+       dock_modules = excluded.dock_modules,
+       icon_style = excluded.icon_style,
+       icon_size = excluded.icon_size,
+       use_glass_effect = excluded.use_glass_effect,
+       layout_mode = excluded.layout_mode,
+       updated_at = CURRENT_TIMESTAMP`,
+    [
+      companyId,
+      userId,
+      settings.dockEnabled ? 1 : 0,
+      settings.dockPosition,
+      settings.dockMode,
+      settings.dockAutoHide ? 1 : 0,
+      settings.dockSize || settings.iconSize,
+      settings.showLabels ? 1 : 0,
+      settings.themeColor,
+      settings.accentColor,
+      settings.backgroundColor,
+      settings.dockColor,
+      JSON.stringify(Array.isArray(settings.dockModules) ? settings.dockModules : []),
+      settings.iconStyle,
+      settings.iconSize,
+      settings.useGlassEffect ? 1 : 0,
+      settings.layoutMode
+    ],
+    (err) => callback(err || null)
+  );
+}
+
+function buildWorkspaceLabels(lang) {
+  const isEn = lang === 'en';
+  return {
+    eyebrow: isEn ? 'Workspace' : 'Escritorio',
+    title: isEn ? 'Main desktop' : 'Escritorio principal',
+    subtitle: isEn
+      ? 'Open your permitted modules from a modern floating dock.'
+      : 'Abre tus modulos permitidos desde un dock flotante moderno.',
+    save: isEn ? 'Save position' : 'Guardar posición',
+    restore: isEn ? 'Restore default' : 'Restaurar defecto',
+    settings: isEn ? 'Dock settings' : 'Ajustes del dock',
+    edit: isEn ? 'Edit desktop' : 'Editar escritorio',
+    createFolder: isEn ? 'Create folder' : 'Crear carpeta',
+    saveChanges: isEn ? 'Save changes' : 'Guardar cambios',
+    cancel: isEn ? 'Cancel' : 'Cancelar',
+    restorePositions: isEn ? 'Restore default positions' : 'Restaurar posiciones por defecto',
+    close: isEn ? 'Close' : 'Cerrar',
+    openModule: isEn ? 'Open module' : 'Abrir módulo',
+    openFolder: isEn ? 'Open folder' : 'Abrir carpeta',
+    folder: isEn ? 'Folder' : 'Carpeta',
+    folderName: isEn ? 'Folder name' : 'Nombre de carpeta',
+    renameFolder: isEn ? 'Rename folder' : 'Renombrar carpeta',
+    deleteFolder: isEn ? 'Delete folder' : 'Eliminar carpeta',
+    deleteFolderConfirm: isEn ? 'Delete this folder? Modules inside will return to the desktop.' : '¿Eliminar esta carpeta? Los módulos internos volverán al escritorio.',
+    emptyFolder: isEn ? 'This folder is empty.' : 'Esta carpeta está vacía.',
+    moveOutFolder: isEn ? 'Move out' : 'Sacar',
+    moveUp: isEn ? 'Move up' : 'Subir',
+    moveDown: isEn ? 'Move down' : 'Bajar',
+    noModules: isEn ? 'No modules are available for this user.' : 'No hay módulos disponibles para este usuario.',
+    themeTitle: isEn ? 'Visual settings' : 'Configuración visual',
+    themeDesc: isEn ? 'Adjust the dock, colors, icon size and desktop mode.' : 'Ajusta dock, colores, tamaño de iconos y modo del escritorio.',
+    dockPosition: isEn ? 'Dock position' : 'Posición de dock',
+    dockEnabled: isEn ? 'Enable global dock' : 'Activar dock global',
+    dockMode: isEn ? 'Dock mode' : 'Modo del dock',
+    themeColor: isEn ? 'Theme color' : 'Color de tema',
+    accentColor: isEn ? 'Accent color' : 'Color de acento',
+    backgroundColor: isEn ? 'Background color' : 'Color de fondo',
+    dockColor: isEn ? 'Dock color' : 'Color de dock',
+    iconSize: isEn ? 'Icon size' : 'Tamaño de icono',
+    iconStyle: isEn ? 'Icon style' : 'Estilo de icono',
+    glassEffect: isEn ? 'Glass effect' : 'Efecto glass',
+    visualMode: isEn ? 'Mode' : 'Modo',
+    lightMode: isEn ? 'Light' : 'Claro',
+    darkMode: isEn ? 'Dark' : 'Oscuro',
+    saveVisualSettings: isEn ? 'Save settings' : 'Guardar configuración',
+    restoreVisualDefaults: isEn ? 'Restore visual defaults' : 'Restaurar visual por defecto',
+    left: isEn ? 'Left' : 'Izquierda',
+    right: isEn ? 'Right' : 'Derecha',
+    top: isEn ? 'Top' : 'Arriba',
+    bottom: isEn ? 'Bottom' : 'Abajo',
+    centerTop: isEn ? 'Center top' : 'Centro arriba',
+    centerBottom: isEn ? 'Center bottom' : 'Centro abajo',
+    fixedMode: isEn ? 'Fixed' : 'Fijo',
+    autoHideMode: isEn ? 'Auto-hide' : 'Auto-hide',
+    expandableMode: isEn ? 'Expandable' : 'Expandible',
+    showLabels: isEn ? 'Show labels' : 'Mostrar nombres',
+    soft: isEn ? 'Soft' : 'Suave',
+    solid: isEn ? 'Solid' : 'Sólido',
+    outline: isEn ? 'Outline' : 'Contorno',
+    modulesTitle: isEn ? 'Allowed modules' : 'Modulos permitidos',
+    modulesDesc: isEn ? 'Only modules enabled for this user and company are shown.' : 'Solo se muestran módulos habilitados para este usuario y empresa.',
+    dockAppsTitle: isEn ? 'Apps in dock' : 'Apps en el dock',
+    dockAppsDesc: isEn ? 'Choose which permitted apps appear in the dock.' : 'Elige qué aplicaciones permitidas aparecen en el dock.',
+    dockAppsEmpty: isEn ? 'No apps are available for this dock.' : 'No hay aplicaciones disponibles para este dock.',
+    dockHint: isEn ? 'Dock position saved for your user in this company.' : 'La posición del dock se guarda para tu usuario en esta empresa.',
+    dockSettingsTitle: isEn ? 'Dock position' : 'Posicion del dock',
+    dockSettingsDesc: isEn ? 'Choose where the floating dock appears for this user and company.' : 'Elige donde aparece el dock flotante para este usuario y empresa.',
+    saveSettings: isEn ? 'Save settings' : 'Guardar ajustes',
+    saved: isEn ? 'Workspace settings saved.' : 'Ajustes del escritorio guardados.',
+    saving: isEn ? 'Saving...' : 'Guardando...',
+    saveFailed: isEn ? 'Workspace settings could not be saved.' : 'No se pudieron guardar los ajustes del escritorio.',
+    resetConfirm: isEn ? 'Restore default icon positions?' : '¿Restaurar las posiciones por defecto de los iconos?',
+    resetFailed: isEn ? 'Default positions could not be restored.' : 'No se pudieron restaurar las posiciones por defecto.',
+    visualResetConfirm: isEn ? 'Restore default visual settings?' : '¿Restaurar la configuración visual por defecto?',
+    visualResetFailed: isEn ? 'Visual settings could not be restored.' : 'No se pudo restaurar la configuración visual.',
+    desktopHint: isEn
+      ? 'Select a module icon to open it.'
+      : 'Selecciona un icono de modulo para abrirlo.',
+    editHint: isEn
+      ? 'Icon movement is reserved for the next phase.'
+      : 'El movimiento de iconos queda preparado para la siguiente fase.',
+    ready: isEn ? 'Ready to use' : 'Listo para usar',
+    editing: isEn ? 'Editing desktop' : 'Editando escritorio'
+  };
+}
+
+function filterWorkspaceModulesForPermissions(modules, permissionMap, isMaster) {
+  const safeModules = Array.isArray(modules) ? modules : [];
+  return safeModules.filter((module) => {
+    if (!module || !module.key) return false;
+    const key = normalizeString(module.key);
+    if (!key || key === launcher_SETTINGS_KEY || key === 'dashboard') return false;
+    if (key === 'master') return Boolean(isMaster);
+    if (key.startsWith('packages_status_')) {
+      return hasPermission(permissionMap, 'packages', 'view');
+    }
+    return hasPermission(permissionMap, key, 'view');
+  });
+}
+
+function buildWorkspaceResponse(req, res, callback) {
+  const companyId = getCompanyId(req);
+  const userId = req.session && req.session.user ? req.session.user.id : null;
+  if (!companyId || !userId) {
+    callback(new Error('Missing user or company'));
+    return;
+  }
+  buildlauncherModules(db, res.locals.t, req.session.permissionMap, Boolean(req.session.master), (modules) => {
+    const workspaceModules = filterWorkspaceModulesForPermissions(modules, req.session.permissionMap, Boolean(req.session.master));
+    getCompanyBrandById(companyId, (companyBrand) => {
+      getUserWorkspaceSettings(userId, companyId, (workspaceSettings) => {
+        getUserWorkspaceItems(userId, companyId, (workspaceItems) => {
+          const workspaceState = buildWorkspaceState(workspaceModules, companyBrand, workspaceSettings, workspaceItems);
+          callback(null, {
+            companyBrand,
+            workspaceState,
+            icons: launcher_ICON_MAP,
+            modules: workspaceModules.map((mod) => ({
+              key: mod.key,
+              name: mod.name,
+              href: mod.href,
+              icon: mod.icon,
+              color: mod.color
+            }))
+          });
+        });
+      });
+    });
+  });
+}
+
+function renderWorkspacePage(req, res, options = {}) {
+  buildWorkspaceResponse(req, res, (err, payload) => {
+    if (err) {
+      res.status(500).send('Workspace unavailable');
+      return;
+    }
+    const bootstrap = JSON.stringify({
+      labels: buildWorkspaceLabels(res.locals.lang),
+      companyBrand: payload.companyBrand,
+      icons: payload.icons,
+      workspaceState: payload.workspaceState,
+      endpoints: {
+        save: '/workspace/save',
+        reset: '/workspace/reset',
+        state: '/workspace/state',
+        settingsReset: '/workspace/settings/reset'
+      },
+      csrfToken: res.locals.csrfToken,
+      settingsPanelOpen: Boolean(options.settingsPanelOpen)
+    }).replace(/</g, '\\u003c');
+
+    res.render('workspace', {
+      companyBrand: payload.companyBrand,
+      workspaceBootstrap: bootstrap,
+      workspaceLabels: buildWorkspaceLabels(res.locals.lang),
+      settingsPanelOpen: Boolean(options.settingsPanelOpen)
+    });
   });
 }
 
@@ -7714,7 +8614,7 @@ function buildCustomerListQuery(companyId, filters, options = {}) {
   return { query, params };
 }
 
-function renderCustomers(req, res, error) {
+function renderCustomers(req, res, error, options = {}) {
   const companyId = getCompanyId(req);
   const companySettings = req.session ? req.session.company || {} : {};
   const baseCurrency = String(companySettings.base_currency || companySettings.currency || 'GTQ').toUpperCase();
@@ -7750,9 +8650,15 @@ function renderCustomers(req, res, error) {
     action: pkgAction,
     code: pkgCode
   };
+  const allowedTabs = new Set(['list', 'import', 'create', 'packages', 'voided']);
+  const requestedTab = normalizeString(options.activeTab);
   const { query, params } = buildCustomerListQuery(companyId, filters, { voided: 0 });
   const { query: voidedQuery, params: voidedParams } = buildCustomerListQuery(companyId, filters, { voided: 1 });
   const canViewVoided = res.locals.can ? res.locals.can('customers', 'view_voided') : false;
+  const activeCustomersTab =
+    requestedTab === 'voided' && !canViewVoided
+      ? 'list'
+      : (allowedTabs.has(requestedTab) ? requestedTab : 'list');
 
   db.all(
     query,
@@ -7788,6 +8694,7 @@ function renderCustomers(req, res, error) {
                   if (filterCommunication) params.set('communication_type', filterCommunication);
                   const exportUrl = params.toString() ? `/customers/export?${params.toString()}` : '/customers/export';
                   res.render('customers', {
+                    activeCustomersTab,
                     customers,
                     voidedCustomers: voidErr ? [] : voidedCustomers || [],
                     canViewVoided,
@@ -7856,12 +8763,15 @@ function buildConsignatariosListQuery(companyId, filters, sort) {
   return { query, params };
 }
 
-function renderConsignatarios(req, res, error) {
+function renderConsignatarios(req, res, error, options = {}) {
   const companyId = getCompanyId(req);
   const searchName = normalizeString(req.query.name);
   const searchDocument = normalizeString(req.query.document_number);
   const filterCustomerId = Number(req.query.customer_id || 0);
   const sort = resolveConsignatariosSort(req);
+  const allowedTabs = new Set(['list', 'filters', 'manage']);
+  const requestedTab = normalizeString(options.activeTab);
+  const activeConsignatariosTab = allowedTabs.has(requestedTab) ? requestedTab : 'list';
 
   const filters = {
     name: searchName,
@@ -7890,6 +8800,7 @@ function renderConsignatarios(req, res, error) {
           if (searchDocument) baseParams.set('document_number', searchDocument);
           if (filterCustomerId > 0) baseParams.set('customer_id', String(filterCustomerId));
           res.render('consignatarios', {
+            activeConsignatariosTab,
             consignatarios: err ? [] : consignatarios || [],
             customers: custErr ? [] : customers || [],
             exportUrl,
@@ -9500,385 +10411,159 @@ registerMasterRoutes(app, {
   buildCompanyStatus
 });
 
-function buildLauncherModuleOptions(modules, visibleList) {
-  const selectable = (modules || []).filter((mod) => !mod.alwaysVisible);
-  const safeVisibleList = Array.isArray(visibleList) ? visibleList.map((entry) => String(entry)) : null;
-  const visibleSet = safeVisibleList ? new Set(safeVisibleList) : null;
-  const selectableMap = new Map(selectable.map((mod) => [mod.key, mod]));
-  const orderedSelectable = [];
+app.get('/dashboard', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
+  return renderWorkspacePage(req, res, { settingsPanelOpen: false });
+});
 
-  if (safeVisibleList) {
-    safeVisibleList.forEach((key) => {
-      const mod = selectableMap.get(key);
-      if (!mod) return;
-      orderedSelectable.push(mod);
-      selectableMap.delete(key);
-    });
-  }
+app.get('/workspace', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
+  return renderWorkspacePage(req, res, { settingsPanelOpen: false });
+});
 
-  selectable.forEach((mod) => {
-    if (!selectableMap.has(mod.key)) return;
-    orderedSelectable.push(mod);
-    selectableMap.delete(mod.key);
+app.get('/workspace/settings', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
+  return renderWorkspacePage(req, res, { settingsPanelOpen: true });
+});
+
+app.get('/settings/workspace', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
+  return renderWorkspacePage(req, res, { settingsPanelOpen: true });
+});
+
+app.get('/workspace/state', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
+  buildWorkspaceResponse(req, res, (err, payload) => {
+    if (err) return res.status(500).json({ ok: false });
+    return res.json({ ok: true, state: payload.workspaceState, companyBrand: payload.companyBrand });
   });
+});
 
-  return orderedSelectable.map((mod) => ({
-    ...mod,
-    checked: !visibleSet || visibleSet.has(mod.key)
-  }));
-}
+app.get('/workspace/global-dock', requireAuth, (req, res) => {
+  buildWorkspaceResponse(req, res, (err, payload) => {
+    if (err) return res.status(500).json({ ok: false });
+    const labels = buildWorkspaceLabels(res.locals.lang);
+    return res.json({
+      ok: true,
+      state: payload.workspaceState,
+      companyBrand: payload.companyBrand,
+      icons: payload.icons,
+      currentPath: req.originalUrl || req.path || '/',
+      labels: {
+        modulesTitle: labels.modulesTitle,
+        noModules: labels.noModules,
+        showDock: res.locals.lang === 'en' ? 'Show dock' : 'Mostrar dock',
+        hideDock: res.locals.lang === 'en' ? 'Hide dock' : 'Ocultar dock'
+      }
+    });
+  });
+});
 
-function renderLauncherSettingsPage(req, res, message, stateOverrides) {
+app.post('/workspace/save', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
   const companyId = getCompanyId(req);
   const userId = req.session && req.session.user ? req.session.user.id : null;
-  if (!companyId || !userId) return res.redirect('/dashboard');
+  if (!companyId || !userId) return res.status(401).json({ ok: false });
 
   buildlauncherModules(db, res.locals.t, req.session.permissionMap, Boolean(req.session.master), (modules) => {
-    getlauncherPreferences(userId, companyId, (prefs) => {
-      getLauncherConfiguration(userId, companyId, (config) => {
-        getCompanySettings(companyId, (companySettings) => {
-          const companyAppearance = extractCompanyAppearance(companySettings || null);
-          const safeModules = buildLauncherModuleOptions(modules, null);
-          const state = stateOverrides || {};
-          const visibleModules = Array.isArray(state.visibleModules)
-            ? state.visibleModules
-            : prefs && Array.isArray(prefs.visibleModules)
-              ? prefs.visibleModules
-              : null;
-          const allowedKeys = new Set((modules || []).map((mod) => mod.key));
-          const safeVisibleModules = Array.isArray(visibleModules)
-            ? visibleModules.map((entry) => String(entry)).filter((entry) => allowedKeys.has(entry))
-            : null;
-          const safeVisibleSet = new Set(safeVisibleModules || (modules || []).map((mod) => mod.key));
-          const safeLauncherLayout = normalizeLauncherLayoutPrefs(
-            Object.prototype.hasOwnProperty.call(state, 'launcherLayout')
-              ? state.launcherLayout
-              : prefs && prefs.layoutPrefs
-                ? prefs.layoutPrefs
-                : null,
-            {
-              allowedSet: allowedKeys,
-              visibleSet: safeVisibleSet
-            }
-          );
-          const moduleOptions = buildLauncherModuleOptions(modules, safeVisibleModules);
-          const previewModules = moduleOptions.filter((mod) => mod.checked).slice(0, 4);
-          const userLauncherType = Object.prototype.hasOwnProperty.call(state, 'userLauncherType')
-            ? normalizeLauncherType(state.userLauncherType, { allowEmpty: true })
-            : config.userLauncherType;
-          const companyLauncherType = Object.prototype.hasOwnProperty.call(state, 'companyLauncherType')
-            ? normalizeLauncherType(state.companyLauncherType, { allowEmpty: true })
-            : config.companyLauncherType;
-          const effectiveLauncherType = resolveLauncherType(userLauncherType, companyLauncherType);
-          const canManageCompanyLauncher = hasPermission(req.session.permissionMap || null, 'settings', 'manage');
-          const appearanceState = Object.prototype.hasOwnProperty.call(state, 'companyAppearance')
-            ? normalizeCompanyAppearanceSettings(state.companyAppearance, companyAppearance)
-            : companyAppearance;
-          const widgetPrefs = Object.prototype.hasOwnProperty.call(state, 'widgetPrefs')
-            ? normalizeLauncherWidgetPrefs(state.widgetPrefs)
-            : prefs && prefs.widgetPrefs
-              ? normalizeLauncherWidgetPrefs(prefs.widgetPrefs)
-              : normalizeLauncherWidgetPrefs(null);
-
-          getCompanyBrandById(companyId, (companyBrand) => {
-            return res.render('launcher-settings', {
-              modules: moduleOptions,
-              previewModules: (previewModules.length ? previewModules : safeModules.slice(0, 4)),
-              message: message || null,
-              companyBrand: companyBrand
-                ? {
-                    ...companyBrand,
-                    theme_style: buildCompanyThemeStyle(appearanceState),
-                    font_family: appearanceState.fontFamily,
-                    logo_size: appearanceState.logoSize,
-                    icon_size: appearanceState.iconSize
-                  }
-                : null,
-              companyAppearance: appearanceState,
-              launcherLayout: safeLauncherLayout,
-              fontChoices: LAUNCHER_FONT_CHOICES,
-              icons: launcher_ICON_MAP,
-              launcherChoices: getLauncherChoices(res.locals.t, { includeInherit: true }),
-              companyLauncherChoices: getLauncherChoices(res.locals.t),
-              canManageCompanyLauncher,
-              userLauncherType,
-              companyLauncherType,
-              effectiveLauncherType,
-              widgetPrefs
-            });
-          });
+    const workspaceModules = filterWorkspaceModulesForPermissions(modules, req.session.permissionMap, Boolean(req.session.master));
+    getCompanyBrandById(companyId, (companyBrand) => {
+      const body = req.body || {};
+      const isLayoutPayload = Array.isArray(body.modules) || Array.isArray(body.folders);
+      const saveFn = isLayoutPayload
+        ? (done) => saveUserWorkspaceState(userId, companyId, companyBrand, workspaceModules, body, done)
+        : (done) => saveUserWorkspaceSettingsOnly(userId, companyId, companyBrand, workspaceModules, body.settings || body, done);
+      saveFn((saveErr) => {
+        if (saveErr) return res.status(500).json({ ok: false });
+        buildWorkspaceResponse(req, res, (responseErr, payload) => {
+          if (responseErr) return res.status(500).json({ ok: false });
+          return res.json({ ok: true, state: payload.workspaceState, companyBrand: payload.companyBrand });
         });
       });
     });
   });
-}
+});
 
-function persistLauncherSettings(req, res) {
+app.post('/workspace/reset', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
   const companyId = getCompanyId(req);
   const userId = req.session && req.session.user ? req.session.user.id : null;
-  if (!companyId || !userId) return res.redirect('/dashboard');
+  if (!companyId || !userId) return res.status(401).json({ ok: false });
 
-  const canManageCompanyLauncher = hasPermission(req.session.permissionMap || null, 'settings', 'manage');
-  const requestedUserLauncher = normalizeLauncherType(req.body && req.body.user_launcher_type, { allowEmpty: true });
-  const requestedCompanyLauncher = canManageCompanyLauncher
-    ? normalizeLauncherType(req.body && req.body.company_launcher_type, { allowEmpty: true })
-    : undefined;
-
-  getCompanySettings(companyId, (companySettings) => {
-    const currentAppearance = extractCompanyAppearance(companySettings || null);
-    const requestedAppearance = canManageCompanyLauncher
-      ? normalizeCompanyAppearanceSettings({
-          logoPath: req.file ? req.file.path : currentAppearance.logoPath,
-          primaryColor: req.body && req.body.primary_color,
-          secondaryColor: req.body && req.body.secondary_color,
-          backgroundColor: req.body && req.body.background_color,
-          titleColor: req.body && req.body.title_color,
-          textColor: req.body && req.body.text_color,
-          fontFamily: req.body && req.body.font_family,
-          logoSize: req.body && req.body.logo_size,
-          iconSize: req.body && req.body.icon_size,
-          iconFrame: req.body && req.body.icon_frame
-        }, currentAppearance)
-      : currentAppearance;
-
-    getlauncherPreferences(userId, companyId, (prefs) => {
-      const currentWidgetPrefs = normalizeLauncherWidgetPrefs(prefs && prefs.widgetPrefs ? prefs.widgetPrefs : null);
-      const requestedWidgetPrefs = normalizeLauncherWidgetPrefs({
-        ...currentWidgetPrefs,
-        visibility: {
-          ...(currentWidgetPrefs.visibility || {}),
-          notes: normalizeBooleanFlag(req.body && req.body.widget_notes, currentWidgetPrefs.visibility.notes),
-          planner: normalizeBooleanFlag(req.body && req.body.widget_planner, currentWidgetPrefs.visibility.planner)
+  enqueueDbTransaction((finish) => {
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+      db.run('DELETE FROM user_workspace_items WHERE user_id = ? AND company_id = ?', [userId, companyId], (itemsErr) => {
+        if (itemsErr) {
+          rollbackTransaction(finish, () => res.status(500).json({ ok: false }));
+          return;
         }
-      });
-
-      buildlauncherModules(db, res.locals.t, req.session.permissionMap, Boolean(req.session.master), (modules) => {
-        const selectable = (modules || []).filter((mod) => !mod.alwaysVisible);
-        const allowedKeys = new Set(selectable.map((mod) => mod.key));
-        const rawSelection = req.body && req.body.modules ? req.body.modules : [];
-        const selectionArray = Array.isArray(rawSelection) ? rawSelection : [rawSelection];
-        const finalSelection = selectionArray
-          .map((entry) => String(entry))
-          .filter((entry) => allowedKeys.has(entry));
-        const requestedLayout = normalizeLauncherLayoutPrefs(
-          parseLauncherLayoutPrefs(req.body && req.body.layout_prefs) || null,
-          {
-            allowedSet: allowedKeys,
-            visibleSet: new Set(finalSelection)
+        commitTransaction(finish, (commitErr) => {
+          if (commitErr) {
+            return res.status(500).json({ ok: false });
           }
-        );
-
-        saveUserLauncherType(userId, companyId, requestedUserLauncher, (userLauncherErr) => {
-          if (!userLauncherErr && req.session && req.session.user) {
-            req.session.user.launcher_type = requestedUserLauncher;
-          }
-          savelauncherPreferences(userId, companyId, finalSelection, requestedLayout, (prefsErr) => {
-            savelauncherWidgetPrefs(userId, companyId, requestedWidgetPrefs, (widgetErr) => {
-              const persistCompanyData = (done) => {
-                if (!canManageCompanyLauncher || typeof requestedCompanyLauncher === 'undefined') return done(null, null);
-                saveCompanyLauncherType(companyId, requestedCompanyLauncher, (companyLauncherErr) => {
-                  if (companyLauncherErr) return done(companyLauncherErr);
-                  saveCompanyAppearanceSettings(companyId, requestedAppearance, (appearanceErr) => {
-                    if (!appearanceErr && req.session && req.session.company) {
-                      req.session.company.default_launcher = requestedCompanyLauncher;
-                      req.session.company.logo = requestedAppearance.logoPath || null;
-                      req.session.company.primary_color = requestedAppearance.primaryColor;
-                      req.session.company.secondary_color = requestedAppearance.secondaryColor;
-                      req.session.company.theme_background_color = requestedAppearance.backgroundColor;
-                      req.session.company.theme_title_color = requestedAppearance.titleColor;
-                      req.session.company.theme_text_color = requestedAppearance.textColor;
-                      req.session.company.theme_font_family = requestedAppearance.fontFamily;
-                      req.session.company.theme_logo_size = requestedAppearance.logoSize;
-                      req.session.company.theme_icon_size = requestedAppearance.iconSize;
-                      req.session.company.theme_icon_frame = requestedAppearance.iconFrame ? 1 : 0;
-                    }
-                    return done(appearanceErr || null);
-                  });
-                });
-              };
-
-              persistCompanyData((companyErr) => {
-                const hasError = Boolean(userLauncherErr || prefsErr || widgetErr || companyErr);
-                const message = hasError
-                  ? { type: 'error', message: res.locals.t('errors.server_try_again') }
-                  : { type: 'success', message: res.locals.t('launcher.settings.saved') };
-                const nextState = {
-                  visibleModules: finalSelection,
-                  userLauncherType: requestedUserLauncher,
-                  companyAppearance: requestedAppearance,
-                  launcherLayout: requestedLayout,
-                  widgetPrefs: requestedWidgetPrefs
-                };
-                if (typeof requestedCompanyLauncher !== 'undefined') {
-                  nextState.companyLauncherType = requestedCompanyLauncher;
-                }
-
-                return renderLauncherSettingsPage(req, res, message, nextState);
-              });
-            });
-          });
-        });
-      });
-    });
-  });
-}
-
-app.get('/dashboard', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
-  const companyId = getCompanyId(req);
-  const userId = req.session && req.session.user ? req.session.user.id : null;
-  fetchDashboardStats(companyId, (stats) => {
-    buildlauncherModules(db, res.locals.t, req.session.permissionMap, Boolean(req.session.master), (modules) => {
-      getlauncherPreferences(userId, companyId, (prefs) => {
-        getLauncherConfiguration(userId, companyId, (config) => {
-          const filteredModules = applylauncherPreferences(modules, prefs);
-          const dashboardModel = buildDashboardViewModel(res.locals.t, filteredModules, stats);
-          getCompanyBrandById(companyId, (companyBrand) => {
-            const launcherIconLayout = buildLauncherIconLayout(filteredModules, prefs && prefs.layoutPrefs);
-            res.render('dashboard', {
-              stats,
-              launcherModules: filteredModules,
-              launcherIconLayout,
-              dashboardModel,
-              widgetPrefs: prefs && prefs.widgetPrefs ? prefs.widgetPrefs : null,
-              companyBrand,
-              icons: launcher_ICON_MAP,
-              effectiveLauncherType: config.effectiveLauncherType
-            });
+          buildWorkspaceResponse(req, res, (responseErr, payload) => {
+            if (responseErr) {
+              return res.status(500).json({ ok: false });
+            }
+            return res.json({ ok: true, state: payload.workspaceState, companyBrand: payload.companyBrand });
           });
         });
       });
     });
   });
 });
+
+app.post('/workspace/settings/reset', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
+  const companyId = getCompanyId(req);
+  const userId = req.session && req.session.user ? req.session.user.id : null;
+  if (!companyId || !userId) return res.status(401).json({ ok: false });
+
+  enqueueDbTransaction((finish) => {
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+      db.run('DELETE FROM user_workspace_settings WHERE user_id = ? AND company_id = ?', [userId, companyId], (settingsErr) => {
+        if (settingsErr) {
+          rollbackTransaction(finish, () => res.status(500).json({ ok: false }));
+          return;
+        }
+        commitTransaction(finish, (commitErr) => {
+          if (commitErr) {
+            return res.status(500).json({ ok: false });
+          }
+          buildWorkspaceResponse(req, res, (responseErr, payload) => {
+            if (responseErr) {
+              return res.status(500).json({ ok: false });
+            }
+            return res.json({ ok: true, state: payload.workspaceState, companyBrand: payload.companyBrand });
+          });
+        });
+      });
+    });
+  });
+});
+
+function sendLegacyLauncherDisabled(req, res) {
+  return res.status(410).json({
+    ok: false,
+    code: 'legacy_launcher_disabled',
+    redirect: '/settings/workspace'
+  });
+}
 
 app.get('/settings/launcher', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
-  return renderLauncherSettingsPage(req, res, null, null);
+  return res.redirect(301, '/settings/workspace');
 });
 
-app.post('/settings/launcher', requireAuth, requirePermission('dashboard', 'view'), companyLogoUpload.single('logo_file'), csrfMiddleware, (req, res) => {
-  return persistLauncherSettings(req, res);
+app.post('/settings/launcher', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
+  return res.redirect(303, '/settings/workspace');
 });
 
 app.get('/launcher/settings', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
-  return res.redirect('/settings/launcher');
+  return res.redirect(301, '/settings/workspace');
 });
 
-app.post('/launcher/settings', requireAuth, requirePermission('dashboard', 'view'), companyLogoUpload.single('logo_file'), csrfMiddleware, (req, res) => {
-  return persistLauncherSettings(req, res);
+app.post('/launcher/settings', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
+  return res.redirect(303, '/settings/workspace');
 });
 
-app.post('/launcher/order', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
-  const companyId = getCompanyId(req);
-  const userId = req.session && req.session.user ? req.session.user.id : null;
-  if (!companyId || !userId) return res.status(401).json({ ok: false });
-  buildlauncherModules(db, res.locals.t, req.session.permissionMap, Boolean(req.session.master), (modules) => {
-    const selectable = (modules || []).filter((mod) => !mod.alwaysVisible);
-    const allowedKeys = new Set(selectable.map((mod) => mod.key));
-    const rawOrder = req.body && req.body.order ? req.body.order : [];
-    const orderArray = Array.isArray(rawOrder) ? rawOrder : [rawOrder];
-    const requested = orderArray.map((entry) => String(entry)).filter((entry) => allowedKeys.has(entry));
-
-    getlauncherPreferences(userId, companyId, (prefs) => {
-      const existing =
-        prefs && Array.isArray(prefs.visibleModules)
-          ? prefs.visibleModules.map((entry) => String(entry)).filter((entry) => allowedKeys.has(entry))
-          : null;
-      const fallback = existing && existing.length ? existing : selectable.map((mod) => mod.key);
-      const finalSelection = [];
-      const seen = new Set();
-
-      requested.forEach((key) => {
-        if (seen.has(key)) return;
-        finalSelection.push(key);
-        seen.add(key);
-      });
-
-      fallback.forEach((key) => {
-        if (seen.has(key)) return;
-        finalSelection.push(key);
-        seen.add(key);
-      });
-
-      savelauncherPreferences(userId, companyId, finalSelection, (err) => {
-        if (err) return res.status(500).json({ ok: false });
-        return res.json({ ok: true });
-      });
-    });
-  });
-});
-
-app.get('/launcher/notes', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
-  const companyId = getCompanyId(req);
-  const userId = req.session && req.session.user ? req.session.user.id : null;
-  if (!companyId || !userId) return res.status(401).json({ ok: false, notes: [] });
-  getlauncherNotes(userId, companyId, (notes) => {
-    return res.json({ ok: true, notes });
-  });
-});
-
-app.post('/launcher/notes', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
-  const companyId = getCompanyId(req);
-  const userId = req.session && req.session.user ? req.session.user.id : null;
-  if (!companyId || !userId) return res.status(401).json({ ok: false });
-  const rawNotes = req.body && req.body.notes ? req.body.notes : [];
-  savelauncherNotes(userId, companyId, rawNotes, (err) => {
-    if (err) return res.status(500).json({ ok: false });
-    return res.json({ ok: true });
-  });
-});
-
-app.get('/launcher/planner', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
-  const companyId = getCompanyId(req);
-  const userId = req.session && req.session.user ? req.session.user.id : null;
-  if (!companyId || !userId) return res.status(401).json({ ok: false, entries: [] });
-  const beforeDate = normalizeString(req.query.before);
-  if (isIsoDate(beforeDate)) {
-    getlauncherPlannerEntriesBefore(userId, companyId, beforeDate, (entries) => {
-      return res.json({ ok: true, entries });
-    });
-    return;
-  }
-  const startDate = normalizeString(req.query.start);
-  const endDate = normalizeString(req.query.end);
-  if (!isIsoDate(startDate) || !isIsoDate(endDate)) {
-    return res.status(400).json({ ok: false, entries: [] });
-  }
-  getlauncherPlannerEntries(userId, companyId, startDate, endDate, (entries) => {
-    return res.json({ ok: true, entries });
-  });
-});
-
-app.post('/launcher/planner', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
-  const companyId = getCompanyId(req);
-  const userId = req.session && req.session.user ? req.session.user.id : null;
-  if (!companyId || !userId) return res.status(401).json({ ok: false });
-  const rawEntries = req.body && req.body.entries ? req.body.entries : [];
-  savelauncherPlannerEntries(userId, companyId, rawEntries, (err) => {
-    if (err) return res.status(500).json({ ok: false });
-    return res.json({ ok: true });
-  });
-});
-
-app.get('/launcher/widgets', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
-  const companyId = getCompanyId(req);
-  const userId = req.session && req.session.user ? req.session.user.id : null;
-  if (!companyId || !userId) return res.status(401).json({ ok: false, prefs: null });
-  getlauncherPreferences(userId, companyId, (prefs) => {
-    return res.json({ ok: true, prefs: prefs && prefs.widgetPrefs ? prefs.widgetPrefs : null });
-  });
-});
-
-app.post('/launcher/widgets', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {
-  const companyId = getCompanyId(req);
-  const userId = req.session && req.session.user ? req.session.user.id : null;
-  if (!companyId || !userId) return res.status(401).json({ ok: false });
-  const rawPrefs = req.body && req.body.prefs ? req.body.prefs : {};
-  const normalized = normalizeLauncherWidgetPrefs(rawPrefs);
-  savelauncherWidgetPrefs(userId, companyId, normalized, (err) => {
-    if (err) return res.status(500).json({ ok: false });
-    return res.json({ ok: true, prefs: normalized });
-  });
-});
+app.all('/launcher/order', requireAuth, requirePermission('dashboard', 'view'), sendLegacyLauncherDisabled);
+app.all('/launcher/notes', requireAuth, requirePermission('dashboard', 'view'), sendLegacyLauncherDisabled);
+app.all('/launcher/planner', requireAuth, requirePermission('dashboard', 'view'), sendLegacyLauncherDisabled);
+app.all('/launcher/widgets', requireAuth, requirePermission('dashboard', 'view'), sendLegacyLauncherDisabled);
 
 app.get('/settings', requireAuth, requirePermission('settings', 'view'), (req, res) => {
   res.render('settings');
@@ -9973,10 +10658,32 @@ app.post('/settings/package-sender', requireAuth, requirePermission('settings', 
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  isStartingUp = false;
-});
+function startServer(port, attempts = 0) {
+  const server = app.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`);
+    isStartingUp = false;
+  });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      const nextPort = Number(port) + 1;
+      if (SHOULD_AUTO_SELECT_PORT && attempts < MAX_PORT_RETRIES && Number.isFinite(nextPort)) {
+        console.warn(`Port ${port} is already in use. Trying http://localhost:${nextPort}...`);
+        startServer(nextPort, attempts + 1);
+        return;
+      }
+
+      console.error(`Port ${port} is already in use.`);
+      console.error('Close the process using that port or set another port with PORT=3001.');
+      process.exit(1);
+    }
+
+    console.error('Server failed to start:', err);
+    process.exit(1);
+  });
+}
+
+startServer(PORT);
 
 
 

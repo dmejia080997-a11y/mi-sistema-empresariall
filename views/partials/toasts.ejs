@@ -1,0 +1,24 @@
+<%
+  const toastItems = [];
+  if (typeof flash !== 'undefined' && flash) {
+    toastItems.push({ type: flash.type || 'info', message: flash.message || flash });
+  }
+  if (typeof message !== 'undefined' && message) {
+    toastItems.push({ type: message.type || 'info', message: message.message || message });
+  }
+  if (typeof error !== 'undefined' && error) {
+    toastItems.push({ type: 'error', message: error });
+  }
+%>
+<% if (toastItems.length) { %>
+<div class="toasts app-toasts" role="status" aria-live="polite">
+  <% toastItems.forEach((item) => { %>
+    <%
+      const normalizedType = ['success', 'warning', 'error', 'danger', 'info'].includes(String(item.type || '').toLowerCase())
+        ? String(item.type || '').toLowerCase()
+        : 'info';
+    %>
+    <div class="toast app-message app-message-<%= normalizedType %> <%= normalizedType %>"><%= item.message %></div>
+  <% }) %>
+</div>
+<% } %>

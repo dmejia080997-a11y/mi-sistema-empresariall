@@ -1,0 +1,13 @@
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#eef3f5" />
+<title><%= typeof title !== 'undefined' && title ? title : (typeof t === 'function' ? t('common.brand') : 'Sistema') %></title>
+<link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/css/theme.css" data-design-system-asset />
+<link rel="stylesheet" href="/css/layout.css" data-design-system-asset />
+<link rel="stylesheet" href="/css/components.css" data-design-system-asset />
+<% if (typeof extraStyles !== 'undefined' && Array.isArray(extraStyles)) { %>
+  <% extraStyles.forEach((href) => { %>
+<link rel="stylesheet" href="<%= href %>" />
+  <% }) %>
+<% } %>

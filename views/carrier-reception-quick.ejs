@@ -6,22 +6,10 @@
 <title>
 <%= t('reception.title') %>
 </title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
 <body class="page" data-company-id="<%= companyId || '' %>">
-<header class="topbar">
-<div class="brand">
-<%= t('common.brand') %>
-</div>
-<nav class="nav">
-<a href="/dashboard">
-<%= t('nav.dashboard') %>
-</a>
-<a href="/logout">
-<%= t('nav.logout') %>
-</a>
-</nav>
-</header>
+<%- include('partials/header') %>
 <main class="container reception-module">
 <div class="page-header">
 <div>
@@ -51,8 +39,8 @@
 <% } %>
 <div class="reception-layout reception-layout-single">
 <div class="reception-column reception-column-quick">
-<section class="panel reception-panel">
-<div class="panel-header">
+<section class="panel reception-panel reception-panel-quick">
+<div class="panel-header reception-panel-header">
 <div>
 <h2>
 <%= t('reception.quick_title') %>
@@ -107,6 +95,7 @@
 </div>
 </div>
 <label class="reception-field carrier-field">
+<div class="reception-field-head">
 <span>
 <%= t('reception.form.carrier') %>
 </span>
@@ -115,6 +104,7 @@
 <%= t('reception.form.carrier_manage') %>
 </a>
 <% } %>
+</div>
 <div class="carrier-input">
 <select id="carrier-select">
 <option value="">
@@ -135,6 +125,7 @@
 </div>
 </label>
 </div>
+<div class="reception-secondary-grid">
 <label class="reception-field">
 <span>
 <%= t('reception.form.received_by') %>
@@ -147,6 +138,7 @@
 </span>
 <input type="text" name="notes" />
 </label>
+</div>
 <div class="reception-actions">
 <div class="mode-toggle">
 <label class="toggle-row reception-mode-toggle">
@@ -169,7 +161,7 @@
 <% } %>
 </div>
 </form>
-<div class="reception-today">
+<div class="reception-today reception-section-card">
 <div class="session-label">Hoy por carrier</div>
 <div class="pill-list">
 <% if (carrierTodayTotals && carrierTodayTotals.length) { %>
@@ -185,13 +177,13 @@
 <% } %>
 </div>
 </div>
-<div class="reception-session-summary">
+<div class="reception-session-summary reception-section-card">
 <div class="session-label">Sesión por carrier</div>
 <div class="pill-list" id="session-carrier-list">
 <span class="muted">Sin datos de sesión.</span>
 </div>
 </div>
-<div class="reception-recent">
+<div class="reception-recent reception-section-card">
 <div class="session-label">Escaneados recientes</div>
 <div class="recent-list">
 <% const recentReceptions = (receptions || []).slice(0, 6); %>

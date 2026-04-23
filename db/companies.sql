@@ -18,6 +18,5 @@ CREATE TABLE IF NOT EXISTS companies (
   theme_logo_size INTEGER,
   theme_icon_size INTEGER,
   accounting_framework TEXT,
-  default_launcher TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

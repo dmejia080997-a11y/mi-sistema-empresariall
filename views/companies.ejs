@@ -4,39 +4,63 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Crear empresa</title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
-<body class="page company-create-page">
-<header class="topbar">
-<div class="brand">Panel master</div>
-<div class="master-topbar-actions">
-  <nav class="master-tabs">
-  <a href="/master" class="is-active">Empresas</a>
-  <a href="/master/activities">Actividad</a>
-  </nav>
-  <a href="/master/logout" class="btn">Cerrar sesión</a>
-</div>
-</header>
-<main class="container">
+<body class="page master-shell-page company-create-page">
+<%- include('partials/header', {
+  headerBrandText: 'Panel Master',
+  homeHref: '/master',
+  showDefaultNav: false,
+  headerActionsHtml: `
+    <nav class="master-tabs" aria-label="Navegacion Master">
+      <a href="/master" class="is-active">Empresas</a>
+      <a href="/master/activities">Actividad</a>
+    </nav>
+    <a href="/master/logout" class="btn app-btn">Cerrar sesion</a>
+  `
+}) %>
+
+<main class="container master-page company-create-page-main companies-module">
 <div class="company-create-shell">
 <div class="company-create-card">
-<div class="company-create-header">
-<div>
-<div class="eyebrow">Panel master</div>
-<h1>Crear empresa</h1>
-<p class="muted">Registra una nueva empresa y personaliza su espacio.</p>
-</div>
-<div class="company-inline-note">Los campos con * son obligatorios.</div>
+<div class="company-onboarding-hero">
+  <div class="company-create-header page-header app-page-header">
+    <div class="app-page-header__content">
+      <div class="eyebrow app-page-eyebrow">Configuración multiempresa</div>
+      <h1>Crear empresa</h1>
+      <p class="muted">Activa un nuevo espacio de trabajo con identidad propia, administrador inicial, vigencia y contactos operativos desde una sola consola.</p>
+    </div>
+    <div class="company-required-note">Campos obligatorios marcados con *</div>
+  </div>
+
+  <aside class="company-launch-preview" aria-label="Vista previa de la empresa">
+    <div class="company-preview-topline">
+      <span>Vista previa del tenant</span>
+      <span class="company-preview-status">Activo</span>
+    </div>
+    <div class="company-preview-brand">
+      <span class="company-preview-logo" data-preview-logo>AE</span>
+      <span>
+        <strong data-preview-name><%= formData.name || 'Nueva empresa' %></strong>
+        <small data-preview-legal><%= formData.business_type || 'Espacio multiempresa' %></small>
+      </span>
+    </div>
+    <div class="company-preview-colors">
+      <small>Colores del espacio</small>
+      <span style="background: <%= formData.primary_color || '#26445f' %>" data-preview-primary></span>
+      <span style="background: <%= formData.secondary_color || '#247c7a' %>" data-preview-secondary></span>
+    </div>
+  </aside>
 </div>
 
 <% if (flash && flash.message) { %>
-<div class="alert <%= flash.type || '' %>">
+<div class="alert app-message app-message-<%= flash.type || 'info' %> <%= flash.type || '' %>">
   <%= flash.message %>
 </div>
 <% } %>
 
 <% if (errors && errors.length) { %>
-<div class="alert error">
+<div class="alert app-message app-message-error error">
   <strong>Revisa los campos:</strong>
   <ul>
     <% errors.forEach(function(error) { %>
@@ -46,24 +70,60 @@
 </div>
 <% } %>
 
-<form action="/companies/create" method="POST" enctype="multipart/form-data" class="company-form" id="company-create-form">
+<form action="/companies/create" method="POST" enctype="multipart/form-data" class="company-form app-form-grid" id="company-create-form">
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 <div class="company-create-body">
-<div class="company-content">
-<nav class="company-section-nav">
-  <a href="#info-general">Información general</a>
-  <a href="#fiscales-contacto">Datos fiscales y contacto</a>
-  <a href="#contactos">Contactos</a>
-  <a href="#admin-creation">Creacion de Admin</a>
-  <a href="#estado-config">Membresía</a>
+<nav class="company-section-nav module-nav" aria-label="Etapas de creación">
+  <a href="#info-general">
+    <span class="company-step-index">01</span>
+    <span><strong>Empresa</strong><small>Base legal y operación</small></span>
+  </a>
+  <a href="#fiscales-contacto">
+    <span class="company-step-index">02</span>
+    <span><strong>Fiscal</strong><small>Moneda y contacto</small></span>
+  </a>
+  <a href="#identidad-visual">
+    <span class="company-step-index">03</span>
+    <span><strong>Identidad</strong><small>Logo y colores</small></span>
+  </a>
+  <a href="#contactos">
+    <span class="company-step-index">04</span>
+    <span><strong>Contactos</strong><small>Responsables clave</small></span>
+  </a>
+  <a href="#admin-creation">
+    <span class="company-step-index">05</span>
+    <span><strong>Administrador</strong><small>Primer acceso</small></span>
+  </a>
+  <a href="#estado-config">
+    <span class="company-step-index">06</span>
+    <span><strong>Membresía</strong><small>Estado y vigencia</small></span>
+  </a>
 </nav>
 
-<section class="company-section" id="info-general">
-<p class="company-section-title">Información general</p>
-<p class="company-section-sub">Datos principales de la empresa.</p>
+<div class="company-stage-layout">
+<aside class="company-stage-panel" aria-label="Información de etapa">
+  <span class="company-stage-panel__kicker" data-stage-kicker>Etapa 01</span>
+  <h2 data-stage-title>Información general</h2>
+  <p data-stage-sub>Define la base legal y operativa del nuevo tenant.</p>
+  <div class="company-stage-panel__meta">
+    <span data-stage-count>6 campos</span>
+    <span>Diseño responsive</span>
+  </div>
+  <p class="company-stage-panel__note" data-stage-note>Completa la identidad legal antes de avanzar a los datos fiscales y de contacto.</p>
+</aside>
+
+<div class="company-content">
+<section class="company-section app-card" id="info-general" data-stage-note="Completa la identidad legal antes de avanzar a los datos fiscales y de contacto.">
+<div class="company-section-heading">
+  <span class="company-section-kicker">Etapa 01</span>
+  <div>
+    <p class="company-section-title">Información general</p>
+    <p class="company-section-sub">Define la base legal y operativa del nuevo tenant.</p>
+  </div>
+</div>
 <div class="company-grid">
 <label>Nombre de la empresa *
-  <input type="text" name="name" required value="<%= formData.name || '' %>" placeholder="Ej: AeroCargo GT" />
+  <input type="text" name="name" required value="<%= formData.name || '' %>" placeholder="Ej: AeroCargo GT" data-company-name />
 </label>
 <label>Nombre de la entidad o persona jurídica
   <input type="text" name="legal_name" value="<%= formData.legal_name || '' %>" placeholder="Ej: AeroCargo Guatemala, S.A." />
@@ -75,7 +135,7 @@
   <input type="number" name="employees" min="1" required value="<%= formData.employees || '' %>" placeholder="Ej: 25" />
 </label>
 <label>Giro de la empresa *
-  <input type="text" name="business_type" required value="<%= formData.business_type || '' %>" placeholder="Ej: Transporte y logística" />
+  <input type="text" name="business_type" required value="<%= formData.business_type || '' %>" placeholder="Ej: Transporte y logística" data-company-business />
 </label>
 <label>Actividad *
   <select name="activity_id" required>
@@ -96,9 +156,14 @@
 </label>
 </section>
 
-<section class="company-section" id="fiscales-contacto">
-<p class="company-section-title">Datos fiscales y contacto</p>
-<p class="company-section-sub">Moneda base y medios de contacto.</p>
+<section class="company-section app-card" id="fiscales-contacto" data-stage-note="Esta etapa concentra moneda, correo y teléfono oficial. Los campos se distribuyen según el ancho útil disponible.">
+<div class="company-section-heading">
+  <span class="company-section-kicker">Etapa 02</span>
+  <div>
+    <p class="company-section-title">Datos fiscales y contacto</p>
+    <p class="company-section-sub">Establece la moneda base y los canales oficiales de comunicación.</p>
+  </div>
+</div>
 <div class="company-grid">
 <label>Moneda *
   <select name="currency" required>
@@ -116,11 +181,43 @@
 </div>
 </section>
 
-<section class="company-section" id="contactos">
-<p class="company-section-title">Contactos</p>
-<p class="company-section-sub">Datos de contacto principales para la empresa.</p>
+<section class="company-section app-card" id="identidad-visual" data-stage-note="Usa logo y colores para que el nuevo espacio mantenga una identidad clara desde el primer acceso.">
+<div class="company-section-heading">
+  <span class="company-section-kicker">Etapa 03</span>
+  <div>
+    <p class="company-section-title">Identidad visual</p>
+    <p class="company-section-sub">Aplica una presencia de marca reconocible en el espacio de la empresa.</p>
+  </div>
+</div>
+<div class="company-identity-grid">
+  <label class="company-logo-upload">Logo
+    <input type="file" name="logo_file" accept="image/*" data-logo-input />
+    <span class="company-logo-upload__box">
+      <span class="company-logo-upload__preview" data-logo-preview>Logo</span>
+      <span class="company-logo-upload__text" data-logo-name>Selecciona una imagen</span>
+    </span>
+  </label>
+  <div class="company-color-fields">
+    <label>Color primario
+      <input type="color" name="primary_color" value="<%= formData.primary_color || '#26445f' %>" data-primary-color />
+    </label>
+    <label>Color secundario
+      <input type="color" name="secondary_color" value="<%= formData.secondary_color || '#247c7a' %>" data-secondary-color />
+    </label>
+  </div>
+</div>
+</section>
+
+<section class="company-section app-card" id="contactos" data-stage-note="Registra contactos separados para comunicación general, pagos y operación diaria.">
+<div class="company-section-heading">
+  <span class="company-section-kicker">Etapa 04</span>
+  <div>
+    <p class="company-section-title">Contactos</p>
+    <p class="company-section-sub">Registra responsables para comunicación general, pagos y operación diaria.</p>
+  </div>
+</div>
 <div class="company-contact-block">
-  <p class="company-section-title">Contacto general</p>
+  <p class="company-contact-title">Contacto general</p>
   <div class="company-grid">
     <label>Nombre
       <input type="text" name="contact_general_first_name" value="<%= formData.contact_general_first_name || '' %>" placeholder="Ej: Ana" />
@@ -144,7 +241,7 @@
 </div>
 
 <div class="company-contact-block">
-  <p class="company-section-title">Contacto de pagos</p>
+  <p class="company-contact-title">Contacto de pagos</p>
   <div class="company-grid">
     <label>Nombre
       <input type="text" name="contact_payments_first_name" value="<%= formData.contact_payments_first_name || '' %>" placeholder="Ej: Carlos" />
@@ -168,7 +265,7 @@
 </div>
 
 <div class="company-contact-block">
-  <p class="company-section-title">Contacto operativo</p>
+  <p class="company-contact-title">Contacto operativo</p>
   <div class="company-grid">
     <label>Nombre
       <input type="text" name="contact_ops_first_name" value="<%= formData.contact_ops_first_name || '' %>" placeholder="Ej: Marta" />
@@ -192,10 +289,18 @@
 </div>
 </section>
 
-<section class="company-section" id="admin-creation">
-<p class="company-section-title">Creacion de Admin</p>
-<p class="company-section-sub">Datos del administrador principal de la empresa.</p>
+<section class="company-section app-card" id="admin-creation" data-stage-note="Puedes definir credenciales o dejar que el sistema genere una contraseña temporal para el administrador.">
+<div class="company-section-heading">
+  <span class="company-section-kicker">Etapa 05</span>
+  <div>
+    <p class="company-section-title">Creación de admin</p>
+    <p class="company-section-sub">Prepara el primer usuario con acceso administrativo al nuevo espacio.</p>
+  </div>
+</div>
 <div class="company-grid">
+  <label>Usuario de acceso (opcional)
+    <input type="text" name="username" value="<%= formData.username || '' %>" placeholder="Si se deja vacío se usa el NIT" />
+  </label>
   <label>Nombre del admin
     <input type="text" name="admin_name" value="<%= formData.admin_name || '' %>" placeholder="Ej: María Fernández" />
   </label>
@@ -208,9 +313,14 @@
 </div>
 </section>
 
-<section class="company-section" id="estado-config">
-<p class="company-section-title">Membresía</p>
-<p class="company-section-sub">Define la membresía y la vigencia de la empresa.</p>
+<section class="company-section app-card" id="estado-config" data-stage-note="Define la vigencia operativa del tenant y su estado inicial dentro del panel master.">
+<div class="company-section-heading">
+  <span class="company-section-kicker">Etapa 06</span>
+  <div>
+    <p class="company-section-title">Membresía</p>
+    <p class="company-section-sub">Define estado, modalidad de vigencia y fechas de activación.</p>
+  </div>
+</div>
 <div class="company-grid">
 <label>Estado *
   <select name="status" required>
@@ -236,10 +346,19 @@
 </section>
 </div>
 </div>
+</div>
 
 <div class="company-actions">
-<a href="/master" class="btn">Cancelar</a>
-<button type="submit" class="btn primary">Guardar empresa</button>
+<div class="company-actions-copy">
+  <strong>Listo para crear el tenant</strong>
+  <span>Se guardará la empresa con su identidad, vigencia y usuario principal.</span>
+</div>
+<div class="company-actions-buttons">
+  <a href="/master" class="btn app-btn">Cancelar</a>
+  <button type="button" class="btn app-btn" data-company-prev hidden>Anterior</button>
+  <button type="button" class="btn primary app-btn app-btn-primary" data-company-next>Siguiente</button>
+  <button type="submit" class="btn primary app-btn app-btn-primary" data-company-submit hidden>Guardar empresa</button>
+</div>
 </div>
 </form>
 </div>
@@ -254,6 +373,26 @@
   const sectionLinks = sectionNav ? Array.from(sectionNav.querySelectorAll('a[href^="#"]')) : [];
   const sections = Array.from(document.querySelectorAll('.company-section'));
   const sectionIds = new Set(sections.map((section) => section.id));
+  const stageKicker = document.querySelector('[data-stage-kicker]');
+  const stageTitle = document.querySelector('[data-stage-title]');
+  const stageSub = document.querySelector('[data-stage-sub]');
+  const stageCount = document.querySelector('[data-stage-count]');
+  const stageNote = document.querySelector('[data-stage-note]');
+  const logoInput = document.querySelector('[data-logo-input]');
+  const logoPreview = document.querySelector('[data-logo-preview]');
+  const logoName = document.querySelector('[data-logo-name]');
+  const companyNameInput = document.querySelector('[data-company-name]');
+  const companyBusinessInput = document.querySelector('[data-company-business]');
+  const primaryColorInput = document.querySelector('[data-primary-color]');
+  const secondaryColorInput = document.querySelector('[data-secondary-color]');
+  const previewName = document.querySelector('[data-preview-name]');
+  const previewLegal = document.querySelector('[data-preview-legal]');
+  const previewLogo = document.querySelector('[data-preview-logo]');
+  const previewPrimary = document.querySelector('[data-preview-primary]');
+  const previewSecondary = document.querySelector('[data-preview-secondary]');
+  const prevButton = document.querySelector('[data-company-prev]');
+  const nextButton = document.querySelector('[data-company-next]');
+  const submitButton = document.querySelector('[data-company-submit]');
 
   function formatDate(date) {
     const yyyy = date.getFullYear();
@@ -294,6 +433,59 @@
     syncActiveMode();
   }
 
+  if (logoInput && logoPreview && logoName) {
+    logoInput.addEventListener('change', () => {
+      const file = logoInput.files && logoInput.files[0];
+      if (!file) {
+        logoPreview.textContent = 'Logo';
+        logoPreview.style.backgroundImage = '';
+        logoPreview.classList.remove('has-image');
+        logoName.textContent = 'Selecciona una imagen';
+        if (previewLogo) {
+          previewLogo.style.backgroundImage = '';
+          previewLogo.classList.remove('has-image');
+          previewLogo.textContent = getInitials(companyNameInput ? companyNameInput.value : '');
+        }
+        return;
+      }
+      const imageUrl = URL.createObjectURL(file);
+      logoName.textContent = file.name;
+      logoPreview.textContent = '';
+      logoPreview.style.backgroundImage = `url("${imageUrl}")`;
+      logoPreview.classList.add('has-image');
+      if (previewLogo) {
+        previewLogo.textContent = '';
+        previewLogo.style.backgroundImage = `url("${imageUrl}")`;
+        previewLogo.classList.add('has-image');
+      }
+    });
+  }
+
+  function getInitials(value) {
+    const source = (value || 'Nueva empresa').trim();
+    return source
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('') || 'NE';
+  }
+
+  function syncPreview() {
+    const companyName = companyNameInput && companyNameInput.value.trim() ? companyNameInput.value.trim() : 'Nueva empresa';
+    const businessType = companyBusinessInput && companyBusinessInput.value.trim() ? companyBusinessInput.value.trim() : 'Espacio multiempresa';
+    if (previewName) previewName.textContent = companyName;
+    if (previewLegal) previewLegal.textContent = businessType;
+    if (previewLogo && !previewLogo.style.backgroundImage) previewLogo.textContent = getInitials(companyName);
+    if (previewPrimary && primaryColorInput) previewPrimary.style.background = primaryColorInput.value;
+    if (previewSecondary && secondaryColorInput) previewSecondary.style.background = secondaryColorInput.value;
+  }
+
+  [companyNameInput, companyBusinessInput, primaryColorInput, secondaryColorInput].forEach((input) => {
+    if (input) input.addEventListener('input', syncPreview);
+  });
+  syncPreview();
+
   function setActiveSection(id, options) {
     const opts = Object.assign({ updateHash: false }, options);
     let targetId = id;
@@ -311,8 +503,35 @@
       link.classList.toggle('is-active', linkTarget === `#${targetId}`);
     });
 
+    const activeIndex = sections.findIndex((section) => section.id === targetId);
+    if (prevButton) prevButton.hidden = activeIndex <= 0;
+    if (nextButton) nextButton.hidden = activeIndex < 0 || activeIndex >= sections.length - 1;
+    if (submitButton) submitButton.hidden = activeIndex !== sections.length - 1;
+
+    const activeSection = sections.find((section) => section.id === targetId);
+    if (activeSection) {
+      const kicker = activeSection.querySelector('.company-section-kicker');
+      const title = activeSection.querySelector('.company-section-title');
+      const sub = activeSection.querySelector('.company-section-sub');
+      const fields = activeSection.querySelectorAll('input:not([type="hidden"]), select, textarea');
+      if (stageKicker && kicker) stageKicker.textContent = kicker.textContent;
+      if (stageTitle && title) stageTitle.textContent = title.textContent;
+      if (stageSub && sub) stageSub.textContent = sub.textContent;
+      if (stageCount) stageCount.textContent = `${fields.length} ${fields.length === 1 ? 'campo' : 'campos'}`;
+      if (stageNote) stageNote.textContent = activeSection.dataset.stageNote || '';
+    }
+
     if (opts.updateHash && location.hash !== `#${targetId}`) {
       history.replaceState(null, '', `#${targetId}`);
+    }
+  }
+
+  function goToRelativeStep(direction) {
+    const activeIndex = sections.findIndex((section) => !section.classList.contains('is-hidden'));
+    const nextIndex = Math.min(Math.max(activeIndex + direction, 0), sections.length - 1);
+    const nextSection = sections[nextIndex];
+    if (nextSection) {
+      setActiveSection(nextSection.id, { updateHash: true });
     }
   }
 
@@ -332,6 +551,14 @@
 
     const initialId = location.hash.slice(1);
     setActiveSection(initialId, { updateHash: !!initialId });
+  }
+
+  if (prevButton) {
+    prevButton.addEventListener('click', () => goToRelativeStep(-1));
+  }
+
+  if (nextButton) {
+    nextButton.addEventListener('click', () => goToRelativeStep(1));
   }
 })();
 </script>

@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<% var currentConsignatariosTab = typeof activeConsignatariosTab !== 'undefined' ? activeConsignatariosTab : 'list'; %>
 <html lang="<%= lang %>">
 <head>
 <meta charset="UTF-8" />
@@ -6,22 +7,10 @@
 <title>
 <%= t('consignatarios.title') %>
 </title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
 <body class="page consignatarios-module">
-<header class="topbar">
-<div class="brand">
-<%= t('common.brand') %>
-</div>
-<nav class="nav">
-<a href="/dashboard">
-<%= t('nav.dashboard') %>
-</a>
-<a href="/logout">
-<%= t('nav.logout') %>
-</a>
-</nav>
-</header>
+<%- include('partials/header') %>
 <main class="container">
 <h1>
 <%= t('consignatarios.title') %>
@@ -29,28 +18,30 @@
 <% const sortBase = sortBaseQuery ? `${sortBaseQuery}&` : ''; %>
 <% const nextDir = (key) => (sort && sort.key === key && sort.dir === 'ASC' ? 'desc' : 'asc'); %>
 <% const dirLabel = (key) => (sort && sort.key === key ? (sort.dir === 'ASC' ? ' ASC' : ' DESC') : ''); %>
+<% const consignatariosSortPath = currentConsignatariosTab === 'filters' ? '/consignatarios/filters' : '/consignatarios/list'; %>
 <div class="module-nav consignatarios-nav">
-<a href="#consignatarios-listado" class="active" data-section="list">
+<a href="/consignatarios/list" class="<%= currentConsignatariosTab === 'list' ? 'active' : '' %>" data-section="list">
 <%= t('consignatarios.menu_list') %>
 </a>
-<a href="#consignatarios-filtros" data-section="filters">
+<a href="/consignatarios/filters" class="<%= currentConsignatariosTab === 'filters' ? 'active' : '' %>" data-section="filters">
 <%= t('consignatarios.menu_filters') %>
 </a>
-<a href="#consignatarios-gestionar" data-section="manage">
+<a href="/consignatarios/manage" class="<%= currentConsignatariosTab === 'manage' ? 'active' : '' %>" data-section="manage">
 <%= t('consignatarios.menu_manage') %>
 </a>
 </div>
+<% if (currentConsignatariosTab === 'list') { %>
 <section class="consignatarios-section" id="consignatarios-listado">
 <section class="panel">
 <div class="panel-header">
 <h2>
 <%= t('consignatarios.filters_title') %>
 </h2>
-<a class="btn" href="/consignatarios">
+<a class="btn" href="/consignatarios/list">
 <%= t('common.clear') %>
 </a>
 </div>
-<form method="GET" action="/consignatarios" class="form grid-2">
+<form method="GET" action="/consignatarios/list" class="form grid-2">
 <label>
 <%= t('consignatarios.search_name') %>
 <input type="text" name="name" value="<%= filters.name || '' %>" />
@@ -69,17 +60,17 @@
 <div class="table">
 <div class="table-row header consignatarios">
 <div>
-<a href="/consignatarios?<%= sortBase %>sort=name&dir=<%= nextDir('name') %>">
+<a href="<%= consignatariosSortPath %>?<%= sortBase %>sort=name&dir=<%= nextDir('name') %>">
 <%= t('consignatarios.table.name') %><%= dirLabel('name') %>
 </a>
 </div>
 <div>
-<a href="/consignatarios?<%= sortBase %>sort=customer&dir=<%= nextDir('customer') %>">
+<a href="<%= consignatariosSortPath %>?<%= sortBase %>sort=customer&dir=<%= nextDir('customer') %>">
 <%= t('consignatarios.table.customer') %><%= dirLabel('customer') %>
 </a>
 </div>
 <div>
-<a href="/consignatarios?<%= sortBase %>sort=phone&dir=<%= nextDir('phone') %>">
+<a href="<%= consignatariosSortPath %>?<%= sortBase %>sort=phone&dir=<%= nextDir('phone') %>">
 <%= t('consignatarios.table.contact') %><%= dirLabel('phone') %>
 </a>
 </div>
@@ -125,6 +116,8 @@
 </div>
 </section>
 </section>
+<% } %>
+<% if (currentConsignatariosTab === 'filters') { %>
 <section class="consignatarios-section" id="consignatarios-filtros">
 <section class="panel">
 <div class="panel-header">
@@ -132,7 +125,7 @@
 <%= t('consignatarios.filters_title') %>
 </h2>
 <div class="actions">
-<a class="btn" href="/consignatarios">
+<a class="btn" href="/consignatarios/filters">
 <%= t('common.clear') %>
 </a>
 <a class="btn primary" href="<%= exportUrl %>" style="<%= can('consignatarios', 'export') ? '' : 'display:none' %>">
@@ -140,7 +133,7 @@
 </a>
 </div>
 </div>
-<form method="GET" action="/consignatarios" class="form grid-2">
+<form method="GET" action="/consignatarios/filters" class="form grid-2">
 <label>
 <%= t('consignatarios.search_name') %>
 <input type="text" name="name" value="<%= filters.name || '' %>" />
@@ -176,17 +169,17 @@
 <div class="table">
 <div class="table-row header consignatarios">
 <div>
-<a href="/consignatarios?<%= sortBase %>sort=name&dir=<%= nextDir('name') %>">
+<a href="<%= consignatariosSortPath %>?<%= sortBase %>sort=name&dir=<%= nextDir('name') %>">
 <%= t('consignatarios.table.name') %><%= dirLabel('name') %>
 </a>
 </div>
 <div>
-<a href="/consignatarios?<%= sortBase %>sort=customer&dir=<%= nextDir('customer') %>">
+<a href="<%= consignatariosSortPath %>?<%= sortBase %>sort=customer&dir=<%= nextDir('customer') %>">
 <%= t('consignatarios.table.customer') %><%= dirLabel('customer') %>
 </a>
 </div>
 <div>
-<a href="/consignatarios?<%= sortBase %>sort=phone&dir=<%= nextDir('phone') %>">
+<a href="<%= consignatariosSortPath %>?<%= sortBase %>sort=phone&dir=<%= nextDir('phone') %>">
 <%= t('consignatarios.table.contact') %><%= dirLabel('phone') %>
 </a>
 </div>
@@ -232,6 +225,8 @@
 </div>
 </section>
 </section>
+<% } %>
+<% if (currentConsignatariosTab === 'manage') { %>
 <section class="consignatarios-section" id="consignatarios-gestionar">
 <section class="panel" style="<%= can('consignatarios', 'edit') ? '' : 'display:none' %>">
 <h2>
@@ -377,12 +372,13 @@
 </form>
 </section>
 </section>
+<% } %>
 <script src="/gt-locations.js">
 </script>
 <script src="/address-gt.js">
 </script>
 </main>
-<script>    function initSatForm(form) {      const typeSelect = form.querySelector('[data-sat-type]');      const numberInput = form.querySelector('[data-sat-number]');      const nameInput = form.querySelector('[data-sat-name-target]');      const verifyBtn = form.querySelector('[data-sat-verify]');      const manualBtn = form.querySelector('[data-sat-manual]');      const statusEl = form.querySelector('[data-sat-status]');      const warningEl = form.querySelector('[data-sat-warning]');      const satVerified = form.querySelector('[data-sat-verified]');      const satName = form.querySelector('[data-sat-name]');      const satCheckedAt = form.querySelector('[data-sat-checked-at]');      function setManualStatus(message, portalUrl) {        if (statusEl) statusEl.textContent = '<%= t('customers.sat_manual_action') %>';        if (warningEl) {          if (portalUrl) {            warningEl.innerHTML = `${message || '<%= t('customers.sat_unavailable') %>'} <a href="${portalUrl}" target="_blank" rel="noopener">${'<%= t('customers.sat_portal_link') %>'}</a>`;          } else {            warningEl.textContent = message || '<%= t('customers.sat_unavailable') %>';          }        }        if (satVerified) satVerified.value = '0';        if (satName) satName.value = '';        if (satCheckedAt) satCheckedAt.value = '';      }      function clearWarning() {        if (warningEl) warningEl.textContent = '';      }      function toggleSatControls() {        const isNit = typeSelect && typeSelect.value === 'NIT';        if (verifyBtn) verifyBtn.disabled = !isNit;        if (manualBtn) manualBtn.disabled = !isNit;        if (!isNit) {          if (statusEl) statusEl.textContent = '<%= t('customers.sat_manual') %>';          clearWarning();          if (satVerified) satVerified.value = '0';          if (satName) satName.value = '';          if (satCheckedAt) satCheckedAt.value = '';        }      }      async function verifySat() {        if (!numberInput || !statusEl) return;        statusEl.textContent = '<%= t('customers.sat_checking') %>';        clearWarning();        try {          const response = await fetch('/sat/verify', {            method: 'POST',            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '<%= csrfToken %>' },            body: JSON.stringify({ document_number: numberInput.value })          });          const data = await response.json();          if (data && data.ok) {            statusEl.textContent = '<%= t('customers.sat_verified') %>';            if (nameInput && data.name) {              nameInput.value = data.name;            }            if (satVerified) satVerified.value = '1';            if (satName) satName.value = data.name || '';            if (satCheckedAt) satCheckedAt.value = new Date().toISOString();            return;          }          setManualStatus(data && data.message ? data.message : '<%= t('customers.sat_unavailable') %>', data && data.portal_url);        } catch (err) {          setManualStatus('<%= t('customers.sat_unavailable') %>');        }      }      if (typeSelect) typeSelect.addEventListener('change', toggleSatControls);      if (verifyBtn) verifyBtn.addEventListener('click', verifySat);      if (manualBtn) manualBtn.addEventListener('click', () => setManualStatus('<%= t('customers.sat_manual_action') %>'));      toggleSatControls();    }    function initConsignatariosTabs() {      const nav = document.querySelector('.consignatarios-nav');      if (!nav) return;      const links = Array.from(nav.querySelectorAll('a'));      const sections = Array.from(document.querySelectorAll('.consignatarios-section'));      if (!links.length || !sections.length) return;      document.body.classList.add('consignatarios-tabs');      function getTargetId() {        const hash = window.location.hash;        if (hash) {          const targetId = hash.replace('#', '');          if (document.getElementById(targetId)) {            return targetId;          }        }        return sections[0].id;      }      function setActive(targetId) {        sections.forEach((section) => {          section.classList.toggle('is-active', section.id === targetId);        });        links.forEach((link) => {          const href = link.getAttribute('href');          link.classList.toggle('active', href === `#${targetId}`);        });      }      setActive(getTargetId());      window.addEventListener('hashchange', () => {        setActive(getTargetId());      });    }    function initConsignatarioEditShortcut() {      const form = document.querySelector('[data-consignatario-edit-shortcut]');      if (!form) return;      const select = form.querySelector('[data-edit-select]');      const button = form.querySelector('[data-edit-go]');      if (!select || !button) return;      button.addEventListener('click', () => {        const id = select.value;        if (!id) {          select.focus();          return;        }        window.location.href = `/consignatarios/${id}`;      });    }    document.querySelectorAll('[data-sat-form]').forEach(initSatForm);    initConsignatariosTabs();    initConsignatarioEditShortcut();  </script>
+<script>    function initSatForm(form) {      const typeSelect = form.querySelector('[data-sat-type]');      const numberInput = form.querySelector('[data-sat-number]');      const nameInput = form.querySelector('[data-sat-name-target]');      const verifyBtn = form.querySelector('[data-sat-verify]');      const manualBtn = form.querySelector('[data-sat-manual]');      const statusEl = form.querySelector('[data-sat-status]');      const warningEl = form.querySelector('[data-sat-warning]');      const satVerified = form.querySelector('[data-sat-verified]');      const satName = form.querySelector('[data-sat-name]');      const satCheckedAt = form.querySelector('[data-sat-checked-at]');      function setManualStatus(message, portalUrl) {        if (statusEl) statusEl.textContent = '<%= t('customers.sat_manual_action') %>';        if (warningEl) {          if (portalUrl) {            warningEl.innerHTML = `${message || '<%= t('customers.sat_unavailable') %>'} <a href="${portalUrl}" target="_blank" rel="noopener">${'<%= t('customers.sat_portal_link') %>'}</a>`;          } else {            warningEl.textContent = message || '<%= t('customers.sat_unavailable') %>';          }        }        if (satVerified) satVerified.value = '0';        if (satName) satName.value = '';        if (satCheckedAt) satCheckedAt.value = '';      }      function clearWarning() {        if (warningEl) warningEl.textContent = '';      }      function toggleSatControls() {        const isNit = typeSelect && typeSelect.value === 'NIT';        if (verifyBtn) verifyBtn.disabled = !isNit;        if (manualBtn) manualBtn.disabled = !isNit;        if (!isNit) {          if (statusEl) statusEl.textContent = '<%= t('customers.sat_manual') %>';          clearWarning();          if (satVerified) satVerified.value = '0';          if (satName) satName.value = '';          if (satCheckedAt) satCheckedAt.value = '';        }      }      async function verifySat() {        if (!numberInput || !statusEl) return;        statusEl.textContent = '<%= t('customers.sat_checking') %>';        clearWarning();        try {          const response = await fetch('/sat/verify', {            method: 'POST',            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '<%= csrfToken %>' },            body: JSON.stringify({ document_number: numberInput.value })          });          const data = await response.json();          if (data && data.ok) {            statusEl.textContent = '<%= t('customers.sat_verified') %>';            if (nameInput && data.name) {              nameInput.value = data.name;            }            if (satVerified) satVerified.value = '1';            if (satName) satName.value = data.name || '';            if (satCheckedAt) satCheckedAt.value = new Date().toISOString();            return;          }          setManualStatus(data && data.message ? data.message : '<%= t('customers.sat_unavailable') %>', data && data.portal_url);        } catch (err) {          setManualStatus('<%= t('customers.sat_unavailable') %>');        }      }      if (typeSelect) typeSelect.addEventListener('change', toggleSatControls);      if (verifyBtn) verifyBtn.addEventListener('click', verifySat);      if (manualBtn) manualBtn.addEventListener('click', () => setManualStatus('<%= t('customers.sat_manual_action') %>'));      toggleSatControls();    }    function initConsignatarioEditShortcut() {      const form = document.querySelector('[data-consignatario-edit-shortcut]');      if (!form) return;      const select = form.querySelector('[data-edit-select]');      const button = form.querySelector('[data-edit-go]');      if (!select || !button) return;      button.addEventListener('click', () => {        const id = select.value;        if (!id) {          select.focus();          return;        }        window.location.href = `/consignatarios/${id}`;      });    }    document.querySelectorAll('[data-sat-form]').forEach(initSatForm);    initConsignatarioEditShortcut();  </script>
 <script src="/status-footer.js" defer></script>
 </body>
 </html>

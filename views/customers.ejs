@@ -1,4 +1,5 @@
 ﻿<!DOCTYPE html>
+<% var currentCustomersTab = typeof activeCustomersTab !== 'undefined' ? activeCustomersTab : 'list'; %>
 <html lang="<%= lang %>">
 <head>
 <meta charset="UTF-8" />
@@ -6,56 +7,45 @@
 <title>
 <%= t('customers.title') %>
 </title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
 <body class="page customers-module">
-<header class="topbar">
-<div class="brand">
-<%= t('common.brand') %>
-</div>
-<nav class="nav">
-<a href="/dashboard">
-<%= t('nav.dashboard') %>
-</a>
-<a href="/logout">
-<%= t('nav.logout') %>
-</a>
-</nav>
-</header>
+<%- include('partials/header') %>
 <main class="container">
 <h1>
 <%= t('customers.title') %>
 </h1>
 <div class="module-nav customers-nav">
-<a href="#clientes-listado" class="active" data-section="list">
+<a href="/customers/list" class="<%= currentCustomersTab === 'list' ? 'active' : '' %>" data-section="list">
 <%= t('customers.menu_list') %>
 </a>
-<a href="#clientes-importar" data-section="import">
+<a href="/customers/import" class="<%= currentCustomersTab === 'import' ? 'active' : '' %>" data-section="import">
 <%= t('customers.menu_import') %>
 </a>
-<a href="#clientes-crear" data-section="create">
+<a href="/customers/create" class="<%= currentCustomersTab === 'create' ? 'active' : '' %>" data-section="create">
 <%= t('customers.menu_create') %>
 </a>
-<a href="#clientes-paquetes" data-section="packages">
+<a href="/customers/packages" class="<%= currentCustomersTab === 'packages' ? 'active' : '' %>" data-section="packages">
 <%= t('customers.menu_packages') %>
 </a>
 <% if (canViewVoided) { %>
-<a href="#clientes-anulados" data-section="voided">
+<a href="/customers/voided" class="<%= currentCustomersTab === 'voided' ? 'active' : '' %>" data-section="voided">
 <%= t('customers.menu_voided') %>
 </a>
 <% } %>
 </div>
+<% if (currentCustomersTab === 'list') { %>
 <section class="customers-section" id="clientes-listado">
 <section class="panel">
 <div class="panel-header">
 <h2>
 <%= t('customers.filters_title') %>
 </h2>
-<a class="btn" href="/customers">
+<a class="btn" href="/customers/list">
 <%= t('common.clear') %>
 </a>
 </div>
-<form method="GET" action="/customers" class="form grid-2">
+<form method="GET" action="/customers/list" class="form grid-2">
 <label>
 <%= t('customers.search_name') %>
 <input type="text" name="name" value="<%= filters.name || '' %>" />
@@ -217,7 +207,9 @@
 </div>
 </section>
 </section>
+<% } %>
 <% if (canViewVoided) { %>
+<% if (currentCustomersTab === 'voided') { %>
 <section class="customers-section" id="clientes-anulados">
 <section class="panel">
 <h2>
@@ -313,6 +305,8 @@
 </section>
 </section>
 <% } %>
+<% } %>
+<% if (currentCustomersTab === 'import') { %>
 <section class="customers-section" id="clientes-importar">
 <section class="panel">
 <h2>
@@ -335,6 +329,8 @@
 </div>
 </section>
 </section>
+<% } %>
+<% if (currentCustomersTab === 'create') { %>
 <section class="customers-section" id="clientes-crear">
 <section class="panel">
 <h2>
@@ -528,17 +524,19 @@
 </form>
 </section>
 </section>
+<% } %>
+<% if (currentCustomersTab === 'packages') { %>
 <section class="customers-section" id="clientes-paquetes">
 <section class="panel">
 <div class="panel-header">
 <h2>
 <%= t('customers.packages_title') %>
 </h2>
-<a class="btn" href="/customers#clientes-paquetes">
+<a class="btn" href="/customers/packages">
 <%= t('common.clear') %>
 </a>
 </div>
-<form method="GET" action="/customers#clientes-paquetes" class="form grid-2">
+<form method="GET" action="/customers/packages" class="form grid-2">
 <label>
 <%= t('packages.consignatario') %>
 <select name="pkg_consignatario">
@@ -587,7 +585,7 @@
 <button type="submit" class="btn primary">
 <%= t('packages.apply_filter') %>
 </button>
-<a class="btn" href="/customers#clientes-paquetes">
+<a class="btn" href="/customers/packages">
 <%= t('packages.reset_filters') %>
 </a>
 </div>
@@ -657,12 +655,13 @@
 </div>
 </section>
 </section>
+<% } %>
 <script src="/gt-locations.js">
 </script>
 <script src="/address-gt.js">
 </script>
 </main>
-<script>    function initSatForm(form) {      const typeSelect = form.querySelector('[data-sat-type]');      const numberInput = form.querySelector('[data-sat-number]');      const nameInput = form.querySelector('[data-sat-name-target]');      const verifyBtn = form.querySelector('[data-sat-verify]');      const manualBtn = form.querySelector('[data-sat-manual]');      const statusEl = form.querySelector('[data-sat-status]');      const warningEl = form.querySelector('[data-sat-warning]');      const satVerified = form.querySelector('[data-sat-verified]');      const satName = form.querySelector('[data-sat-name]');      const satCheckedAt = form.querySelector('[data-sat-checked-at]');      function setManualStatus(message, portalUrl) {        if (statusEl) statusEl.textContent = '<%= t('customers.sat_manual_action') %>';        if (warningEl) {          if (portalUrl) {            warningEl.innerHTML = `${message || '<%= t('customers.sat_unavailable') %>'} <a href="${portalUrl}" target="_blank" rel="noopener">${'<%= t('customers.sat_portal_link') %>'}</a>`;          } else {            warningEl.textContent = message || '<%= t('customers.sat_unavailable') %>';          }        }        if (satVerified) satVerified.value = '0';        if (satName) satName.value = '';        if (satCheckedAt) satCheckedAt.value = '';      }      function clearWarning() {        if (warningEl) warningEl.textContent = '';      }      function toggleSatControls() {        const isNit = typeSelect && typeSelect.value === 'NIT';        if (verifyBtn) verifyBtn.disabled = !isNit;        if (manualBtn) manualBtn.disabled = !isNit;        if (!isNit) {          if (statusEl) statusEl.textContent = '<%= t('customers.sat_manual') %>';          clearWarning();          if (satVerified) satVerified.value = '0';          if (satName) satName.value = '';          if (satCheckedAt) satCheckedAt.value = '';        }      }      async function verifySat() {        if (!numberInput || !statusEl) return;        statusEl.textContent = '<%= t('customers.sat_checking') %>';        clearWarning();        try {          const response = await fetch('/sat/verify', {            method: 'POST',            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '<%= csrfToken %>' },            body: JSON.stringify({ document_number: numberInput.value })          });          const data = await response.json();          if (data && data.ok) {            statusEl.textContent = '<%= t('customers.sat_verified') %>';            if (nameInput && data.name) {              nameInput.value = data.name;            }            if (satVerified) satVerified.value = '1';            if (satName) satName.value = data.name || '';            if (satCheckedAt) satCheckedAt.value = new Date().toISOString();            return;          }          setManualStatus(data && data.message ? data.message : '<%= t('customers.sat_unavailable') %>', data && data.portal_url);        } catch (err) {          setManualStatus('<%= t('customers.sat_unavailable') %>');        }      }      if (typeSelect) typeSelect.addEventListener('change', toggleSatControls);      if (verifyBtn) verifyBtn.addEventListener('click', verifySat);      if (manualBtn) manualBtn.addEventListener('click', () => setManualStatus('<%= t('customers.sat_manual_action') %>'));      toggleSatControls();    }    function initPasswordToggles(root) {      root.querySelectorAll('[data-password-toggle]').forEach((button) => {        const wrapper = button.closest('.password-wrapper');        const input = wrapper ? wrapper.querySelector('[data-password-input]') : null;        if (!input) return;        button.addEventListener('click', () => {          const isPassword = input.getAttribute('type') === 'password';          input.setAttribute('type', isPassword ? 'text' : 'password');          button.textContent = isPassword ? '<%= t('common.hide') %>' : '<%= t('common.show') %>';        });      });    }    function initCustomersTabs() {      const nav = document.querySelector('.customers-nav');      if (!nav) return;      const links = Array.from(nav.querySelectorAll('a'));      const sections = Array.from(document.querySelectorAll('.customers-section'));      if (!links.length || !sections.length) return;      document.body.classList.add('customers-tabs');      function getTargetId() {        const hash = window.location.hash;        if (hash) {          const targetId = hash.replace('#', '');          if (document.getElementById(targetId)) {            return targetId;          }        }        return sections[0].id;      }      function setActive(targetId) {        sections.forEach((section) => {          section.classList.toggle('is-active', section.id === targetId);        });        links.forEach((link) => {          const href = link.getAttribute('href');          link.classList.toggle('active', href === `#${targetId}`);        });      }      setActive(getTargetId());      window.addEventListener('hashchange', () => {        setActive(getTargetId());      });    }    function initCustomerEditShortcut() {      const form = document.querySelector('[data-customer-edit-shortcut]');      if (!form) return;      const select = form.querySelector('[data-edit-select]');      const button = form.querySelector('[data-edit-go]');      if (!select || !button) return;      button.addEventListener('click', () => {        const id = select.value;        if (!id) {          select.focus();          return;        }        window.location.href = `/customers/${id}#editar`;      });    }    document.querySelectorAll('[data-sat-form]').forEach(initSatForm);    initPasswordToggles(document);    initCustomersTabs();    initCustomerEditShortcut();  </script>
+<script>    function initSatForm(form) {      const typeSelect = form.querySelector('[data-sat-type]');      const numberInput = form.querySelector('[data-sat-number]');      const nameInput = form.querySelector('[data-sat-name-target]');      const verifyBtn = form.querySelector('[data-sat-verify]');      const manualBtn = form.querySelector('[data-sat-manual]');      const statusEl = form.querySelector('[data-sat-status]');      const warningEl = form.querySelector('[data-sat-warning]');      const satVerified = form.querySelector('[data-sat-verified]');      const satName = form.querySelector('[data-sat-name]');      const satCheckedAt = form.querySelector('[data-sat-checked-at]');      function setManualStatus(message, portalUrl) {        if (statusEl) statusEl.textContent = '<%= t('customers.sat_manual_action') %>';        if (warningEl) {          if (portalUrl) {            warningEl.innerHTML = `${message || '<%= t('customers.sat_unavailable') %>'} <a href="${portalUrl}" target="_blank" rel="noopener">${'<%= t('customers.sat_portal_link') %>'}</a>`;          } else {            warningEl.textContent = message || '<%= t('customers.sat_unavailable') %>';          }        }        if (satVerified) satVerified.value = '0';        if (satName) satName.value = '';        if (satCheckedAt) satCheckedAt.value = '';      }      function clearWarning() {        if (warningEl) warningEl.textContent = '';      }      function toggleSatControls() {        const isNit = typeSelect && typeSelect.value === 'NIT';        if (verifyBtn) verifyBtn.disabled = !isNit;        if (manualBtn) manualBtn.disabled = !isNit;        if (!isNit) {          if (statusEl) statusEl.textContent = '<%= t('customers.sat_manual') %>';          clearWarning();          if (satVerified) satVerified.value = '0';          if (satName) satName.value = '';          if (satCheckedAt) satCheckedAt.value = '';        }      }      async function verifySat() {        if (!numberInput || !statusEl) return;        statusEl.textContent = '<%= t('customers.sat_checking') %>';        clearWarning();        try {          const response = await fetch('/sat/verify', {            method: 'POST',            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '<%= csrfToken %>' },            body: JSON.stringify({ document_number: numberInput.value })          });          const data = await response.json();          if (data && data.ok) {            statusEl.textContent = '<%= t('customers.sat_verified') %>';            if (nameInput && data.name) {              nameInput.value = data.name;            }            if (satVerified) satVerified.value = '1';            if (satName) satName.value = data.name || '';            if (satCheckedAt) satCheckedAt.value = new Date().toISOString();            return;          }          setManualStatus(data && data.message ? data.message : '<%= t('customers.sat_unavailable') %>', data && data.portal_url);        } catch (err) {          setManualStatus('<%= t('customers.sat_unavailable') %>');        }      }      if (typeSelect) typeSelect.addEventListener('change', toggleSatControls);      if (verifyBtn) verifyBtn.addEventListener('click', verifySat);      if (manualBtn) manualBtn.addEventListener('click', () => setManualStatus('<%= t('customers.sat_manual_action') %>'));      toggleSatControls();    }    function initPasswordToggles(root) {      root.querySelectorAll('[data-password-toggle]').forEach((button) => {        const wrapper = button.closest('.password-wrapper');        const input = wrapper ? wrapper.querySelector('[data-password-input]') : null;        if (!input) return;        button.addEventListener('click', () => {          const isPassword = input.getAttribute('type') === 'password';          input.setAttribute('type', isPassword ? 'text' : 'password');          button.textContent = isPassword ? '<%= t('common.hide') %>' : '<%= t('common.show') %>';        });      });    }    function initCustomerEditShortcut() {      const form = document.querySelector('[data-customer-edit-shortcut]');      if (!form) return;      const select = form.querySelector('[data-edit-select]');      const button = form.querySelector('[data-edit-go]');      if (!select || !button) return;      button.addEventListener('click', () => {        const id = select.value;        if (!id) {          select.focus();          return;        }        window.location.href = `/customers/${id}#editar`;      });    }    document.querySelectorAll('[data-sat-form]').forEach(initSatForm);    initPasswordToggles(document);    initCustomerEditShortcut();  </script>
 <script src="/status-footer.js" defer></script>
 </body>
 </html>

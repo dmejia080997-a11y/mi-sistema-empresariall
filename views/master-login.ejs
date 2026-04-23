@@ -1,35 +1,46 @@
-﻿<!DOCTYPE html>
-<html lang="es">
+<!DOCTYPE html>
+<html lang="<%= typeof lang !== 'undefined' ? lang : 'es' %>">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Acceso Master</title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
-<body class="page">
-<header class="topbar">
-<div class="brand">Panel Master</div>
-</header>
-<div class="card">
-<h1>Acceso Master</h1>
-<p class="muted">Ingresa las credenciales maestras para administrar empresas.</p>
-<% if (error) { %>
-<div class="alert">
-<%= error %>
-</div>
-<% } %>
-<form method="POST" action="/master/login" class="form">
-<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-<label>Usuario
-  <input type="text" name="username" required />
-</label>
-<label>Contraseña
-  <input type="password" name="password" required />
-</label>
-<button type="submit" class="btn primary">Ingresar</button>
-</form>
-</div>
+<body class="page master-shell-page">
+<%- include('partials/header', {
+  headerBrandText: 'Panel Master',
+  homeHref: false,
+  showDefaultNav: false
+}) %>
+
+<main class="container master-login-page">
+  <section class="master-login-card app-card">
+    <div class="app-card-header">
+      <div>
+        <p class="master-eyebrow app-page-eyebrow">Acceso seguro</p>
+        <h1>Acceso Master</h1>
+        <p class="muted">Ingresa las credenciales maestras para administrar empresas.</p>
+      </div>
+    </div>
+
+    <% if (error) { %>
+    <div class="alert app-message app-message-error error">
+      <%= error %>
+    </div>
+    <% } %>
+
+    <form method="POST" action="/master/login" class="form app-form-grid">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <label class="app-field">Usuario
+        <input type="text" name="username" required />
+      </label>
+      <label class="app-field">Contrasena
+        <input type="password" name="password" required />
+      </label>
+      <button type="submit" class="btn primary app-btn app-btn-primary">Ingresar</button>
+    </form>
+  </section>
+</main>
 <script src="/status-footer.js" defer></script>
 </body>
 </html>
-

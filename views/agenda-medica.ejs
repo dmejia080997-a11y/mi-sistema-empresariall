@@ -5,23 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="csrf-token" content="<%= csrfToken %>" />
 <title><%= t('agenda_medica.title') %></title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
 <body class="page agenda-medica-page" style="<% if (companyBrand) { %>--accent:<%= companyBrand.primary_color || '#d97757' %>; --accent-2:<%= companyBrand.secondary_color || '#3d7b6f' %>;<% } %>">
-<header class="topbar">
-<a class="brand brand-link" href="/dashboard">
-<% if (companyBrand && companyBrand.logo) { %>
-<img src="<%= companyBrand.logo %>" alt="Logo" class="brand-logo" />
-<% } %>
-<span class="brand-name">
-<%= (companyBrand && companyBrand.name) ? companyBrand.name : t('common.brand') %>
-</span>
-</a>
-<nav class="nav">
-<a href="/dashboard"><%= t('nav.dashboard') %></a>
-<a href="/logout"><%= t('nav.logout') %></a>
-</nav>
-</header>
+<%- include('partials/header') %>
 <main class="container agenda-medica">
 <div class="page-header">
 <div>

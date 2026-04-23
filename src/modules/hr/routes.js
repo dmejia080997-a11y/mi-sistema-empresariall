@@ -27,6 +27,7 @@ const EMPLOYEE_ATTACHMENT_LABELS = {
   dpi_front: 'DPI frente',
   dpi_back: 'DPI reverso',
   signed_contract: 'Contrato firmado',
+  background_check: 'Antecedentes',
   other_document: 'Otro documento'
 };
 
@@ -79,7 +80,7 @@ function registerHrRoutes(app, deps) {
       destination: (req, file, cb) => {
         if (file.fieldname === 'photo') return cb(null, uploadDirs.employeePhotos);
         if (file.fieldname === 'job_application') return cb(null, uploadDirs.employeeApplications);
-        if (['dpi_front', 'dpi_back', 'signed_contract', 'other_documents'].includes(file.fieldname)) {
+        if (['dpi_front', 'dpi_back', 'signed_contract', 'background_check', 'other_documents'].includes(file.fieldname)) {
           return cb(null, uploadDirs.employeeAttachments);
         }
         if (file.fieldname === 'attachment') {
@@ -109,6 +110,7 @@ function registerHrRoutes(app, deps) {
     { name: 'dpi_front', maxCount: 1 },
     { name: 'dpi_back', maxCount: 1 },
     { name: 'signed_contract', maxCount: 1 },
+    { name: 'background_check', maxCount: 1 },
     { name: 'other_documents', maxCount: 6 }
   ]);
   const singleAttachmentUpload = rrhhUpload.single('attachment');
@@ -975,11 +977,12 @@ function registerHrRoutes(app, deps) {
     const insert = await dbRun(
       `INSERT INTO hr_employees (
          company_id, first_name, last_name, dpi_number, dpi_issued_at, marital_status, married_last_name, gender,
-         birth_date, phone, email, address, education_level, ethnicity, languages, position, department,
+         birth_date, phone, email, address, education_level, ethnicity, languages, profession, courses_certifications, position, department,
          immediate_boss_id, employee_code, hire_date, employment_status, contract_type, salary_base, bonus_amount,
-         payroll_calculation_type, bank_account_number, bank_account_type, bank_name, photo_path, job_application_path,
-         notes, job_description_id, is_active, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+         extra_bonus, payroll_calculation_type, payment_method, bank_account_number, bank_account_type, bank_name,
+         labor_observations, photo_path, job_application_path, emergency_contact_name, emergency_contact_phone,
+         general_observations, notes, job_description_id, is_active, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       [
         companyId,
         payload.first_name,
@@ -996,6 +999,8 @@ function registerHrRoutes(app, deps) {
         payload.education_level,
         payload.ethnicity,
         payload.languages,
+        payload.profession,
+        payload.courses_certifications,
         payload.position,
         payload.department,
         payload.immediate_boss_id,
@@ -1005,12 +1010,18 @@ function registerHrRoutes(app, deps) {
         payload.contract_type,
         payload.salary_base,
         payload.bonus_amount,
+        payload.extra_bonus,
         payload.payroll_calculation_type,
+        payload.payment_method,
         payload.bank_account_number,
         payload.bank_account_type,
         payload.bank_name,
+        payload.labor_observations,
         payload.photo_path,
         payload.job_application_path,
+        payload.emergency_contact_name,
+        payload.emergency_contact_phone,
+        payload.general_observations,
         payload.notes,
         payload.job_description_id,
         payload.is_active
@@ -1059,9 +1070,11 @@ function registerHrRoutes(app, deps) {
       `UPDATE hr_employees
        SET first_name = ?, last_name = ?, dpi_number = ?, dpi_issued_at = ?, marital_status = ?, married_last_name = ?,
            gender = ?, birth_date = ?, phone = ?, email = ?, address = ?, education_level = ?, ethnicity = ?, languages = ?,
-           position = ?, department = ?, immediate_boss_id = ?, employee_code = ?, hire_date = ?, employment_status = ?,
-           contract_type = ?, salary_base = ?, bonus_amount = ?, payroll_calculation_type = ?, bank_account_number = ?,
-           bank_account_type = ?, bank_name = ?, photo_path = ?, job_application_path = ?, notes = ?, job_description_id = ?,
+           profession = ?, courses_certifications = ?, position = ?, department = ?, immediate_boss_id = ?, employee_code = ?,
+           hire_date = ?, employment_status = ?, contract_type = ?, salary_base = ?, bonus_amount = ?, extra_bonus = ?,
+           payroll_calculation_type = ?, payment_method = ?, bank_account_number = ?, bank_account_type = ?, bank_name = ?,
+           labor_observations = ?, photo_path = ?, job_application_path = ?, emergency_contact_name = ?,
+           emergency_contact_phone = ?, general_observations = ?, notes = ?, job_description_id = ?,
            is_active = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ? AND company_id = ?`,
       [
@@ -1079,6 +1092,8 @@ function registerHrRoutes(app, deps) {
         payload.education_level,
         payload.ethnicity,
         payload.languages,
+        payload.profession,
+        payload.courses_certifications,
         payload.position,
         payload.department,
         payload.immediate_boss_id,
@@ -1088,12 +1103,18 @@ function registerHrRoutes(app, deps) {
         payload.contract_type,
         payload.salary_base,
         payload.bonus_amount,
+        payload.extra_bonus,
         payload.payroll_calculation_type,
+        payload.payment_method,
         payload.bank_account_number,
         payload.bank_account_type,
         payload.bank_name,
+        payload.labor_observations,
         payload.photo_path,
         payload.job_application_path,
+        payload.emergency_contact_name,
+        payload.emergency_contact_phone,
+        payload.general_observations,
         payload.notes,
         payload.job_description_id,
         payload.is_active,
@@ -1321,10 +1342,20 @@ function registerHrRoutes(app, deps) {
     );
     await dbRun(
       `UPDATE hr_employees
-       SET salary_base = ?, bonus_amount = ?, bank_account_number = COALESCE(NULLIF(?, ''), bank_account_number),
+       SET salary_base = ?, bonus_amount = ?, extra_bonus = ?,
+           payment_method = COALESCE(NULLIF(?, ''), payment_method),
+           bank_account_number = COALESCE(NULLIF(?, ''), bank_account_number),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ? AND company_id = ?`,
-      [payload.salary_base, payload.bonus_amount, payload.bank_account_number || '', payload.employee_id, companyId]
+      [
+        payload.salary_base,
+        payload.bonus_amount,
+        payload.extra_bonus,
+        payload.payment_method || '',
+        payload.bank_account_number || '',
+        payload.employee_id,
+        companyId
+      ]
     );
     setFlash(req, 'success', 'Historial salarial actualizado.');
     return res.redirect('/rrhh?tab=salaries');
@@ -1888,6 +1919,8 @@ function initializeHrModule(db) {
         education_level TEXT,
         ethnicity TEXT,
         languages TEXT,
+        profession TEXT,
+        courses_certifications TEXT,
         position TEXT,
         department TEXT,
         immediate_boss_id INTEGER,
@@ -1895,14 +1928,20 @@ function initializeHrModule(db) {
         hire_date TEXT,
         employment_status TEXT NOT NULL DEFAULT 'Activo',
         contract_type TEXT,
+        labor_observations TEXT,
         salary_base REAL DEFAULT 0,
         bonus_amount REAL DEFAULT 0,
+        extra_bonus REAL DEFAULT 0,
         payroll_calculation_type TEXT,
+        payment_method TEXT,
         bank_account_number TEXT,
         bank_account_type TEXT,
         bank_name TEXT,
         photo_path TEXT,
         job_application_path TEXT,
+        emergency_contact_name TEXT,
+        emergency_contact_phone TEXT,
+        general_observations TEXT,
         notes TEXT,
         job_description_id INTEGER,
         is_active INTEGER NOT NULL DEFAULT 1,
@@ -2066,7 +2105,15 @@ function initializeHrModule(db) {
       { name: 'job_description_id', type: 'INTEGER' },
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'photo_path', type: 'TEXT' },
-      { name: 'job_application_path', type: 'TEXT' }
+      { name: 'job_application_path', type: 'TEXT' },
+      { name: 'profession', type: 'TEXT' },
+      { name: 'courses_certifications', type: 'TEXT' },
+      { name: 'labor_observations', type: 'TEXT' },
+      { name: 'extra_bonus', type: 'REAL DEFAULT 0' },
+      { name: 'payment_method', type: 'TEXT' },
+      { name: 'emergency_contact_name', type: 'TEXT' },
+      { name: 'emergency_contact_phone', type: 'TEXT' },
+      { name: 'general_observations', type: 'TEXT' }
     ]);
     ensureColumns('hr_contracts', [{ name: 'pdf_path', type: 'TEXT' }]);
     ensureColumns('hr_permissions', [{ name: 'attachment_path', type: 'TEXT' }]);
@@ -2306,6 +2353,8 @@ function buildEmployeePayload(req, normalizeString) {
     education_level: normalizeString(req.body.education_level),
     ethnicity: normalizeString(req.body.ethnicity),
     languages: normalizeString(req.body.languages),
+    profession: normalizeString(req.body.profession),
+    courses_certifications: normalizeString(req.body.courses_certifications),
     position: normalizeString(req.body.position),
     department: normalizeString(req.body.department),
     immediate_boss_id: parsePositiveInt(req.body.immediate_boss_id, null),
@@ -2313,12 +2362,18 @@ function buildEmployeePayload(req, normalizeString) {
     hire_date: normalizeString(req.body.hire_date),
     employment_status: normalizeString(req.body.employment_status) || 'Activo',
     contract_type: normalizeString(req.body.contract_type),
+    labor_observations: normalizeString(req.body.labor_observations),
     salary_base: toNumber(req.body.salary_base, 0),
     bonus_amount: toNumber(req.body.bonus_amount, 0),
+    extra_bonus: toNumber(req.body.extra_bonus, 0),
     payroll_calculation_type: normalizeString(req.body.payroll_calculation_type),
+    payment_method: normalizeString(req.body.payment_method),
     bank_account_number: normalizeString(req.body.bank_account_number),
     bank_account_type: normalizeString(req.body.bank_account_type),
     bank_name: normalizeString(req.body.bank_name),
+    emergency_contact_name: normalizeString(req.body.emergency_contact_name),
+    emergency_contact_phone: normalizeString(req.body.emergency_contact_phone),
+    general_observations: normalizeString(req.body.general_observations),
     notes: normalizeString(req.body.notes),
     job_description_id: parsePositiveInt(req.body.job_description_id, null),
     is_active: parseCheckbox(req.body.is_active)
@@ -2478,7 +2533,8 @@ async function insertEmployeeAttachments(dbRun, employeeId, companyId, files) {
   const singleTypes = [
     { field: 'dpi_front', type: 'dpi_front' },
     { field: 'dpi_back', type: 'dpi_back' },
-    { field: 'signed_contract', type: 'signed_contract' }
+    { field: 'signed_contract', type: 'signed_contract' },
+    { field: 'background_check', type: 'background_check' }
   ];
   singleTypes.forEach((entry) => {
     const file = pickSingleFile(files, entry.field);

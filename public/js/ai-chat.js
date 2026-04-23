@@ -49,16 +49,6 @@
   root.className = 'ai-chat';
   root.dataset.aiChatRoot = 'true';
   root.innerHTML = `
-    <div class="ai-chat__quick">
-      <button class="ai-chat__quick-btn" type="button" data-ai-quick="notes" aria-label="Notas rapidas">
-        <span class="ai-chat__quick-icon">N</span>
-        <span class="ai-chat__quick-label">Notas</span>
-      </button>
-      <button class="ai-chat__quick-btn" type="button" data-ai-quick="planner" aria-label="Planificador rapido">
-        <span class="ai-chat__quick-icon">P</span>
-        <span class="ai-chat__quick-label">Planificador</span>
-      </button>
-    </div>
     <button class="ai-chat__fab" type="button" data-ai-chat-toggle aria-expanded="false" aria-controls="ai-chat-panel">
       <span class="ai-chat__fab-icon">?</span>
       <span class="ai-chat__fab-label">Ayuda</span>
@@ -339,97 +329,13 @@
 
   if (notesSave) {
     notesSave.addEventListener('click', async () => {
-      if (quickBusy) return;
-      const text = (notesTextarea && notesTextarea.value ? notesTextarea.value : '').trim();
-      if (!text) return;
-      setQuickStatus(notesStatus, '');
-      quickBusy = true;
-      notesSave.disabled = true;
-      try {
-        const token = await ensureCsrfToken();
-        const existingResp = await fetchJson('/launcher/notes', { headers: { 'Accept': 'application/json' } });
-        const existingNotes = existingResp.ok && existingResp.data && Array.isArray(existingResp.data.notes)
-          ? existingResp.data.notes
-          : [];
-        const nextColor = NOTE_COLORS[existingNotes.length % NOTE_COLORS.length];
-        const newNote = {
-          id: createId(),
-          text,
-          color: nextColor
-        };
-        const payloadNotes = [newNote, ...existingNotes].map((note, index) => ({
-          id: note.id || createId(),
-          text: note.text || '',
-          color: note.color || nextColor,
-          position: index
-        }));
-        const saveResp = await fetchJson('/launcher/notes', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': token || ''
-          },
-          body: JSON.stringify({ notes: payloadNotes })
-        });
-        if (!saveResp.ok) {
-          setQuickStatus(notesStatus, 'No se pudo guardar la nota.');
-          return;
-        }
-        if (notesTextarea) notesTextarea.value = '';
-        closeQuick();
-      } catch (err) {
-        setQuickStatus(notesStatus, 'Ocurrio un error al guardar.');
-      } finally {
-        quickBusy = false;
-        notesSave.disabled = false;
-      }
+      setQuickStatus(notesStatus, 'Las notas rapidas del launcher fueron retiradas.');
     });
   }
 
   if (plannerSave) {
     plannerSave.addEventListener('click', async () => {
-      if (quickBusy) return;
-      const text = (plannerText && plannerText.value ? plannerText.value : '').trim();
-      if (!text) return;
-      const dateValue = plannerDate && plannerDate.value ? plannerDate.value : toIsoDate(new Date());
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return;
-      setQuickStatus(plannerStatus, '');
-      quickBusy = true;
-      plannerSave.disabled = true;
-      try {
-        const token = await ensureCsrfToken();
-        const loadResp = await fetchJson(`/launcher/planner?start=${dateValue}&end=${dateValue}`, {
-          headers: { 'Accept': 'application/json' }
-        });
-        const existingItems =
-          loadResp.ok &&
-          loadResp.data &&
-          Array.isArray(loadResp.data.entries) &&
-          loadResp.data.entries[0] &&
-          Array.isArray(loadResp.data.entries[0].items)
-            ? loadResp.data.entries[0].items
-            : [];
-        const nextItems = [...existingItems, { id: createId(), text, done: false }];
-        const saveResp = await fetchJson('/launcher/planner', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': token || ''
-          },
-          body: JSON.stringify({ entries: [{ date: dateValue, items: nextItems }] })
-        });
-        if (!saveResp.ok) {
-          setQuickStatus(plannerStatus, 'No se pudo guardar la actividad.');
-          return;
-        }
-        if (plannerText) plannerText.value = '';
-        closeQuick();
-      } catch (err) {
-        setQuickStatus(plannerStatus, 'Ocurrio un error al guardar.');
-      } finally {
-        quickBusy = false;
-        plannerSave.disabled = false;
-      }
+      setQuickStatus(plannerStatus, 'El planificador rapido del launcher fue retirado.');
     });
   }
 })();

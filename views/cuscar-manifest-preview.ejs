@@ -6,22 +6,10 @@
 <title>
 <%= t('cuscar.manifest.preview') %>
 </title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
 <body class="page">
-<header class="topbar">
-<div class="brand">
-<%= t('common.brand') %>
-</div>
-<nav class="nav">
-<a href="/dashboard">
-<%= t('nav.dashboard') %>
-</a>
-<a href="/logout">
-<%= t('nav.logout') %>
-</a>
-</nav>
-</header>
+<%- include('partials/header') %>
 <main class="container">
 <div class="page-header">
 <div>
@@ -55,7 +43,7 @@
 <%= t('cuscar.manifest.preview') %>
 </h2>
 </div>
-<pre style="white-space: pre-wrap; font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 0.95rem; line-height: 1.45; margin: 0;">
+<pre class="app-preview-block">
 <%= previewText || '-' %>
 </pre>
 </section>

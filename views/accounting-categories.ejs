@@ -4,16 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Categorías contables</title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
 <body class="page">
-<header class="topbar">
-<div class="brand"><%= t('common.brand') %></div>
-<nav class="nav">
-<a href="/dashboard">Dashboard</a>
-<a href="/logout"><%= t('nav.logout') %></a>
-</nav>
-</header>
+<%- include('partials/header') %>
 <main class="container">
 <h1>Categorías contables</h1>
 <nav class="subnav">

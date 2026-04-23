@@ -7,29 +7,17 @@
 <title>
 <%= t('packages.title') %>
 </title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
-<body class="page">
-<header class="topbar">
-<div class="brand">
-<%= t('common.brand') %>
-</div>
-<nav class="nav">
-<a href="/dashboard">
-<%= t('nav.dashboard') %>
-</a>
-<a href="/logout">
-<%= t('nav.logout') %>
-</a>
-</nav>
-</header>
-<main class="container packages-module">
+<body class="page packages-page">
+<%- include('partials/header') %>
+<main class="container packages-module app-module">
 <% const canPackagesCreate = can('packages', 'create'); %>
 <% const canPackagesExport = can('packages', 'export'); %>
 <% const canPackagesEdit = can('packages', 'edit'); %>
 <% const canPackagesStatus = can('packages', 'change_status'); %>
-<div class="page-header">
-<div>
+<div class="page-header app-page-header">
+<div class="app-page-header__content">
 <h1>
 <%= t('packages.title') %>
 </h1>
@@ -37,21 +25,21 @@
 <%= t('packages.subtitle') %>
 </p>
 </div>
-<div class="actions">
-<a class="btn" href="/packages/home">
+<div class="actions page-actions app-page-actions">
+<a class="btn app-btn" href="/packages/home">
 <%= t('packages.module.home') %>
 </a>
 <% if (canPackagesCreate) { %>
-<a class="btn" href="/packages/new">
+<a class="btn app-btn" href="/packages/new">
 <%= t('packages.module.new') %>
 </a>
 <% } %>
-<a class="btn" href="/packages/dashboard">
+<a class="btn app-btn" href="/packages/dashboard">
 <%= t('packages.dashboard_link') %>
 </a>
 </div>
 </div>
-<div class="module-nav">
+<div class="module-nav app-toolbar">
 <a href="/packages/dashboard" class="<%= currentPackagesNav === 'dashboard' ? 'active' : '' %>">
 <%= t('packages.module.dashboard') %>
 </a>
@@ -73,36 +61,32 @@
 <%= t('packages.module.tracking') %>
 </a>
 </div>
-<div class="packages-quick-actions">
+<div class="packages-quick-actions app-action-bar">
 <span class="quick-label">
 <%= t('packages.module.home') %>
 </span>
 <div class="actions">
 <% if (canPackagesCreate) { %>
-<a class="btn primary" href="/packages/new">
+<a class="btn primary app-btn app-btn-primary" href="/packages/new">
 <%= t('packages.module.new') %>
 </a>
 <% } %>
-<a class="btn" href="/packages/dashboard">
+<a class="btn app-btn" href="/packages/dashboard">
 <%= t('packages.module.dashboard') %>
 </a>
-<a class="btn" href="/packages/tracking">
+<a class="btn app-btn" href="/packages/tracking">
 <%= t('packages.module.tracking') %>
 </a>
 </div>
 </div>
-<% if (error) { %>
-<div class="alert">
-<%= error %>
-</div>
-<% } %>
-<section class="panel">
-<div class="panel-header">
+<%- include('partials/toasts') %>
+<section class="panel app-panel">
+<div class="panel-header app-panel-header">
 <h2>
 <%= t('packages.summary') %>
 </h2>
 <% if (canPackagesExport) { %>
-<a class="btn" href="<%= exportUrl %>">
+<a class="btn app-btn" href="<%= exportUrl %>">
 <%= t('packages.export_csv') %>
 </a>
 <% } %>
@@ -121,15 +105,15 @@
 <% }) %>
 </div>
 </section>
-<section class="panel">
+<section class="panel app-panel">
 <h2>
 <%= t('packages.list') %>
 </h2>
 <div class="muted">
 <%= t('packages.urgent_hint', {          stuck: urgentConfig.stuckDays,          invoice: urgentConfig.invoiceDays,          customs: urgentConfig.customsDays        }) %>
 </div>
-<div class="summary-strip">
-<div class="summary-item">
+<div class="summary-strip app-toolbar">
+<div class="summary-item app-card">
 <span class="summary-label">
 <%= t('packages_dashboard.total') %>
 </span>
@@ -137,7 +121,7 @@
 <%= safeStats.total || 0 %>
 </span>
 </div>
-<div class="summary-item">
+<div class="summary-item app-card">
 <span class="summary-label">
 <%= t('packages_dashboard.pending_invoice') %>
 </span>
@@ -145,7 +129,7 @@
 <%= safeStats.pendingInvoice || 0 %>
 </span>
 </div>
-<div class="summary-item">
+<div class="summary-item app-card">
 <span class="summary-label">
 <%= t('packages_dashboard.delivered') %>
 </span>
@@ -154,8 +138,8 @@
 </span>
 </div>
 </div>
-<div class="filters-bar">
-<form method="GET" action="/packages" class="filters-form">
+<div class="filters-bar app-filter-bar">
+<form method="GET" action="/packages" class="filters-form app-filter-grid">
 <label class="filters-field">
 <span>
 <%= t('packages.filter_search') %>
@@ -205,10 +189,10 @@
 <input type="date" name="received_date" value="<%= filters.received_date || '' %>" />
 </label>
 <div class="filters-actions">
-<button type="submit" class="btn small">
+<button type="submit" class="btn small app-btn app-btn-small">
 <%= t('packages.apply_filter') %>
 </button>
-<a class="btn small" href="/packages">
+<a class="btn small app-btn app-btn-small" href="/packages">
 <%= t('packages.reset_filters') %>
 </a>
 </div>
@@ -216,7 +200,7 @@
 </div>
 <form id="bulk-actions-form" method="POST">
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-<div class="bulk-actions-bar">
+<div class="bulk-actions-bar app-action-bar">
 <label class="checkbox">
 <input type="checkbox" id="select-all-packages" />
 <span>
@@ -225,17 +209,17 @@
 </label>
 <% if (canPackagesExport) { %>
 <div class="bulk-form">
-<button type="submit" class="btn small" formaction="/packages/labels/print">
+<button type="submit" class="btn small app-btn app-btn-small" formaction="/packages/labels/print">
 <%= t('packages.print_labels') %>
 </button>
 </div>
-<a class="btn small" href="<%= exportUrl %>">
+<a class="btn small app-btn app-btn-small" href="<%= exportUrl %>">
 <%= t('packages.export_csv') %>
 </a>
 <% } %>
 </div>
 <%          const statusClassMap = {            'Recibido en bodega USA': 'status-received',            'Recibido en bodega': 'status-received',            'Pendiente de factura': 'status-pending',            'Factura subida': 'status-invoice',            'Cargado a vuelo': 'status-loaded',          'En tránsito': 'status-transit',          'En aduana de destino': 'status-customs',          'En proceso de aduana': 'status-customs',          'Liberado': 'status-released',          'En entrega': 'status-delivery',          'Entregado': 'status-delivered'          };        %>
-<div class="table compact packages-table">
+<div class="table compact packages-table app-table-wrap">
 <div class="table-row header packages-compact">
 <div>
 <%= t('packages.table.internal_code') %>
@@ -263,7 +247,7 @@
 </div>
 </div>
 <% if (packages.length === 0) { %>
-<div class="table-row empty">
+<div class="table-row empty app-empty-state">
 <%= t('packages.no_packages') %>
 </div>
 <% } %>
@@ -273,7 +257,7 @@
 <% const inCustoms = pkg.status === 'En aduana de destino' || pkg.status === 'En proceso de aduana'; %>
 <% const customsTooLong = inCustoms && pkg.days_in_status !== null && pkg.days_in_status >= urgentConfig.customsDays; %>
 <% const statusClass = statusClassMap[pkg.status] || 'status-default'; %>
-<div class="table-row packages-compact <%= (stuckTooLong || invoiceTooLong || customsTooLong) ? 'urgent' : '' %>">
+<div class="table-row packages-compact app-table-row <%= (stuckTooLong || invoiceTooLong || customsTooLong) ? 'urgent' : '' %>">
 <div class="cell-ellipsis" title="<%= pkg.internal_code || '-' %>">
 <%= pkg.internal_code || '-' %>
 </div>
@@ -293,21 +277,21 @@
 <%= pkg.carrier || '-' %>
 </div>
 <div class="status-cell">
-<span class="status-badge <%= statusClass %>">
+<span class="status-badge app-badge <%= statusClass %>">
 <%= pkg.status %>
 </span>
 </div>
 <div class="actions actions-compact actions-packages">
 <input                type="checkbox"                name="package_ids[]"                value="<%= pkg.id %>"                class="package-select"                aria-label="Seleccionar paquete"              />
-<a class="btn small" href="/packages/<%= pkg.id %>">
+<a class="btn small app-btn app-btn-small" href="/packages/<%= pkg.id %>">
 <%= t('packages.action.view_short') %>
 </a>
 <% if (canPackagesEdit) { %>
-<a class="btn small" href="/packages/<%= pkg.id %>/edit">
+<a class="btn small app-btn app-btn-small" href="/packages/<%= pkg.id %>/edit">
 <%= t('packages.action.edit_short') %>
 </a>
 <% } %>
-<a class="btn small" href="/packages/<%= pkg.id %>/label">
+<a class="btn small app-btn app-btn-small" href="/packages/<%= pkg.id %>/label">
 <%= t('packages.action.label_short') %>
 </a>
 </div>

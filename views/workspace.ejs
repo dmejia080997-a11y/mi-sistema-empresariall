@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= (companyBrand && companyBrand.name) ? companyBrand.name : t('common.brand') %> - <%= workspaceLabels.eyebrow %></title>
+<%- include('partials/head-assets') %>
+<link rel="stylesheet" href="/css/workspace.css" />
+</head>
+<body class="page workspace-page theme-font-<%= (companyBrand && companyBrand.font_family) ? companyBrand.font_family : 'space-grotesk' %>" style="<%= companyBrand && companyBrand.theme_style ? companyBrand.theme_style : '' %>">
+<%- include('partials/header', {
+  headerClassName: 'workspace-topbar',
+  headerBrandText: (companyBrand && companyBrand.name) ? companyBrand.name : t('common.brand'),
+  headerNavItems: [
+    ...(can('settings', 'view') ? [{ href: '/settings', label: t('settings.title') }] : []),
+    { href: '/logout', label: t('nav.logout') }
+  ]
+}) %>
+
+<main class="workspace-shell app-module">
+<% if (flash) { %>
+<div class="alert app-message app-message-<%= flash.type || 'info' %> <%= flash.type || 'info' %>"><%= flash.message %></div>
+<% } %>
+
+<section class="workspace-stage" id="workspace-stage">
+<div class="workspace-backdrop" aria-hidden="true"></div>
+
+<aside class="workspace-dock" id="workspace-dock" aria-label="<%= workspaceLabels.modulesTitle %>"></aside>
+
+<section class="workspace-main" aria-labelledby="workspace-title">
+<div class="workspace-main__header">
+<div>
+<span class="workspace-kicker"><%= workspaceLabels.eyebrow %></span>
+<h1 id="workspace-title"><%= workspaceLabels.title %></h1>
+</div>
+<button type="button" class="btn app-btn app-btn-secondary workspace-settings-button" id="workspace-settings-toggle">
+<%= workspaceLabels.settings %>
+</button>
+</div>
+
+<div class="workspace-summary" aria-live="polite">
+<span id="workspace-status"><%= workspaceLabels.ready %></span>
+<strong><span id="workspace-module-count">0</span> <%= workspaceLabels.modulesTitle %></strong>
+</div>
+
+<div class="workspace-app-strip" id="workspace-app-strip" aria-label="<%= workspaceLabels.modulesTitle %>"></div>
+</section>
+</section>
+</main>
+
+<aside class="workspace-panel<%= settingsPanelOpen ? ' is-open' : '' %>" id="workspace-panel" aria-label="<%= workspaceLabels.dockSettingsTitle %>">
+<div class="workspace-panel__header">
+<div>
+<h2><%= workspaceLabels.dockSettingsTitle %></h2>
+<p class="muted"><%= workspaceLabels.dockSettingsDesc %></p>
+</div>
+<button type="button" class="btn app-btn workspace-panel__close" id="workspace-panel-close"><%= workspaceLabels.close %></button>
+</div>
+
+<div class="workspace-position-grid" role="group" aria-label="<%= workspaceLabels.dockPosition %>">
+<button type="button" class="workspace-position" data-dock-position="left"><%= workspaceLabels.left %></button>
+<button type="button" class="workspace-position" data-dock-position="right"><%= workspaceLabels.right %></button>
+<button type="button" class="workspace-position" data-dock-position="top"><%= workspaceLabels.top %></button>
+<button type="button" class="workspace-position" data-dock-position="bottom"><%= workspaceLabels.bottom %></button>
+<button type="button" class="workspace-position" data-dock-position="center-top"><%= workspaceLabels.centerTop %></button>
+<button type="button" class="workspace-position" data-dock-position="center-bottom"><%= workspaceLabels.centerBottom %></button>
+</div>
+
+<section class="workspace-panel-section" aria-labelledby="workspace-dock-apps-title">
+<div class="workspace-panel-section__header">
+<h3 id="workspace-dock-apps-title"><%= workspaceLabels.dockAppsTitle %></h3>
+<p class="muted"><%= workspaceLabels.dockAppsDesc %></p>
+</div>
+<div class="workspace-dock-apps" id="workspace-dock-apps" role="group" aria-label="<%= workspaceLabels.dockAppsTitle %>"></div>
+</section>
+
+<div class="workspace-form-grid">
+<label class="workspace-checkbox full-row">
+<input type="checkbox" id="workspace-dock-enabled" />
+<span><%= workspaceLabels.dockEnabled %></span>
+</label>
+
+<label>
+<span><%= workspaceLabels.dockMode %></span>
+<select id="workspace-dock-mode">
+<option value="fixed"><%= workspaceLabels.fixedMode %></option>
+<option value="auto-hide"><%= workspaceLabels.autoHideMode %></option>
+<option value="expandable"><%= workspaceLabels.expandableMode %></option>
+</select>
+</label>
+
+<label>
+<span><%= workspaceLabels.themeColor %></span>
+<input type="color" id="workspace-theme-color" />
+</label>
+
+<label>
+<span><%= workspaceLabels.accentColor %></span>
+<input type="color" id="workspace-accent-color" />
+</label>
+
+<label>
+<span><%= workspaceLabels.backgroundColor %></span>
+<input type="color" id="workspace-background-color" />
+</label>
+
+<label>
+<span><%= workspaceLabels.dockColor %></span>
+<input type="color" id="workspace-dock-color" />
+</label>
+
+<label>
+<span><%= workspaceLabels.iconStyle %></span>
+<select id="workspace-icon-style">
+<option value="soft"><%= workspaceLabels.soft %></option>
+<option value="solid"><%= workspaceLabels.solid %></option>
+<option value="outline"><%= workspaceLabels.outline %></option>
+</select>
+</label>
+
+<label>
+<span><%= workspaceLabels.visualMode %></span>
+<select id="workspace-layout-mode">
+<option value="light"><%= workspaceLabels.lightMode %></option>
+<option value="dark"><%= workspaceLabels.darkMode %></option>
+</select>
+</label>
+
+<label class="full-row">
+<span><%= workspaceLabels.iconSize %></span>
+<input type="range" id="workspace-icon-size" min="68" max="116" step="2" />
+<small class="muted" id="workspace-icon-size-value"></small>
+</label>
+
+<label class="workspace-checkbox full-row">
+<input type="checkbox" id="workspace-glass-effect" />
+<span><%= workspaceLabels.glassEffect %></span>
+</label>
+
+<label class="workspace-checkbox full-row">
+<input type="checkbox" id="workspace-show-labels" />
+<span><%= workspaceLabels.showLabels %></span>
+</label>
+</div>
+
+<div class="workspace-panel__actions">
+<button type="button" class="btn primary app-btn app-btn-primary" id="workspace-save"><%= workspaceLabels.saveSettings %></button>
+<button type="button" class="btn app-btn" id="workspace-visual-reset"><%= workspaceLabels.restoreVisualDefaults %></button>
+</div>
+<p class="muted workspace-panel__hint" id="workspace-save-feedback"><%= workspaceLabels.dockHint %></p>
+</aside>
+
+<script id="workspace-bootstrap" type="application/json"><%- workspaceBootstrap %></script>
+<script src="/js/workspace.js" defer></script>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

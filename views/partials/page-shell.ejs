@@ -1,0 +1,19 @@
+<%
+  const resolvedPageHeaderClass = ['page-header', 'app-page-header', typeof pageHeaderClassName !== 'undefined' ? pageHeaderClassName : '']
+    .filter(Boolean)
+    .join(' ');
+%>
+<div class="<%= resolvedPageHeaderClass %>">
+  <div class="app-page-header__content">
+    <% if (typeof pageEyebrow !== 'undefined' && pageEyebrow) { %>
+      <p class="app-page-eyebrow"><%= pageEyebrow %></p>
+    <% } %>
+    <h1><%= typeof pageTitle !== 'undefined' ? pageTitle : '' %></h1>
+    <% if (typeof pageSubtitle !== 'undefined' && pageSubtitle) { %>
+      <p class="muted"><%= pageSubtitle %></p>
+    <% } %>
+  </div>
+  <% if (typeof pageActions !== 'undefined' && pageActions) { %>
+    <div class="actions page-actions app-page-actions"><%- pageActions %></div>
+  <% } %>
+</div>

@@ -4,17 +4,16 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Reglas de autoasignación</title>
-<link rel="stylesheet" href="/styles.css" />
+<%- include('partials/head-assets') %>
 </head>
 <body class="page">
-<header class="topbar">
-<div class="brand"><%= t('common.brand') %></div>
-<nav class="nav">
-<a href="/dashboard">Dashboard</a>
-<a href="/accounting/categories">Categorías</a>
-<a href="/logout"><%= t('nav.logout') %></a>
-</nav>
-</header>
+<%- include('partials/header', {
+  headerNavItems: [
+    { href: '/dashboard', label: 'Dashboard' },
+    { href: '/accounting/categories', label: 'Categor?as' },
+    { href: '/logout', label: t('nav.logout') }
+  ]
+}) %>
 <main class="container">
 <h1>Reglas de autoasignación</h1>
 <nav class="subnav">
