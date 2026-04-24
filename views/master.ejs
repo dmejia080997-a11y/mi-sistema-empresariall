@@ -47,28 +47,30 @@
   </div>
   <% } %>
 
-  <section class="master-card app-card" aria-labelledby="master-reset-title">
-    <div class="app-card-header">
-      <div>
+  <section class="master-card master-reset-card app-card" aria-labelledby="master-reset-title">
+    <div class="app-card-header master-reset-card__header">
+      <div class="master-reset-card__heading">
         <h2 id="master-reset-title" class="app-card-title">Restablecer acceso de usuario</h2>
         <p class="muted">Actualiza la contrasena de un usuario dentro de una empresa.</p>
       </div>
+      <span class="app-chip">Soporte rapido</span>
     </div>
-    <form action="/master/reset-user-password" method="POST" class="app-form-grid app-form-grid-fluid">
+    <p class="master-reset-note">Usa este formulario cuando un usuario no pueda entrar y necesites asignarle una nueva contrasena sin salir del panel master.</p>
+    <form action="/master/reset-user-password" method="POST" class="app-form-grid app-form-grid-fluid master-reset-form">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
       <label class="app-field">
         <span>ID de empresa</span>
-        <input type="number" name="company_id" placeholder="Ej: 12" required>
+        <input type="number" name="company_id" placeholder="Ej: 12" inputmode="numeric" autocomplete="off" required>
       </label>
       <label class="app-field">
         <span>Usuario</span>
-        <input type="text" name="username" placeholder="Ej: admin" required>
+        <input type="text" name="username" placeholder="Ej: admin" autocomplete="username" required>
       </label>
       <label class="app-field">
         <span>Nueva contrasena</span>
-        <input type="password" name="password" placeholder="Nueva contrasena" required>
+        <input type="password" name="password" placeholder="Nueva contrasena" autocomplete="new-password" required>
       </label>
-      <button class="btn app-btn app-btn-secondary">Restablecer</button>
+      <button class="btn app-btn app-btn-secondary">Restablecer acceso</button>
     </form>
   </section>
 
@@ -99,23 +101,38 @@
       <span class="app-chip"><%= (companies || []).length %> empresas</span>
     </div>
 
-    <div class="master-table-wrap app-table-wrap">
+    <div class="master-table-wrap master-table-scroll app-table-wrap">
       <table class="master-table app-table">
+        <colgroup>
+          <col style="width: 4%">
+          <col style="width: 11%">
+          <col style="width: 15%">
+          <col style="width: 9%">
+          <col style="width: 8%">
+          <col style="width: 9%">
+          <col style="width: 6%">
+          <col style="width: 6%">
+          <col style="width: 8%">
+          <col style="width: 8%">
+          <col style="width: 7%">
+          <col style="width: 12%">
+          <col style="width: 7%">
+        </colgroup>
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Empresa</th>
+            <th class="col-id">ID</th>
+            <th class="col-company">Empresa</th>
             <th class="col-address">Direccion</th>
-            <th>Usuario</th>
-            <th>NIT</th>
+            <th class="col-user">Usuario</th>
+            <th class="col-nit">NIT</th>
             <th class="col-business-type">Tipo</th>
-            <th>Moneda</th>
-            <th>Usuarios</th>
-            <th>Inicio</th>
-            <th>Vence</th>
-            <th>Estado</th>
-            <th>Acciones</th>
-            <th>Anular</th>
+            <th class="col-currency">Moneda</th>
+            <th class="col-users">Usuarios</th>
+            <th class="col-date">Inicio</th>
+            <th class="col-date">Vence</th>
+            <th class="col-status">Estado</th>
+            <th class="col-actions">Acciones</th>
+            <th class="col-anular">Anular</th>
           </tr>
         </thead>
         <tbody>
@@ -128,22 +145,22 @@
           <% } %>
           <% (companies || []).forEach(company => { %>
           <tr data-company-row data-status="<%= company.status || 'active' %>" data-search="<%= [company.id, company.name, company.address, company.username, company.nit, company.business_type, company.legal_name, company.tax_address, company.base_currency || company.currency].filter(Boolean).join(' ').toLowerCase() %>">
-            <td><%= company.id %></td>
-            <td>
+            <td class="col-id" data-label="ID"><%= company.id %></td>
+            <td class="col-company" data-label="Empresa">
               <strong><%= company.name %></strong>
               <% if (company.legal_name) { %>
               <div class="muted"><%= company.legal_name %></div>
               <% } %>
             </td>
-            <td class="col-address"><%= company.address || '-' %></td>
-            <td><%= company.username || '-' %></td>
-            <td><%= company.nit || '-' %></td>
-            <td class="col-business-type"><%= company.business_type || '-' %></td>
-            <td><%= company.base_currency || company.currency || '-' %></td>
-            <td><%= company.users_count || 0 %></td>
-            <td><%= company.active_from || '-' %></td>
-            <td><%= company.active_until || '-' %></td>
-            <td>
+            <td class="col-address" data-label="Direccion"><%= company.address || '-' %></td>
+            <td class="col-user" data-label="Usuario"><%= company.username || '-' %></td>
+            <td class="col-nit" data-label="NIT"><%= company.nit || '-' %></td>
+            <td class="col-business-type" data-label="Tipo"><%= company.business_type || '-' %></td>
+            <td class="col-currency" data-label="Moneda"><%= company.base_currency || company.currency || '-' %></td>
+            <td class="col-users" data-label="Usuarios"><%= company.users_count || 0 %></td>
+            <td class="col-date" data-label="Inicio"><%= company.active_from || '-' %></td>
+            <td class="col-date" data-label="Vence"><%= company.active_until || '-' %></td>
+            <td class="col-status" data-label="Estado">
               <% if (company.status === 'inactive') { %>
               <span class="badge app-badge app-badge-warning badge--inactive">Inactiva</span>
               <% } else if (company.status === 'expired') { %>
@@ -152,8 +169,8 @@
               <span class="badge app-badge app-badge-success badge--active">Activa</span>
               <% } %>
             </td>
-            <td>
-              <div class="actions app-table-actions">
+            <td class="col-actions" data-label="Acciones">
+              <div class="actions app-table-actions master-actions">
                 <a href="/master/companies/<%= company.id %>" class="btn app-btn app-btn-small">Ver</a>
                 <form action="/master/companies/<%= company.id %>/enter" method="POST">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
@@ -165,7 +182,7 @@
                 </form>
               </div>
             </td>
-            <td>
+            <td class="col-anular" data-label="Anular">
               <% if (company.status === 'inactive') { %>
               <form action="/master/companies/<%= company.id %>/reactivate" method="POST">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
@@ -173,7 +190,7 @@
                 <button class="btn app-btn app-btn-success app-btn-small">Reactivar</button>
               </form>
               <% } else { %>
-              <details class="action-details">
+              <details class="action-details master-action-details">
                 <summary>Anular</summary>
                 <form action="/master/companies/<%= company.id %>/deactivate" method="POST">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
@@ -210,29 +227,53 @@
           <span class="badge app-badge app-badge-success">Activa</span>
           <% } %>
         </div>
-        <dl class="master-company-card__meta">
-          <div><dt>NIT</dt><dd><%= company.nit || '-' %></dd></div>
+        <dl class="master-company-card__meta master-company-card__meta--full">
+          <div><dt>Empresa</dt><dd><%= company.name || '-' %></dd></div>
+          <div><dt>Direccion</dt><dd><%= company.address || '-' %></dd></div>
           <div><dt>Usuario</dt><dd><%= company.username || '-' %></dd></div>
+          <div><dt>NIT</dt><dd><%= company.nit || '-' %></dd></div>
+          <div><dt>Tipo</dt><dd><%= company.business_type || '-' %></dd></div>
           <div><dt>Moneda</dt><dd><%= company.base_currency || company.currency || '-' %></dd></div>
+          <div><dt>Usuarios</dt><dd><%= company.users_count || 0 %></dd></div>
+          <div><dt>Inicio</dt><dd><%= company.active_from || '-' %></dd></div>
           <div><dt>Vence</dt><dd><%= company.active_until || '-' %></dd></div>
+          <div><dt>Estado</dt><dd><%= company.status === 'inactive' ? 'Inactiva' : company.status === 'expired' ? 'Vencida' : 'Activa' %></dd></div>
         </dl>
-        <div class="actions master-company-card__actions">
-          <a href="/master/companies/<%= company.id %>" class="btn app-btn">Ver</a>
-          <form action="/master/companies/<%= company.id %>/enter" method="POST">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-            <button class="btn app-btn">Entrar</button>
-          </form>
-          <form action="/master/companies/<%= company.id %>/reset-credentials" method="POST">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-            <button class="btn app-btn">Restablecer clave</button>
-          </form>
-          <% if (company.status === 'inactive') { %>
-          <form action="/master/companies/<%= company.id %>/reactivate" method="POST">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-            <input type="hidden" name="return_to" value="/master" />
-            <button class="btn app-btn app-btn-success">Reactivar</button>
-          </form>
-          <% } %>
+        <div class="master-company-card__action-groups">
+          <section class="master-company-card__action-group" aria-label="Acciones">
+            <h4 class="master-company-card__section-title">Acciones</h4>
+            <div class="actions master-company-card__actions">
+              <a href="/master/companies/<%= company.id %>" class="btn app-btn">Ver</a>
+              <form action="/master/companies/<%= company.id %>/enter" method="POST">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <button class="btn app-btn">Entrar</button>
+              </form>
+              <form action="/master/companies/<%= company.id %>/reset-credentials" method="POST">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <button class="btn app-btn">Restablecer clave</button>
+              </form>
+            </div>
+          </section>
+          <section class="master-company-card__action-group" aria-label="Anular">
+            <h4 class="master-company-card__section-title">Anular</h4>
+            <% if (company.status === 'inactive') { %>
+            <form action="/master/companies/<%= company.id %>/reactivate" method="POST">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <input type="hidden" name="return_to" value="/master" />
+              <button class="btn app-btn app-btn-success">Reactivar</button>
+            </form>
+            <% } else { %>
+            <details class="action-details master-company-card__danger">
+              <summary>Anular</summary>
+              <form action="/master/companies/<%= company.id %>/deactivate" method="POST">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <input type="hidden" name="return_to" value="/master" />
+                <textarea name="inactive_reason" placeholder="Motivo de anulacion" required></textarea>
+                <button class="btn danger app-btn app-btn-danger app-btn-small">Confirmar</button>
+              </form>
+            </details>
+            <% } %>
+          </section>
         </div>
       </article>
       <% }) %>
