@@ -1,4 +1,19 @@
 <!DOCTYPE html>
+<%
+  var canCreatePackageTabs = can('packages', 'create');
+  var packageModuleTabs = [
+    { key: 'dashboard', label: t('packages.module.dashboard'), href: '/packages/dashboard' },
+    { key: 'list', label: t('packages.module.list'), href: '/packages' },
+    { key: 'pending_invoice', label: t('packages.module.pending_invoice'), href: '/packages/pending-invoice' }
+  ];
+  if (canCreatePackageTabs) {
+    packageModuleTabs.push({ key: 'new', label: t('packages.module.new'), href: '/packages/new' });
+  }
+  packageModuleTabs.push(
+    { key: 'statuses', label: t('packages.module.statuses'), href: '/packages/statuses' },
+    { key: 'tracking', label: t('packages.module.tracking'), href: '/packages/tracking' }
+  );
+%>
 <html lang="<%= lang %>">
 <head>
 <meta charset="UTF-8" />
@@ -9,7 +24,11 @@
 <%- include('partials/head-assets') %>
 </head>
 <body class="page">
-<%- include('partials/header') %>
+<%- include('partials/header', {
+  moduleTabs: packageModuleTabs,
+  activeTab: 'list',
+  currentModule: 'packages'
+}) %>
 <main class="container">
 <div class="page-header">
 <div>

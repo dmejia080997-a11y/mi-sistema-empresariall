@@ -1,54 +1,212 @@
 <%
+  const sanitizeText = (value) => {
+    if (value === undefined || value === null) return '';
+    const text = String(value).trim();
+    if (!text) return '';
+    const normalized = text.toLowerCase();
+    return normalized === 'undefined' || normalized === 'null' || text === '??' ? '' : text;
+  };
+  const sanitizeHref = (value) => {
+    if (value === undefined || value === null) return '';
+    const text = String(value).trim();
+    if (!text) return '';
+    const normalized = text.toLowerCase();
+    return normalized === 'undefined' || normalized === 'null' ? '' : text;
+  };
+  const safeCurrentCompanyName = sanitizeText(typeof currentCompanyName !== 'undefined' ? currentCompanyName : '');
+  const safeHeaderBrandText = sanitizeText(typeof headerBrandText !== 'undefined' ? headerBrandText : '');
+  const resolvedCurrentCompanyName =
+    safeCurrentCompanyName
+      ? safeCurrentCompanyName
+      : (typeof currentCompany !== 'undefined' && currentCompany
+        ? sanitizeText(currentCompany.name)
+        : '');
+  const resolvedCompanyBrandName =
+    typeof companyBrand !== 'undefined' && companyBrand
+      ? (
+        sanitizeText(companyBrand.commercial_name)
+        || sanitizeText(companyBrand.legal_name)
+        || sanitizeText(companyBrand.name)
+      )
+      : '';
   const resolvedBrandText =
-    typeof headerBrandText !== 'undefined' && headerBrandText
-      ? headerBrandText
-      : (typeof companyBrand !== 'undefined' && companyBrand && companyBrand.name
-        ? companyBrand.name
-        : (typeof t === 'function' ? t('common.brand') : 'Sistema'));
+    safeHeaderBrandText
+      ? safeHeaderBrandText
+      : (resolvedCompanyBrandName || resolvedCurrentCompanyName);
   const resolvedHomeHref = typeof homeHref !== 'undefined' ? homeHref : '/dashboard';
   const shouldLinkBrand = resolvedHomeHref !== false && resolvedHomeHref !== null;
   const shouldShowDefaultNav = typeof showDefaultNav === 'undefined' ? true : Boolean(showDefaultNav);
   const resolvedHeaderClass = ['topbar', 'app-header', typeof headerClassName !== 'undefined' ? headerClassName : '']
     .filter(Boolean)
     .join(' ');
+  const resolvedModuleTabs = Array.isArray(typeof moduleTabs !== 'undefined' ? moduleTabs : null)
+    ? moduleTabs
+      .map((tab) => ({
+        ...tab,
+        href: sanitizeHref(tab && tab.href),
+        label: sanitizeText(tab && tab.label),
+        className: sanitizeText(tab && tab.className)
+      }))
+      .filter((tab) => tab.href && tab.label)
+    : [];
+  const hasModuleContext = sanitizeText(typeof currentModule !== 'undefined' ? currentModule : '');
+  const shouldRenderModuleHeader = hasModuleContext || typeof moduleTabs !== 'undefined';
+  const shouldRenderModuleTabs = shouldRenderModuleHeader && resolvedModuleTabs.length > 0;
+  const resolvedPanelHref = shouldLinkBrand ? resolvedHomeHref : '/dashboard';
+  const resolvedBrandLogo = sanitizeHref(
+    typeof companyBrand !== 'undefined' && companyBrand ? companyBrand.logo : ''
+  );
+  const resolvedHeaderNavText = sanitizeText(typeof headerNavText !== 'undefined' ? headerNavText : '');
+  const resolvedHeaderNavItems = Array.isArray(typeof headerNavItems !== 'undefined' ? headerNavItems : null)
+    ? headerNavItems
+      .map((item) => ({
+        ...item,
+        href: sanitizeHref(item && item.href),
+        label: sanitizeText(item && item.label),
+        className: sanitizeText(item && item.className)
+      }))
+      .filter((item) => item.href && item.label)
+    : [];
+  const shouldRenderCustomNav = resolvedHeaderNavText || resolvedHeaderNavItems.length > 0;
+  const shouldShowNotificationCenter = Boolean(
+    typeof user !== 'undefined'
+    && user
+    && typeof can === 'function'
+    && can('notifications', 'view')
+  );
+  const scopedNotificationsHref =
+    typeof companyPath === 'function'
+      ? companyPath('/notifications')
+      : '/notifications';
+  const scopedNotificationCountHref =
+    typeof companyPath === 'function'
+      ? companyPath('/api/notifications/unread-count')
+      : '/api/notifications/unread-count';
+  const scopedNotificationLatestHref =
+    typeof companyPath === 'function'
+      ? companyPath('/api/notifications/latest')
+      : '/api/notifications/latest';
+  const renderNotificationCenter = () => `
+    <div
+      class="notification-center"
+      data-notification-center
+      data-notification-center-scope="global"
+      data-unread-url="${scopedNotificationCountHref}"
+      data-latest-url="${scopedNotificationLatestHref}"
+      data-all-url="${scopedNotificationsHref}"
+    >
+      <button
+        type="button"
+        class="btn app-btn app-btn-icon notification-center__trigger"
+        data-notification-trigger
+        aria-haspopup="true"
+        aria-expanded="false"
+        aria-label="Abrir centro de notificaciones"
+        title="Centro de notificaciones"
+      >
+        <span class="notification-center__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 4.5a4.5 4.5 0 0 1 4.5 4.5v2.6c0 1.3.4 2.6 1.2 3.7l1.1 1.6H5.2l1.1-1.6a6.1 6.1 0 0 0 1.2-3.7V9A4.5 4.5 0 0 1 12 4.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M9.5 19a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="notification-center__badge" data-notification-count hidden>0</span>
+      </button>
+      <div class="notification-center__dropdown" data-notification-dropdown hidden>
+        <div class="notification-center__header">
+          <div>
+            <strong>Centro de notificaciones</strong>
+            <small class="muted">Actualizacion automatica cada 15 segundos</small>
+          </div>
+          <a href="${scopedNotificationsHref}" class="notification-center__all-link">Ver todas</a>
+        </div>
+        <div class="notification-center__list" data-notification-list>
+          <div class="notification-center__empty">Cargando notificaciones...</div>
+        </div>
+      </div>
+    </div>
+  `;
 %>
 <header class="<%= resolvedHeaderClass %>">
   <div class="app-header__inner">
-  <% if (shouldLinkBrand) { %>
-    <a class="brand brand-link app-brand" href="<%= resolvedHomeHref %>">
-      <% if (typeof companyBrand !== 'undefined' && companyBrand && companyBrand.logo && !(typeof hideBrandLogo !== 'undefined' && hideBrandLogo)) { %>
-        <img src="<%= companyBrand.logo %>" alt="Logo" class="brand-logo" />
-      <% } %>
-      <span class="brand-name"><%= resolvedBrandText %></span>
-    </a>
-  <% } else { %>
-    <div class="brand app-brand">
-      <% if (typeof companyBrand !== 'undefined' && companyBrand && companyBrand.logo && !(typeof hideBrandLogo !== 'undefined' && hideBrandLogo)) { %>
-        <img src="<%= companyBrand.logo %>" alt="Logo" class="brand-logo" />
-      <% } %>
-      <span class="brand-name"><%= resolvedBrandText %></span>
+    <div class="app-header__primary">
+    <% if (shouldRenderModuleTabs) { %>
+      <nav class="module-top-tabs" aria-label="Navegación del módulo">
+        <% resolvedModuleTabs.forEach((tab) => { %>
+          <a
+            href="<%= tab.href %>"
+            class="module-top-tab <%= activeTab === tab.key ? 'active' : '' %><%= tab.className ? ` ${tab.className}` : '' %>"
+            <%= hasModuleContext === 'invoices' ? `data-billing-tab="${sanitizeText(tab.billingTab || tab.key)}" data-billing-active="${activeTab === tab.key ? 'true' : 'false'}"` : '' %>
+            <%= activeTab === tab.key ? 'aria-current="page"' : '' %>
+          ><%= tab.label %></a>
+        <% }) %>
+      </nav>
+    <% } else if (shouldRenderModuleHeader) { %>
+      <a class="top-panel-button" href="<%= resolvedPanelHref %>">Panel</a>
+    <% } else if (shouldLinkBrand) { %>
+      <a class="brand brand-link app-brand" href="<%= resolvedHomeHref %>">
+        <% if (resolvedBrandLogo && !(typeof hideBrandLogo !== 'undefined' && hideBrandLogo)) { %>
+          <img src="<%= resolvedBrandLogo %>" alt="Logo" class="brand-logo" />
+        <% } %>
+        <% if (resolvedBrandText) { %>
+          <span class="brand-name"><%= resolvedBrandText %></span>
+        <% } %>
+      </a>
+    <% } else { %>
+      <div class="brand app-brand">
+        <% if (resolvedBrandLogo && !(typeof hideBrandLogo !== 'undefined' && hideBrandLogo)) { %>
+          <img src="<%= resolvedBrandLogo %>" alt="Logo" class="brand-logo" />
+        <% } %>
+        <% if (resolvedBrandText) { %>
+          <span class="brand-name"><%= resolvedBrandText %></span>
+        <% } %>
+      </div>
+    <% } %>
     </div>
-  <% } %>
 
   <% if (typeof headerActionsHtml !== 'undefined' && headerActionsHtml) { %>
-    <div class="app-header__actions"><%- headerActionsHtml %></div>
-  <% } else if (typeof headerNavItems !== 'undefined' && Array.isArray(headerNavItems)) { %>
-    <nav class="nav app-nav">
-      <% if (typeof headerNavText !== 'undefined' && headerNavText) { %>
-        <span class="muted app-nav__text"><%= headerNavText %></span>
+    <div class="app-header__actions">
+      <% if (shouldShowNotificationCenter) { %>
+        <%- renderNotificationCenter() %>
       <% } %>
-      <% headerNavItems.forEach((item) => { %>
-        <a href="<%= item.href %>"<%= item.className ? ` class="${item.className}"` : '' %>><%= item.label %></a>
-      <% }) %>
-    </nav>
+      <%- headerActionsHtml %>
+    </div>
+  <% } else if (shouldRenderCustomNav) { %>
+    <div class="app-header__actions">
+      <% if (shouldShowNotificationCenter) { %>
+        <%- renderNotificationCenter() %>
+      <% } %>
+      <nav class="nav app-nav">
+        <% if (resolvedHeaderNavText) { %>
+          <span class="muted app-nav__text"><%= resolvedHeaderNavText %></span>
+        <% } %>
+        <% resolvedHeaderNavItems.forEach((item) => { %>
+          <a href="<%= item.href %>"<%= item.className ? ` class="${item.className}"` : '' %>><%= item.label %></a>
+        <% }) %>
+      </nav>
+    </div>
   <% } else if (shouldShowDefaultNav) { %>
-    <nav class="nav app-nav">
-      <a href="/dashboard"><%= typeof t === 'function' ? t('nav.dashboard') : 'Dashboard' %></a>
-      <% if (typeof showSettingsLink !== 'undefined' && showSettingsLink && typeof can === 'function' && can('settings', 'view')) { %>
-        <a href="/settings"><%= t('settings.title') %></a>
+    <div class="app-header__actions">
+      <% if (shouldShowNotificationCenter) { %>
+        <%- renderNotificationCenter() %>
       <% } %>
-      <a href="/logout"><%= typeof t === 'function' ? t('nav.logout') : 'Salir' %></a>
-    </nav>
+      <nav class="nav app-nav">
+        <a href="/dashboard"><%= typeof t === 'function' ? t('nav.dashboard') : 'Dashboard' %></a>
+        <% if (typeof showSettingsLink !== 'undefined' && showSettingsLink && typeof can === 'function' && can('settings', 'view')) { %>
+          <a href="/settings"><%= t('settings.title') %></a>
+        <% } %>
+        <a href="/logout"><%= typeof t === 'function' ? t('nav.logout') : 'Salir' %></a>
+      </nav>
+    </div>
   <% } %>
   </div>
 </header>
+<% if (shouldShowNotificationCenter) { %>
+<script src="/js/notifications-center.js" defer></script>
+<% } %>
+<script
+  src="/js/media-permissions.js"
+  defer
+  data-app-media-permissions
+  data-user-id="<%= typeof user !== 'undefined' && user && user.id ? user.id : '' %>"
+></script>

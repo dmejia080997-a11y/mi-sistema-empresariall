@@ -6,6 +6,7 @@ function registerMasterCompanyRoutes(app, deps) {
     bcrypt,
     requireMaster,
     loadBusinessActivities,
+    buildFileUrl,
     buildCompanyStatus,
     setFlash,
     parseJsonList,
@@ -13,6 +14,8 @@ function registerMasterCompanyRoutes(app, deps) {
     getPermissionMap,
     parseCurrencyList,
     resolveCompanyActiveWindow,
+    resolveCompanyDisplayName,
+    createCompanySlug,
     seedAccountingCategories,
     seedNifCatalog,
     getIsStartingUp
@@ -292,6 +295,7 @@ function registerMasterCompanyRoutes(app, deps) {
               loadBusinessActivities((activities) => {
                 res.render('master-company', {
                   company,
+                  companyLogoUrl: buildFileUrl ? buildFileUrl(company.logo || null) : null,
                   users: safeUsers,
                   status,
                   usersCount: safeUsers.length,
@@ -327,10 +331,18 @@ function registerMasterCompanyRoutes(app, deps) {
           if (userErr || !user) {
             return res.redirect('/master');
           }
+          const companyName = typeof company.name === 'string' ? company.name.trim() : '';
+          const companySlug = createCompanySlug(companyName);
           req.session.company_id = company.id;
+          req.session.company_name = companyName;
+          req.session.company_slug = companySlug;
           req.session.company = {
             id: company.id,
-            name: company.name,
+            name: companyName,
+            slug: companySlug,
+            commercial_name: company.commercial_name || null,
+            legal_name: company.legal_name || null,
+            display_name: resolveCompanyDisplayName(company),
             username: company.username,
             currency: company.currency,
             base_currency: company.base_currency || company.currency,

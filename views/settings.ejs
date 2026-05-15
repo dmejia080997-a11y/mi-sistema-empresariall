@@ -27,6 +27,16 @@
 </div>
 </a>
 <% } %>
+<% if (can('chat', 'view')) { %>
+<a class="module-tile" href="/chat/settings">
+<div class="module-tile-title">
+<%= lang === 'en' ? 'Chat profile' : 'Perfil del chat' %>
+</div>
+<div class="module-tile-sub">
+<%= lang === 'en' ? 'Choose the name, photo and presence state shown to coworkers.' : 'Elige el nombre, la foto y el estado que veran tus compañeros.' %>
+</div>
+</a>
+<% } %>
 <% if (can('settings', 'manage')) { %>
 <a class="module-tile" href="/settings/carriers">
 <div class="module-tile-title">

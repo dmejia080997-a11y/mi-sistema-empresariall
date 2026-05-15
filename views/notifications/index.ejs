@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Centro de notificaciones</title>
+<%- include('../partials/head-assets') %>
+</head>
+<%
+  const formatDateTime = (value) => {
+    if (!value) return 'Sin fecha';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleString('es-GT', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+  const activeFilter = notificationFilter || 'all';
+  const counts = notificationCounts || { all: 0, unread: 0, read: 0 };
+%>
+<body class="page">
+<%- include('../partials/header') %>
+<main class="container notifications-page">
+<%- include('../partials/page-shell', {
+  pageEyebrow: 'Alertas y seguimiento',
+  pageTitle: 'Centro de notificaciones',
+  pageSubtitle: 'Consulta mensajes, eventos del sistema y accesos rapidos a cada registro relacionado.'
+}) %>
+
+<%- include('../partials/toasts') %>
+
+<section class="notifications-summary-grid">
+  <article class="app-card notifications-summary-card">
+    <span class="muted">Todas</span>
+    <strong><%= counts.all %></strong>
+  </article>
+  <article class="app-card notifications-summary-card">
+    <span class="muted">No leidas</span>
+    <strong><%= counts.unread %></strong>
+  </article>
+  <article class="app-card notifications-summary-card">
+    <span class="muted">Leidas</span>
+    <strong><%= counts.read %></strong>
+  </article>
+</section>
+
+<section class="app-toolbar notifications-toolbar">
+  <div class="notifications-filter-group">
+    <a href="/notifications?filter=all" class="btn app-btn <%= activeFilter === 'all' ? 'primary app-btn-primary' : '' %>">Todas</a>
+    <a href="/notifications?filter=unread" class="btn app-btn <%= activeFilter === 'unread' ? 'primary app-btn-primary' : '' %>">No leidas</a>
+    <a href="/notifications?filter=read" class="btn app-btn <%= activeFilter === 'read' ? 'primary app-btn-primary' : '' %>">Leidas</a>
+  </div>
+  <form method="POST" action="/notifications/read-all">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <input type="hidden" name="next" value="/notifications?filter=<%= activeFilter %>" />
+    <button type="submit" class="btn app-btn">Marcar todas como leidas</button>
+  </form>
+</section>
+
+<section class="notifications-list">
+  <% if (!notifications.length) { %>
+    <div class="app-empty-state">
+      <h2 class="app-empty-state-title">Sin notificaciones</h2>
+      <p class="app-empty-state-text">No hay resultados para el filtro seleccionado.</p>
+    </div>
+  <% } else { %>
+    <% notifications.forEach((notification) => { %>
+      <article class="app-panel notification-row <%= Number(notification.is_read) === 1 ? 'is-read' : 'is-unread' %>">
+        <div class="notification-row__content">
+          <div class="notification-row__top">
+            <div class="notification-row__meta">
+              <span class="app-chip <%= Number(notification.is_read) === 1 ? '' : 'app-chip-warning' %>"><%= notification.type || 'system' %></span>
+              <small class="muted"><%= formatDateTime(notification.created_at) %></small>
+            </div>
+            <% if (notification.read_at) { %>
+              <small class="muted">Leida: <%= formatDateTime(notification.read_at) %></small>
+            <% } %>
+          </div>
+
+          <h2><%= notification.title %></h2>
+          <p><%= notification.message || 'Sin detalle adicional.' %></p>
+        </div>
+
+        <div class="notification-row__actions">
+          <% if (notification.link_url) { %>
+            <a href="<%= notification.link_url %>" class="btn app-btn app-btn-primary primary">Abrir</a>
+          <% } %>
+          <% if (Number(notification.is_read) !== 1) { %>
+            <form method="POST" action="/notifications/<%= notification.id %>/read">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <input type="hidden" name="next" value="/notifications?filter=<%= activeFilter %>" />
+              <button type="submit" class="btn app-btn">Marcar leida</button>
+            </form>
+          <% } %>
+        </div>
+      </article>
+    <% }) %>
+  <% } %>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

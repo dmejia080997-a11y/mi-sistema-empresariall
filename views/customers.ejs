@@ -1,5 +1,16 @@
 ﻿<!DOCTYPE html>
-<% var currentCustomersTab = typeof activeCustomersTab !== 'undefined' ? activeCustomersTab : 'list'; %>
+<%
+  var currentCustomersTab = typeof activeCustomersTab !== 'undefined' ? activeCustomersTab : 'list';
+  var customersModuleTabs = [
+    { key: 'list', label: t('customers.menu_list'), href: '/customers/list' },
+    { key: 'import', label: t('customers.menu_import'), href: '/customers/import' },
+    { key: 'create', label: t('customers.menu_create'), href: '/customers/create' },
+    { key: 'packages', label: t('customers.menu_packages'), href: '/customers/packages' }
+  ];
+  if (canViewVoided) {
+    customersModuleTabs.push({ key: 'voided', label: t('customers.menu_voided'), href: '/customers/voided' });
+  }
+%>
 <html lang="<%= lang %>">
 <head>
 <meta charset="UTF-8" />
@@ -10,30 +21,15 @@
 <%- include('partials/head-assets') %>
 </head>
 <body class="page customers-module">
-<%- include('partials/header') %>
+<%- include('partials/header', {
+  moduleTabs: customersModuleTabs,
+  activeTab: currentCustomersTab,
+  currentModule: 'customers'
+}) %>
 <main class="container">
 <h1>
 <%= t('customers.title') %>
 </h1>
-<div class="module-nav customers-nav">
-<a href="/customers/list" class="<%= currentCustomersTab === 'list' ? 'active' : '' %>" data-section="list">
-<%= t('customers.menu_list') %>
-</a>
-<a href="/customers/import" class="<%= currentCustomersTab === 'import' ? 'active' : '' %>" data-section="import">
-<%= t('customers.menu_import') %>
-</a>
-<a href="/customers/create" class="<%= currentCustomersTab === 'create' ? 'active' : '' %>" data-section="create">
-<%= t('customers.menu_create') %>
-</a>
-<a href="/customers/packages" class="<%= currentCustomersTab === 'packages' ? 'active' : '' %>" data-section="packages">
-<%= t('customers.menu_packages') %>
-</a>
-<% if (canViewVoided) { %>
-<a href="/customers/voided" class="<%= currentCustomersTab === 'voided' ? 'active' : '' %>" data-section="voided">
-<%= t('customers.menu_voided') %>
-</a>
-<% } %>
-</div>
 <% if (currentCustomersTab === 'list') { %>
 <section class="customers-section" id="clientes-listado">
 <section class="panel">

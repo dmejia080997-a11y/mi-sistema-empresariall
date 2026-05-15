@@ -5,7 +5,11 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL DEFAULT 'employee',
   company_id INTEGER NULL,
   is_active INTEGER NOT NULL DEFAULT 1,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  chat_display_name TEXT,
+  chat_presence_status TEXT NOT NULL DEFAULT 'online',
+  chat_profile_photo_path TEXT,
+  chat_profile_completed_at DATETIME
 );
 
 CREATE TABLE IF NOT EXISTS items (
@@ -144,6 +148,24 @@ CREATE TABLE IF NOT EXISTS invoice_items (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (invoice_id) REFERENCES invoices(id),
   FOREIGN KEY (item_id) REFERENCES items(id)
+);
+
+CREATE TABLE IF NOT EXISTS invoice_packing_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  invoice_id INTEGER NOT NULL,
+  invoice_item_id INTEGER NOT NULL,
+  weight_unit REAL NOT NULL DEFAULT 0,
+  weight_total REAL NOT NULL DEFAULT 0,
+  length REAL NOT NULL DEFAULT 0,
+  width REAL NOT NULL DEFAULT 0,
+  height REAL NOT NULL DEFAULT 0,
+  dimension_unit TEXT NOT NULL DEFAULT 'cm',
+  packages_count REAL NOT NULL DEFAULT 0,
+  package_type TEXT NULL,
+  notes TEXT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS packages (

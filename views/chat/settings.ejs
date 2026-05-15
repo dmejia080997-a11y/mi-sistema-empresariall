@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Configuracion del chat</title>
+<%- include('../partials/head-assets') %>
+</head>
+<%
+  const currentName = chatProfile ? (chatProfile.display_name || chatProfile.username) : 'Perfil';
+  const currentStatus = chatProfile && chatProfile.presence_status ? chatProfile.presence_status : 'online';
+  const avatarInitials = (() => {
+    const parts = String(currentName || '').trim().split(/\s+/).filter(Boolean).slice(0, 2);
+    if (!parts.length) return 'CH';
+    return parts.map((part) => part.charAt(0).toUpperCase()).join('').slice(0, 2);
+  })();
+  const statusLabel = (value) => {
+    switch (String(value || '').toLowerCase()) {
+      case 'busy':
+        return 'Ocupado';
+      case 'away':
+        return 'Ausente';
+      default:
+        return 'En linea';
+    }
+  };
+%>
+<body class="page">
+<%- include('../partials/header') %>
+<main class="container chat-page">
+<%- include('../partials/page-shell', {
+  pageEyebrow: 'Comunicacion interna',
+  pageTitle: chatProfileOnboarding ? 'Configura tu perfil de chat' : 'Configuracion del chat',
+  pageSubtitle: chatProfileOnboarding
+    ? 'Antes de usar el chat, define el nombre que veran tus compañeros, tu estado y tu foto.'
+    : 'Administra el nombre visible, el estado y la foto que se muestran dentro del chat.',
+  pageActions: '<a href="/chat" class="btn app-btn">Volver al chat</a>'
+}) %>
+
+<%- include('../partials/toasts') %>
+
+<section class="chat-settings-layout">
+  <section class="app-panel chat-settings-panel">
+    <% if (chatProfileOnboarding) { %>
+      <div class="alert warning">
+        Este paso es obligatorio la primera vez que ingresas al chat.
+      </div>
+    <% } %>
+
+    <form method="POST" action="/chat/settings" enctype="multipart/form-data" class="chat-settings-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <input type="hidden" name="next" value="<%= chatProfileNext %>" />
+      <input type="hidden" name="onboarding" value="<%= chatProfileOnboarding ? '1' : '0' %>" />
+
+      <div class="chat-settings-grid">
+        <label class="app-field">
+          <span>Nombre visible en el chat</span>
+          <input type="text" name="display_name" class="app-input" maxlength="80" value="<%= chatProfile && chatProfile.raw_display_name ? chatProfile.raw_display_name : '' %>" placeholder="Ejemplo: Juan Lopez" required />
+          <small class="muted">Este es el nombre que veran tus compañeros en las conversaciones.</small>
+        </label>
+
+        <label class="app-field">
+          <span>Estado actual</span>
+          <select name="presence_status" class="app-select">
+            <% chatPresenceChoices.forEach((choice) => { %>
+              <option value="<%= choice %>" <%= currentStatus === choice ? 'selected' : '' %>><%= statusLabel(choice) %></option>
+            <% }) %>
+          </select>
+          <small class="muted">El estado se muestra en listas y cabeceras del chat.</small>
+        </label>
+
+        <label class="app-field">
+          <span>Foto de perfil</span>
+          <input type="file" name="profile_photo" accept="image/png,image/jpeg,image/webp,image/gif" />
+          <small class="muted">Formatos permitidos: JPG, PNG, WEBP o GIF. Maximo 4 MB.</small>
+        </label>
+
+        <% if (chatProfile && chatProfile.profile_photo_path) { %>
+          <label class="app-check">
+            <input type="checkbox" name="remove_photo" value="1" />
+            <span>Quitar la foto actual</span>
+          </label>
+        <% } %>
+      </div>
+
+      <div class="chat-settings-actions">
+        <button type="submit" class="btn primary app-btn app-btn-primary">Guardar perfil de chat</button>
+      </div>
+    </form>
+  </section>
+
+  <aside class="app-panel chat-settings-preview">
+    <div class="chat-settings-preview__card">
+      <% if (chatProfile && chatProfile.profile_photo_path) { %>
+        <span class="chat-avatar chat-avatar-xl">
+          <img src="/chat/profile-photo/<%= chatProfile.id %>" alt="<%= currentName %>" />
+        </span>
+      <% } else { %>
+        <span class="chat-avatar chat-avatar-xl is-fallback"><%= avatarInitials %></span>
+      <% } %>
+      <div class="chat-settings-preview__copy">
+        <strong><%= currentName %></strong>
+        <small class="muted">Usuario de acceso: <%= chatProfile && chatProfile.username ? chatProfile.username : '-' %></small>
+      </div>
+      <span class="app-chip chat-presence-chip is-<%= currentStatus %>"><%= statusLabel(currentStatus) %></span>
+    </div>
+
+    <div class="app-note-card">
+      <strong>Lo que cambia al guardar</strong>
+      <p class="muted">Tu nombre visible, estado y foto se actualizan para todos los compañeros que comparten chat contigo.</p>
+    </div>
+  </aside>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

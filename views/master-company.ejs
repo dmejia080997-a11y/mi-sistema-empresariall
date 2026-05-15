@@ -6,6 +6,78 @@
 <title>Panel Master - <%= company.name || 'Empresa' %></title>
 <%- include('partials/head-assets') %>
 </head>
+<%
+  const moduleLabelMap = {
+    dashboard: 'Dashboard',
+    packages: 'Paquetes',
+    carrier_reception: 'Recepcion de paquetes carrier',
+    customers: 'Clientes',
+    consignatarios: 'Consignatarios',
+    billing: 'Facturacion',
+    accounting: 'Contabilidad',
+    agenda_medica: 'Agenda medica',
+    portal: 'Portal clientes',
+    inventory: 'Inventario',
+    airway_bills: 'Guia aerea',
+    manifests: 'Manifiestos',
+    cuscar: 'CUSCAR SAT',
+    reports: 'Reportes',
+    users: 'Usuarios',
+    settings: 'Configuracion',
+    rrhh: 'RRHH'
+  };
+
+  function formatModuleLabel(code) {
+    const normalized = String(code || '').trim();
+    if (!normalized) return '';
+    if (moduleLabelMap[normalized]) return moduleLabelMap[normalized];
+    return normalized
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+  function parseActivityModules(rawValue) {
+    let parsed = [];
+    try {
+      parsed = JSON.parse(rawValue || '[]');
+    } catch (error) {
+      parsed = [];
+    }
+    const uniqueCodes = [];
+    const seen = new Set();
+    (Array.isArray(parsed) ? parsed : []).forEach((entry) => {
+      const code = String(entry || '').trim();
+      if (!code || seen.has(code)) return;
+      seen.add(code);
+      uniqueCodes.push({
+        code,
+        label: formatModuleLabel(code)
+      });
+    });
+    return uniqueCodes;
+  }
+
+  const activityModulesMap = {};
+  (activities || []).forEach((activity) => {
+    activityModulesMap[String(activity.id)] = parseActivityModules(activity.modules_json);
+  });
+  const currentActivityModules = activityModulesMap[String(company.activity_id || '')] || [];
+  const statusLabel = status === 'inactive' ? 'Inactiva' : status === 'expired' ? 'Vencida' : 'Activa';
+  const statusBadgeClass = status === 'inactive'
+    ? 'app-badge-warning'
+    : status === 'expired'
+      ? 'app-badge-danger'
+      : 'app-badge-success';
+  const companyInitials = String(company.name || 'Empresa')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('') || 'EM';
+  const companyLogoFileName = company.logo ? String(company.logo).split(/[\\/]/).pop() : '';
+%>
 <body class="page master-shell-page">
 <%- include('partials/header', {
   headerBrandText: 'Panel Master',
@@ -20,7 +92,7 @@
   `
 }) %>
 
-<main class="container company-detail-page">
+<main class="container company-detail-page master-company-detail">
   <div class="company-detail-hero page-header app-page-header">
     <div class="app-page-header__content">
       <p class="master-eyebrow app-page-eyebrow">Panel master</p>
@@ -41,314 +113,432 @@
   </div>
   <% } %>
 
-  <section class="company-detail-card app-card master-status-panel">
-    <div class="app-card-header">
-      <div>
-        <h2 class="company-detail-section-title">Estado de la empresa</h2>
-        <p class="muted">Control operativo y acciones de acceso del espacio empresarial.</p>
-      </div>
-      <% if (status === 'inactive') { %>
-      <span class="company-detail-badge app-badge app-badge-warning">Inactiva</span>
-      <% } else if (status === 'expired') { %>
-      <span class="company-detail-badge app-badge app-badge-danger">Vencida</span>
-      <% } else { %>
-      <span class="company-detail-badge app-badge app-badge-success">Activa</span>
-      <% } %>
-    </div>
-    <div class="master-status-grid">
-      <div>
-        <span class="app-field-caption">ID</span>
-        <strong><%= company.id %></strong>
-      </div>
-      <div>
-        <span class="app-field-caption">Usuarios</span>
-        <strong><%= usersCount %></strong>
-      </div>
-      <div>
-        <span class="app-field-caption">Activo desde</span>
-        <strong><%= company.active_from || '-' %></strong>
-      </div>
-      <div>
-        <span class="app-field-caption">Activo hasta</span>
-        <strong><%= company.active_until || '-' %></strong>
-      </div>
-    </div>
-    <div class="actions app-flow-top">
-      <form action="/master/companies/<%= company.id %>/enter" method="POST">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-        <button class="btn app-btn">Entrar al espacio</button>
-      </form>
-      <% if (status === 'inactive') { %>
-      <form action="/master/companies/<%= company.id %>/reactivate" method="POST">
+  <div class="company-detail-layout master-company-layout">
+    <aside class="company-detail-sidebar company-sections-sidebar">
+      <nav class="company-section-menu app-card" aria-label="Secciones de empresa">
+        <div class="company-section-menu__intro">
+          <span class="company-section-menu__eyebrow">Secciones</span>
+          <strong>Detalle de empresa</strong>
+          <span class="company-section-menu__company"><%= company.name || 'Empresa' %></span>
+        </div>
+        <button type="button" class="active" data-section="estado-empresa">Estado de la empresa</button>
+        <button type="button" data-section="datos-generales">Datos generales</button>
+        <button type="button" data-section="contactos">Contactos</button>
+        <button type="button" data-section="usuarios">Usuarios asociados</button>
+        <button type="button" data-section="configuracion">Configuracion</button>
+        <button type="button" data-section="modulos">Modulos activos</button>
+        <button type="button" data-section="documentos">Documentos / logo</button>
+      </nav>
+    </aside>
+
+    <div class="company-detail-main">
+      <form id="company-detail-form" class="company-detail-form-shell" action="/companies/<%= company.id %>/update" method="POST" enctype="multipart/form-data" data-company-form>
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
         <input type="hidden" name="return_to" value="/master/companies/<%= company.id %>" />
-        <button class="btn app-btn app-btn-success">Reactivar</button>
-      </form>
-      <% } else { %>
-      <details class="action-details">
-        <summary>Anular empresa</summary>
-        <form action="/master/companies/<%= company.id %>/deactivate" method="POST">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-          <input type="hidden" name="return_to" value="/master/companies/<%= company.id %>" />
-          <textarea name="inactive_reason" placeholder="Motivo de anulacion" required></textarea>
-          <button class="btn danger app-btn app-btn-danger">Confirmar anulacion</button>
-        </form>
-      </details>
-      <% } %>
-    </div>
-  </section>
 
-  <form id="company-detail-form" action="/companies/<%= company.id %>/update" method="POST" data-company-form>
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <section class="company-section-panel active" data-panel="estado-empresa">
+          <div class="company-panel-stack">
+            <section class="company-detail-card app-card master-status-panel company-status-card">
+              <div class="app-card-header">
+                <div>
+                  <h2 class="company-detail-section-title">Estado de la empresa</h2>
+                  <p class="muted">Control operativo, vigencia y accesos del espacio empresarial.</p>
+                </div>
+                <span class="company-detail-badge app-badge <%= statusBadgeClass %>"><%= statusLabel %></span>
+              </div>
 
-    <section class="company-detail-card app-card">
-      <div class="app-card-header">
-        <div>
-          <h2 class="company-detail-section-title">Datos generales</h2>
-          <p class="muted">Identidad comercial, fiscal y configuracion base.</p>
-        </div>
-      </div>
-      <div class="master-detail-grid">
-        <div class="app-field master-readonly-field">
-          <span>ID</span>
-          <strong><%= company.id %></strong>
-        </div>
-        <label class="app-field">Nombre
-          <input class="company-detail-input" type="text" name="name" value="<%= company.name || '' %>" required readonly data-editable>
-        </label>
-        <label class="app-field">Nombre legal
-          <input class="company-detail-input" type="text" name="legal_name" value="<%= company.legal_name || '' %>" readonly data-editable>
-        </label>
-        <label class="app-field">Usuario
-          <input class="company-detail-input" type="text" name="username" value="<%= company.username || '' %>" required readonly data-editable>
-        </label>
-        <label class="app-field master-field-wide">Direccion
-          <textarea class="company-detail-input app-textarea" name="address" rows="3" readonly data-editable><%= company.address || '' %></textarea>
-        </label>
-        <label class="app-field master-field-wide">Domicilio fiscal
-          <textarea class="company-detail-input app-textarea" name="tax_address" rows="3" readonly data-editable><%= company.tax_address || '' %></textarea>
-        </label>
-        <label class="app-field">Telefono
-          <input class="company-detail-input" type="text" name="phone" value="<%= company.phone || '' %>" readonly data-editable>
-        </label>
-        <label class="app-field">NIT
-          <input class="company-detail-input" type="text" name="nit" value="<%= company.nit || '' %>" readonly data-editable>
-        </label>
-        <label class="app-field">Empleados
-          <input class="company-detail-input" type="number" name="employees" value="<%= company.employees || '' %>" readonly data-editable>
-        </label>
-        <label class="app-field">Tipo de negocio
-          <input class="company-detail-input" type="text" name="business_type" value="<%= company.business_type || '' %>" readonly data-editable>
-        </label>
-        <label class="app-field">Actividad
-          <select class="company-detail-input" name="activity_id" disabled data-editable data-lock="disabled">
-            <option value="" disabled <%= !company.activity_id ? 'selected' : '' %>>Selecciona una actividad</option>
-            <% (activities || []).forEach(activity => { %>
-              <option value="<%= activity.id %>" <%= String(company.activity_id || '') === String(activity.id) ? 'selected' : '' %>>
-                <%= activity.name %>
-              </option>
-            <% }) %>
-          </select>
-        </label>
-        <label class="app-field">Pais
-          <input class="company-detail-input" type="text" name="country" value="<%= company.country || '' %>" readonly data-editable>
-        </label>
-        <label class="app-field">Moneda base
-          <input class="company-detail-input" type="text" name="base_currency" value="<%= company.base_currency || company.currency || '' %>" readonly data-editable>
-        </label>
-        <label class="app-field">Monedas permitidas
-          <input class="company-detail-input" type="text" name="allowed_currencies" value="<%= company.allowed_currencies || '' %>" readonly data-editable>
-        </label>
-        <label class="app-field">Impuesto base
-          <input class="company-detail-input" type="number" name="tax_rate" value="<%= company.tax_rate || '' %>" readonly data-editable>
-        </label>
-        <label class="app-field">Nombre del impuesto
-          <input class="company-detail-input" type="text" name="tax_name" value="<%= company.tax_name || '' %>" readonly data-editable>
-        </label>
-        <label class="app-field">Costeo
-          <input class="company-detail-input" type="text" name="costing_method" value="<%= company.costing_method || '' %>" readonly data-editable>
-        </label>
-        <label class="app-field">Moneda anterior
-          <input class="company-detail-input" type="text" name="currency" value="<%= company.currency || '' %>" readonly data-editable>
-        </label>
-        <label class="app-field">Color primario
-          <input class="company-detail-input" type="color" name="primary_color" value="<%= company.primary_color || '#26445f' %>" disabled data-editable data-lock="disabled">
-        </label>
-        <label class="app-field">Color secundario
-          <input class="company-detail-input" type="color" name="secondary_color" value="<%= company.secondary_color || '#247c7a' %>" disabled data-editable data-lock="disabled">
-        </label>
-        <div class="app-field master-readonly-field">
-          <span>Creada</span>
-          <strong><%= company.created_at || '-' %></strong>
-        </div>
-        <label class="app-field">Activo desde
-          <input class="company-detail-input" type="date" name="active_from" value="<%= company.active_from ? String(company.active_from).slice(0,10) : '' %>" disabled data-editable data-lock="disabled">
-        </label>
-        <label class="app-field">Activo hasta
-          <input class="company-detail-input" type="date" name="active_until" value="<%= company.active_until ? String(company.active_until).slice(0,10) : '' %>" disabled data-editable data-lock="disabled">
-        </label>
-      </div>
-    </section>
+              <div class="master-status-grid">
+                <div>
+                  <span class="app-field-caption">ID</span>
+                  <strong><%= company.id %></strong>
+                </div>
+                <div>
+                  <span class="app-field-caption">Usuarios</span>
+                  <strong><%= usersCount %></strong>
+                </div>
+                <div>
+                  <span class="app-field-caption">Estado</span>
+                  <strong><%= statusLabel %></strong>
+                </div>
+                <div>
+                  <span class="app-field-caption">Creada</span>
+                  <strong><%= company.created_at || '-' %></strong>
+                </div>
+              </div>
 
-    <section class="company-detail-card app-card">
-      <div class="app-card-header">
-        <div>
-          <h2 class="company-detail-section-title">Contactos</h2>
-          <p class="muted">Personas de referencia para contacto general, pagos y operacion.</p>
-        </div>
-      </div>
+              <div class="master-detail-grid company-form-grid company-state-grid">
+                <label class="app-field">Activo desde
+                  <input class="company-detail-input" type="date" name="active_from" value="<%= company.active_from ? String(company.active_from).slice(0,10) : '' %>" disabled data-editable data-lock="disabled">
+                </label>
+                <label class="app-field">Activo hasta
+                  <input class="company-detail-input" type="date" name="active_until" value="<%= company.active_until ? String(company.active_until).slice(0,10) : '' %>" disabled data-editable data-lock="disabled">
+                </label>
+              </div>
 
-      <div class="master-contact-section">
-        <h3>Contacto general</h3>
-        <div class="master-detail-grid">
-          <label class="app-field">Nombre
-            <input class="company-detail-input" type="text" name="contact_general_first_name" value="<%= company.contact_general_first_name || '' %>" readonly data-editable>
-          </label>
-          <label class="app-field">Apellido
-            <input class="company-detail-input" type="text" name="contact_general_last_name" value="<%= company.contact_general_last_name || '' %>" readonly data-editable>
-          </label>
-          <label class="app-field">Telefono
-            <input class="company-detail-input" type="text" name="contact_general_phone" value="<%= company.contact_general_phone || '' %>" readonly data-editable>
-          </label>
-          <label class="app-field">Celular
-            <input class="company-detail-input" type="text" name="contact_general_mobile" value="<%= company.contact_general_mobile || '' %>" readonly data-editable>
-          </label>
-          <label class="app-field">Correo
-            <input class="company-detail-input" type="email" name="contact_general_email" value="<%= company.contact_general_email || '' %>" readonly data-editable>
-          </label>
-          <label class="app-field">Puesto
-            <input class="company-detail-input" type="text" name="contact_general_position" value="<%= company.contact_general_position || '' %>" readonly data-editable>
-          </label>
-        </div>
-      </div>
+              <div class="company-panel-actions">
+                <button class="btn app-btn" type="submit" formaction="/master/companies/<%= company.id %>/enter" formmethod="POST" formenctype="application/x-www-form-urlencoded" formnovalidate>
+                  Entrar al espacio
+                </button>
+                <button class="btn app-btn app-btn-secondary" type="submit" formaction="/master/companies/<%= company.id %>/renew" formmethod="POST" formenctype="application/x-www-form-urlencoded" formnovalidate data-renew-submit>
+                  Renovar vigencia
+                </button>
+                <% if (status === 'inactive') { %>
+                <button class="btn app-btn app-btn-success" type="submit" formaction="/master/companies/<%= company.id %>/reactivate" formmethod="POST" formenctype="application/x-www-form-urlencoded" formnovalidate>
+                  Reactivar
+                </button>
+                <% } else { %>
+                <details class="action-details company-section-action-details">
+                  <summary>Anular empresa</summary>
+                  <label class="app-field">
+                    <span>Motivo de anulacion</span>
+                    <textarea class="company-detail-input app-textarea" name="inactive_reason" rows="3" placeholder="Describe el motivo de anulacion"></textarea>
+                  </label>
+                  <button class="btn danger app-btn app-btn-danger" type="submit" formaction="/master/companies/<%= company.id %>/deactivate" formmethod="POST" formenctype="application/x-www-form-urlencoded" formnovalidate data-deactivate-submit>
+                    Confirmar anulacion
+                  </button>
+                </details>
+                <% } %>
+              </div>
+            </section>
 
-      <div class="master-contact-section">
-        <h3>Contacto de pagos</h3>
-        <div class="master-detail-grid">
-          <label class="app-field">Nombre
-            <input class="company-detail-input" type="text" name="contact_payments_first_name" value="<%= company.contact_payments_first_name || '' %>" readonly data-editable>
-          </label>
-          <label class="app-field">Apellido
-            <input class="company-detail-input" type="text" name="contact_payments_last_name" value="<%= company.contact_payments_last_name || '' %>" readonly data-editable>
-          </label>
-          <label class="app-field">Telefono
-            <input class="company-detail-input" type="text" name="contact_payments_phone" value="<%= company.contact_payments_phone || '' %>" readonly data-editable>
-          </label>
-          <label class="app-field">Celular
-            <input class="company-detail-input" type="text" name="contact_payments_mobile" value="<%= company.contact_payments_mobile || '' %>" readonly data-editable>
-          </label>
-          <label class="app-field">Correo
-            <input class="company-detail-input" type="email" name="contact_payments_email" value="<%= company.contact_payments_email || '' %>" readonly data-editable>
-          </label>
-          <label class="app-field">Puesto
-            <input class="company-detail-input" type="text" name="contact_payments_position" value="<%= company.contact_payments_position || '' %>" readonly data-editable>
-          </label>
-        </div>
-      </div>
-
-      <div class="master-contact-section">
-        <h3>Contacto operativo</h3>
-        <div class="master-detail-grid">
-          <label class="app-field">Nombre
-            <input class="company-detail-input" type="text" name="contact_ops_first_name" value="<%= company.contact_ops_first_name || '' %>" readonly data-editable>
-          </label>
-          <label class="app-field">Apellido
-            <input class="company-detail-input" type="text" name="contact_ops_last_name" value="<%= company.contact_ops_last_name || '' %>" readonly data-editable>
-          </label>
-          <label class="app-field">Telefono
-            <input class="company-detail-input" type="text" name="contact_ops_phone" value="<%= company.contact_ops_phone || '' %>" readonly data-editable>
-          </label>
-          <label class="app-field">Celular
-            <input class="company-detail-input" type="text" name="contact_ops_mobile" value="<%= company.contact_ops_mobile || '' %>" readonly data-editable>
-          </label>
-          <label class="app-field">Correo
-            <input class="company-detail-input" type="email" name="contact_ops_email" value="<%= company.contact_ops_email || '' %>" readonly data-editable>
-          </label>
-          <label class="app-field">Puesto
-            <input class="company-detail-input" type="text" name="contact_ops_position" value="<%= company.contact_ops_position || '' %>" readonly data-editable>
-          </label>
-        </div>
-      </div>
-    </section>
-  </form>
-
-  <section class="company-detail-card app-card">
-    <div class="app-card-header">
-      <div>
-        <h2 class="company-detail-section-title">Usuarios</h2>
-        <p class="muted">Usuarios creados dentro de la empresa.</p>
-      </div>
-    </div>
-    <div class="app-table-wrap">
-      <table class="app-table company-detail-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Usuario</th>
-            <th>Rol</th>
-            <th>Creado</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% if (!users || !users.length) { %>
-          <tr>
-            <td colspan="4">No hay usuarios registrados.</td>
-          </tr>
-          <% } %>
-          <% (users || []).forEach(user => { %>
-          <tr>
-            <td><%= user.id %></td>
-            <td><%= user.username %></td>
-            <td><%= user.role %></td>
-            <td><%= user.created_at || '-' %></td>
-          </tr>
-          <% }) %>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="company-detail-card app-card">
-    <div class="app-card-header">
-      <div>
-        <h2 class="company-detail-section-title">Renovar suscripcion</h2>
-        <p class="muted">Actualiza la ventana de vigencia sin modificar otros datos.</p>
-      </div>
-    </div>
-    <form action="/master/companies/<%= company.id %>/renew" method="POST" class="app-form-grid app-form-grid-fluid">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-      <label class="app-field">
-        <span>Activo desde</span>
-        <input class="company-detail-input" type="date" name="active_from" value="<%= company.active_from ? String(company.active_from).slice(0,10) : '' %>" required>
-      </label>
-      <label class="app-field">
-        <span>Activo hasta</span>
-        <input class="company-detail-input" type="date" name="active_until" value="<%= company.active_until ? String(company.active_until).slice(0,10) : '' %>" required>
-      </label>
-      <button class="btn app-btn app-btn-secondary">Renovar</button>
-    </form>
-  </section>
-
-  <section class="company-detail-card app-card">
-    <div class="app-card-header">
-      <div>
-        <h2 class="company-detail-section-title">Historial de anulaciones</h2>
-        <p class="muted">Motivos registrados al anular esta empresa.</p>
-      </div>
-    </div>
-    <% if (inactiveNotes && inactiveNotes.length) { %>
-      <% inactiveNotes.forEach(note => { %>
-        <div class="app-note-card">
-          <div class="app-note-meta">
-            <%= note.created_at ? new Date(note.created_at).toLocaleString() : '-' %>
+            <section class="company-detail-card app-card">
+              <div class="app-card-header">
+                <div>
+                  <h2 class="company-detail-section-title">Historial de anulaciones</h2>
+                  <p class="muted">Motivos registrados al anular esta empresa.</p>
+                </div>
+              </div>
+              <% if (inactiveNotes && inactiveNotes.length) { %>
+                <% inactiveNotes.forEach(note => { %>
+                  <div class="app-note-card">
+                    <div class="app-note-meta">
+                      <%= note.created_at ? new Date(note.created_at).toLocaleString() : '-' %>
+                    </div>
+                    <div class="app-prewrap"><%= note.note_text %></div>
+                  </div>
+                <% }) %>
+              <% } else { %>
+                <div class="app-placeholder">Sin anulaciones registradas.</div>
+              <% } %>
+            </section>
           </div>
-          <div class="app-prewrap"><%= note.note_text %></div>
-        </div>
-      <% }) %>
-    <% } else { %>
-      <div class="app-placeholder">Sin anulaciones registradas.</div>
-    <% } %>
-  </section>
+        </section>
+
+        <section class="company-section-panel" data-panel="datos-generales" hidden>
+          <section class="company-detail-card app-card company-form-card">
+            <div class="app-card-header">
+              <div>
+                <h2 class="company-detail-section-title">Datos generales</h2>
+                <p class="muted">Identidad comercial, fiscal y de operacion principal.</p>
+              </div>
+            </div>
+            <div class="master-detail-grid company-form-grid">
+              <div class="app-field master-readonly-field">
+                <span>ID</span>
+                <strong><%= company.id %></strong>
+              </div>
+              <label class="app-field">Nombre
+                <input class="company-detail-input" type="text" name="name" value="<%= company.name || '' %>" required readonly data-editable>
+              </label>
+              <label class="app-field">Nombre legal
+                <input class="company-detail-input" type="text" name="legal_name" value="<%= company.legal_name || '' %>" readonly data-editable>
+              </label>
+              <label class="app-field">Usuario
+                <input class="company-detail-input" type="text" name="username" value="<%= company.username || '' %>" required readonly data-editable>
+              </label>
+              <label class="app-field">Telefono
+                <input class="company-detail-input" type="text" name="phone" value="<%= company.phone || '' %>" readonly data-editable>
+              </label>
+              <label class="app-field">NIT
+                <input class="company-detail-input" type="text" name="nit" value="<%= company.nit || '' %>" readonly data-editable>
+              </label>
+              <label class="app-field">Empleados
+                <input class="company-detail-input" type="number" name="employees" value="<%= company.employees || '' %>" readonly data-editable>
+              </label>
+              <label class="app-field">Tipo de negocio
+                <input class="company-detail-input" type="text" name="business_type" value="<%= company.business_type || '' %>" readonly data-editable>
+              </label>
+              <label class="app-field">Pais
+                <input class="company-detail-input" type="text" name="country" value="<%= company.country || '' %>" readonly data-editable>
+              </label>
+              <label class="app-field master-field-wide">Direccion
+                <textarea class="company-detail-input app-textarea" name="address" rows="3" readonly data-editable><%= company.address || '' %></textarea>
+              </label>
+              <label class="app-field master-field-wide">Domicilio fiscal
+                <textarea class="company-detail-input app-textarea" name="tax_address" rows="3" readonly data-editable><%= company.tax_address || '' %></textarea>
+              </label>
+            </div>
+          </section>
+        </section>
+
+        <section class="company-section-panel" data-panel="contactos" hidden>
+          <section class="company-detail-card app-card">
+            <div class="app-card-header">
+              <div>
+                <h2 class="company-detail-section-title">Contactos</h2>
+                <p class="muted">Personas de referencia para contacto general, pagos y operacion.</p>
+              </div>
+            </div>
+
+            <div class="master-contact-section">
+              <h3>Contacto general</h3>
+              <div class="master-detail-grid">
+                <label class="app-field">Nombre
+                  <input class="company-detail-input" type="text" name="contact_general_first_name" value="<%= company.contact_general_first_name || '' %>" readonly data-editable>
+                </label>
+                <label class="app-field">Apellido
+                  <input class="company-detail-input" type="text" name="contact_general_last_name" value="<%= company.contact_general_last_name || '' %>" readonly data-editable>
+                </label>
+                <label class="app-field">Telefono
+                  <input class="company-detail-input" type="text" name="contact_general_phone" value="<%= company.contact_general_phone || '' %>" readonly data-editable>
+                </label>
+                <label class="app-field">Celular
+                  <input class="company-detail-input" type="text" name="contact_general_mobile" value="<%= company.contact_general_mobile || '' %>" readonly data-editable>
+                </label>
+                <label class="app-field">Correo
+                  <input class="company-detail-input" type="email" name="contact_general_email" value="<%= company.contact_general_email || '' %>" readonly data-editable>
+                </label>
+                <label class="app-field">Puesto
+                  <input class="company-detail-input" type="text" name="contact_general_position" value="<%= company.contact_general_position || '' %>" readonly data-editable>
+                </label>
+              </div>
+            </div>
+
+            <div class="master-contact-section">
+              <h3>Contacto de pagos</h3>
+              <div class="master-detail-grid">
+                <label class="app-field">Nombre
+                  <input class="company-detail-input" type="text" name="contact_payments_first_name" value="<%= company.contact_payments_first_name || '' %>" readonly data-editable>
+                </label>
+                <label class="app-field">Apellido
+                  <input class="company-detail-input" type="text" name="contact_payments_last_name" value="<%= company.contact_payments_last_name || '' %>" readonly data-editable>
+                </label>
+                <label class="app-field">Telefono
+                  <input class="company-detail-input" type="text" name="contact_payments_phone" value="<%= company.contact_payments_phone || '' %>" readonly data-editable>
+                </label>
+                <label class="app-field">Celular
+                  <input class="company-detail-input" type="text" name="contact_payments_mobile" value="<%= company.contact_payments_mobile || '' %>" readonly data-editable>
+                </label>
+                <label class="app-field">Correo
+                  <input class="company-detail-input" type="email" name="contact_payments_email" value="<%= company.contact_payments_email || '' %>" readonly data-editable>
+                </label>
+                <label class="app-field">Puesto
+                  <input class="company-detail-input" type="text" name="contact_payments_position" value="<%= company.contact_payments_position || '' %>" readonly data-editable>
+                </label>
+              </div>
+            </div>
+
+            <div class="master-contact-section">
+              <h3>Contacto operativo</h3>
+              <div class="master-detail-grid">
+                <label class="app-field">Nombre
+                  <input class="company-detail-input" type="text" name="contact_ops_first_name" value="<%= company.contact_ops_first_name || '' %>" readonly data-editable>
+                </label>
+                <label class="app-field">Apellido
+                  <input class="company-detail-input" type="text" name="contact_ops_last_name" value="<%= company.contact_ops_last_name || '' %>" readonly data-editable>
+                </label>
+                <label class="app-field">Telefono
+                  <input class="company-detail-input" type="text" name="contact_ops_phone" value="<%= company.contact_ops_phone || '' %>" readonly data-editable>
+                </label>
+                <label class="app-field">Celular
+                  <input class="company-detail-input" type="text" name="contact_ops_mobile" value="<%= company.contact_ops_mobile || '' %>" readonly data-editable>
+                </label>
+                <label class="app-field">Correo
+                  <input class="company-detail-input" type="email" name="contact_ops_email" value="<%= company.contact_ops_email || '' %>" readonly data-editable>
+                </label>
+                <label class="app-field">Puesto
+                  <input class="company-detail-input" type="text" name="contact_ops_position" value="<%= company.contact_ops_position || '' %>" readonly data-editable>
+                </label>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section class="company-section-panel" data-panel="usuarios" hidden>
+          <section class="company-detail-card app-card">
+            <div class="app-card-header">
+              <div>
+                <h2 class="company-detail-section-title">Usuarios asociados</h2>
+                <p class="muted">Usuarios creados dentro de la empresa.</p>
+              </div>
+            </div>
+            <div class="app-table-wrap company-users-table-wrap">
+              <table class="app-table company-detail-table company-users-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    <th>Creado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% if (!users || !users.length) { %>
+                  <tr>
+                    <td colspan="4">No hay usuarios registrados.</td>
+                  </tr>
+                  <% } %>
+                  <% (users || []).forEach(user => { %>
+                  <tr>
+                    <td><%= user.id %></td>
+                    <td><%= user.username %></td>
+                    <td><%= user.role %></td>
+                    <td><%= user.created_at || '-' %></td>
+                  </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="company-section-panel" data-panel="configuracion" hidden>
+          <section class="company-detail-card app-card company-form-card">
+            <div class="app-card-header">
+              <div>
+                <h2 class="company-detail-section-title">Configuracion</h2>
+                <p class="muted">Monedas, impuestos y apariencia base del tenant.</p>
+              </div>
+            </div>
+            <div class="master-detail-grid company-form-grid">
+              <label class="app-field">Moneda base
+                <input class="company-detail-input" type="text" name="base_currency" value="<%= company.base_currency || company.currency || '' %>" readonly data-editable>
+              </label>
+              <label class="app-field">Monedas permitidas
+                <input class="company-detail-input" type="text" name="allowed_currencies" value="<%= company.allowed_currencies || '' %>" readonly data-editable>
+              </label>
+              <label class="app-field">Impuesto base
+                <input class="company-detail-input" type="number" name="tax_rate" value="<%= company.tax_rate || '' %>" readonly data-editable>
+              </label>
+              <label class="app-field">Nombre del impuesto
+                <input class="company-detail-input" type="text" name="tax_name" value="<%= company.tax_name || '' %>" readonly data-editable>
+              </label>
+              <label class="app-field">Costeo
+                <input class="company-detail-input" type="text" name="costing_method" value="<%= company.costing_method || '' %>" readonly data-editable>
+              </label>
+              <label class="app-field">Moneda anterior
+                <input class="company-detail-input" type="text" name="currency" value="<%= company.currency || '' %>" readonly data-editable>
+              </label>
+              <label class="app-field">Color primario
+                <input class="company-detail-input" type="color" name="primary_color" value="<%= company.primary_color || '#26445f' %>" disabled data-editable data-lock="disabled">
+              </label>
+              <label class="app-field">Color secundario
+                <input class="company-detail-input" type="color" name="secondary_color" value="<%= company.secondary_color || '#247c7a' %>" disabled data-editable data-lock="disabled">
+              </label>
+            </div>
+          </section>
+        </section>
+
+        <section class="company-section-panel" data-panel="modulos" hidden>
+          <section class="company-detail-card app-card company-form-card">
+            <div class="app-card-header">
+              <div>
+                <h2 class="company-detail-section-title">Modulos activos</h2>
+                <p class="muted">La actividad seleccionada define los modulos habilitados para esta empresa.</p>
+              </div>
+            </div>
+            <div class="master-detail-grid company-form-grid">
+              <label class="app-field">Actividad
+                <select class="company-detail-input" name="activity_id" disabled data-editable data-lock="disabled" data-activity-select>
+                  <option value="" disabled <%= !company.activity_id ? 'selected' : '' %>>Selecciona una actividad</option>
+                  <% (activities || []).forEach(activity => { %>
+                    <option value="<%= activity.id %>" <%= String(company.activity_id || '') === String(activity.id) ? 'selected' : '' %>>
+                      <%= activity.name %>
+                    </option>
+                  <% }) %>
+                </select>
+              </label>
+              <div class="app-field master-readonly-field">
+                <span>Modulos visibles</span>
+                <strong data-activity-modules-count><%= currentActivityModules.length %></strong>
+              </div>
+              <div class="app-field master-field-wide master-activity-modules">
+                <span class="master-activity-modules__label">Modulos de la actividad</span>
+                <p class="master-activity-modules__hint">Al cambiar la actividad, estos modulos se actualizaran y quedaran asociados al guardar los cambios.</p>
+                <div class="master-activity-modules__list" data-activity-modules-list>
+                  <% if (currentActivityModules.length) { %>
+                    <% currentActivityModules.forEach((moduleItem) => { %>
+                      <article class="master-activity-module-card">
+                        <strong><%= moduleItem.label %></strong>
+                        <small><%= moduleItem.code %></small>
+                      </article>
+                    <% }) %>
+                  <% } else { %>
+                    <div class="master-activity-modules__empty" data-activity-modules-empty>
+                      Esta actividad no tiene modulos visibles configurados.
+                    </div>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section class="company-section-panel" data-panel="documentos" hidden>
+          <section class="company-detail-card app-card">
+            <div class="app-card-header">
+              <div>
+                <h2 class="company-detail-section-title">Documentos / logo</h2>
+                <p class="muted">Referencia visual del logo actual y del archivo asociado a la empresa.</p>
+              </div>
+            </div>
+            <div class="company-logo-panel" data-logo-panel>
+              <div class="company-logo-panel__preview" data-logo-preview-frame>
+                <% if (companyLogoUrl) { %>
+                <img id="logoPreview" src="<%= companyLogoUrl %>" alt="Logo de <%= company.name || 'la empresa' %>">
+                <% } else { %>
+                <span><%= companyInitials %></span>
+                <% } %>
+              </div>
+              <div class="company-logo-panel__content">
+                <div class="master-status-grid company-logo-panel__meta">
+                  <div>
+                    <span class="app-field-caption">Logo actual</span>
+                    <strong><%= companyLogoUrl ? 'Cargado' : 'Sin logo' %></strong>
+                  </div>
+                  <div>
+                    <span class="app-field-caption">Archivo</span>
+                    <strong><%= companyLogoFileName || 'No registrado' %></strong>
+                  </div>
+                  <div>
+                    <span class="app-field-caption">Seleccionado</span>
+                    <strong data-logo-selection-name>Ningun cambio</strong>
+                  </div>
+                </div>
+                <p class="company-logo-panel__note">
+                  El logo actual se conserva hasta que guardes correctamente. Formatos permitidos: PNG, JPG, JPEG, WEBP y SVG. Tamano maximo: 5 MB.
+                </p>
+                <div class="company-logo-upload" data-logo-editor hidden>
+                  <input
+                    type="file"
+                    id="companyLogo"
+                    name="logo"
+                    accept=".png,.jpg,.jpeg,.webp,.svg"
+                    disabled
+                    data-logo-input
+                  />
+                  <div class="company-logo-panel__upload-actions">
+                    <label class="btn app-btn company-logo-upload__trigger" for="companyLogo">Cambiar logo</label>
+                    <span class="company-logo-upload__text" data-logo-name>Conservar logo actual</span>
+                  </div>
+                  <p class="company-logo-panel__helper">
+                    Selecciona un nuevo logo para ver la vista previa antes de guardar.
+                  </p>
+                  <p class="company-logo-panel__error" data-logo-error hidden></p>
+                </div>
+                <% if (company.logo) { %>
+                <div class="app-note-card company-logo-panel__path">
+                  <div class="app-note-meta">Ruta registrada</div>
+                  <div class="app-prewrap"><%= company.logo %></div>
+                </div>
+                <% } %>
+              </div>
+            </div>
+          </section>
+        </section>
+      </form>
+    </div>
+  </div>
 </main>
 
 <script>
@@ -359,7 +549,112 @@
     const cancelBtn = document.querySelector('[data-company-cancel]');
     if (!form || !editBtn || !saveBtn || !cancelBtn) return;
 
+    const activitySelect = form.querySelector('[data-activity-select]');
+    const modulesList = document.querySelector('[data-activity-modules-list]');
+    const modulesCount = document.querySelector('[data-activity-modules-count]');
     const inputs = Array.from(form.querySelectorAll('[data-editable]'));
+    const activityModulesMap = <%- JSON.stringify(activityModulesMap).replace(/</g, '\\u003c') %>;
+    const sectionButtons = Array.from(document.querySelectorAll('[data-section]'));
+    const sectionPanels = Array.from(document.querySelectorAll('[data-panel]'));
+    const deactivateButton = document.querySelector('[data-deactivate-submit]');
+    const renewButton = document.querySelector('[data-renew-submit]');
+    const inactiveReasonField = form.querySelector('textarea[name="inactive_reason"]');
+    const activeFromField = form.querySelector('input[name="active_from"]');
+    const activeUntilField = form.querySelector('input[name="active_until"]');
+    const logoEditor = form.querySelector('[data-logo-editor]');
+    const logoInput = form.querySelector('[data-logo-input]');
+    const logoPreviewFrame = form.querySelector('[data-logo-preview-frame]');
+    const logoName = form.querySelector('[data-logo-name]');
+    const logoSelectionName = form.querySelector('[data-logo-selection-name]');
+    const logoError = form.querySelector('[data-logo-error]');
+    const initialLogoMarkup = logoPreviewFrame ? logoPreviewFrame.innerHTML : '';
+    let hasLogoValidationError = false;
+
+    const allowedLogoExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.svg'];
+    const allowedLogoMimeTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+    const maxLogoSizeBytes = 5 * 1024 * 1024;
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function renderActivityModules(activityId) {
+      if (!modulesList) return;
+      const modules = activityModulesMap[String(activityId || '')] || [];
+      if (modulesCount) modulesCount.textContent = String(modules.length);
+      if (!modules.length) {
+        modulesList.innerHTML = '<div class="master-activity-modules__empty" data-activity-modules-empty>Esta actividad no tiene modulos visibles configurados.</div>';
+        return;
+      }
+      modulesList.innerHTML = modules.map((moduleItem) => `
+        <article class="master-activity-module-card">
+          <strong>${escapeHtml(moduleItem.label)}</strong>
+          <small>${escapeHtml(moduleItem.code)}</small>
+        </article>
+      `).join('');
+    }
+
+    function showSection(section) {
+      sectionButtons.forEach((button) => {
+        const isActive = button.dataset.section === section;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-current', isActive ? 'true' : 'false');
+      });
+      sectionPanels.forEach((panel) => {
+        const isActive = panel.dataset.panel === section;
+        panel.classList.toggle('active', isActive);
+        panel.hidden = !isActive;
+      });
+    }
+
+    function renderLogoPreview(src, alt) {
+      if (!logoPreviewFrame) return;
+      if (!src) {
+        logoPreviewFrame.innerHTML = initialLogoMarkup;
+        return;
+      }
+      logoPreviewFrame.innerHTML = `<img id="logoPreview" src="${escapeHtml(src)}" alt="${escapeHtml(alt || 'Vista previa del logo')}" />`;
+    }
+
+    function setLogoError(message) {
+      hasLogoValidationError = Boolean(message);
+      if (logoError) {
+        logoError.hidden = !message;
+        logoError.textContent = message || '';
+      }
+      saveBtn.disabled = !editBtn.disabled ? true : hasLogoValidationError;
+    }
+
+    function resetLogoSelection() {
+      if (logoInput) logoInput.value = '';
+      if (logoName) logoName.textContent = 'Conservar logo actual';
+      if (logoSelectionName) logoSelectionName.textContent = 'Ningun cambio';
+      renderLogoPreview('');
+      setLogoError('');
+    }
+
+    function validateLogoFile(file) {
+      if (!file) return '';
+      const fileName = String(file.name || '').toLowerCase();
+      const mimeType = String(file.type || '').toLowerCase();
+      const hasValidExtension = allowedLogoExtensions.some((extension) => fileName.endsWith(extension));
+      const hasValidMimeType = allowedLogoMimeTypes.includes(mimeType);
+      if (!hasValidExtension || !hasValidMimeType) {
+        return 'El archivo debe estar en formato PNG, JPG, JPEG, WEBP o SVG.';
+      }
+      if (!Number.isFinite(Number(file.size)) || Number(file.size) <= 0) {
+        return 'Selecciona un archivo valido y no vacio.';
+      }
+      if (Number(file.size) > maxLogoSizeBytes) {
+        return 'El logo no puede superar los 5 MB.';
+      }
+      return '';
+    }
 
     function setEditing(isEditing) {
       inputs.forEach((input) => {
@@ -369,7 +664,9 @@
           input.readOnly = !isEditing;
         }
       });
-      saveBtn.disabled = !isEditing;
+      if (logoEditor) logoEditor.hidden = !isEditing;
+      if (logoInput) logoInput.disabled = !isEditing;
+      saveBtn.disabled = !isEditing || hasLogoValidationError;
       cancelBtn.disabled = !isEditing;
       editBtn.disabled = isEditing;
     }
@@ -377,8 +674,72 @@
     editBtn.addEventListener('click', () => setEditing(true));
     cancelBtn.addEventListener('click', () => {
       form.reset();
+      resetLogoSelection();
+      if (activitySelect) renderActivityModules(activitySelect.value);
       setEditing(false);
     });
+    sectionButtons.forEach((button) => {
+      button.addEventListener('click', () => showSection(button.dataset.section));
+    });
+    if (deactivateButton && inactiveReasonField) {
+      deactivateButton.addEventListener('click', (event) => {
+        if (inactiveReasonField.value.trim()) return;
+        event.preventDefault();
+        inactiveReasonField.focus();
+      });
+    }
+    if (renewButton && activeFromField && activeUntilField) {
+      renewButton.addEventListener('click', (event) => {
+        if (activeFromField.disabled) activeFromField.disabled = false;
+        if (activeUntilField.disabled) activeUntilField.disabled = false;
+        if (activeFromField.value && activeUntilField.value) return;
+        event.preventDefault();
+        setEditing(true);
+        if (!activeFromField.value) {
+          activeFromField.focus();
+          return;
+        }
+        activeUntilField.focus();
+      });
+    }
+    if (activitySelect) {
+      activitySelect.addEventListener('change', () => renderActivityModules(activitySelect.value));
+      renderActivityModules(activitySelect.value);
+    }
+    if (logoInput) {
+      logoInput.addEventListener('change', (event) => {
+        const file = event.target.files && event.target.files[0];
+        if (!file) {
+          resetLogoSelection();
+          return;
+        }
+        const validationMessage = validateLogoFile(file);
+        if (validationMessage) {
+          resetLogoSelection();
+          setLogoError(validationMessage);
+          return;
+        }
+        if (logoName) logoName.textContent = file.name;
+        if (logoSelectionName) logoSelectionName.textContent = file.name;
+        setLogoError('');
+        const reader = new FileReader();
+        reader.onload = (loadEvent) => {
+          renderLogoPreview(loadEvent && loadEvent.target ? loadEvent.target.result : '', `Vista previa de ${file.name}`);
+        };
+        reader.onerror = () => {
+          resetLogoSelection();
+          setLogoError('No se pudo generar la vista previa del logo.');
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    form.addEventListener('submit', (event) => {
+      if (event.submitter !== saveBtn) return;
+      if (!hasLogoValidationError) return;
+      event.preventDefault();
+    });
+    showSection('estado-empresa');
+    setEditing(false);
   })();
 </script>
 <script src="/status-footer.js" defer></script>

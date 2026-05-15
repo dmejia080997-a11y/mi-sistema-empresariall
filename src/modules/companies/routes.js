@@ -1,4 +1,15 @@
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+const COMPANY_LOGO_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+const COMPANY_LOGO_ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg']);
+const COMPANY_LOGO_ALLOWED_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/svg+xml'
+]);
 
 function registerCompanyRoutes(app, deps) {
   const {
@@ -16,10 +27,54 @@ function registerCompanyRoutes(app, deps) {
     normalizeString,
     parseCurrencyList,
     resolveCompanyActiveWindow,
+    resolveCompanyDisplayName,
+    createCompanySlug,
     seedAccountingCategories,
     seedNifCatalog,
     getIsStartingUp
   } = deps;
+
+  function getCompanyRedirectTarget(req, fallback) {
+    const returnTo = String((req.body && req.body.return_to) || '').trim();
+    if (returnTo && returnTo.startsWith('/')) return returnTo;
+    return fallback;
+  }
+
+  function cleanupUploadedFile(file) {
+    if (!file || !file.path) return;
+    try {
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+    } catch (cleanupError) {
+      console.warn('[companies/logo] cleanup failed', cleanupError.message);
+    }
+  }
+
+  function validateCompanyLogoFile(file) {
+    if (!file) return null;
+    const extension = path.extname(file.originalname || '').toLowerCase();
+    const mimeType = String(file.mimetype || '').toLowerCase();
+    if (!COMPANY_LOGO_ALLOWED_EXTENSIONS.has(extension) || !COMPANY_LOGO_ALLOWED_MIME_TYPES.has(mimeType)) {
+      return 'El logo debe estar en formato PNG, JPG, JPEG, WEBP o SVG.';
+    }
+    if (!Number.isFinite(Number(file.size)) || Number(file.size) <= 0) {
+      return 'Selecciona un archivo de logo valido y no vacio.';
+    }
+    if (Number(file.size) > COMPANY_LOGO_MAX_SIZE_BYTES) {
+      return 'El logo no puede superar los 5 MB.';
+    }
+    return null;
+  }
+
+  function handleCompanyLogoUpload(fieldName) {
+    return (req, res, next) => {
+      companyLogoUpload.single(fieldName)(req, res, (err) => {
+        if (err) {
+          req.companyLogoUploadError = err;
+        }
+        next();
+      });
+    };
+  }
 
   function createCompanyAdminIfMissing({ companyId, tempPassword, passwordHash, req, onSuccess, onError }) {
     if (getIsStartingUp()) {
@@ -420,8 +475,17 @@ function registerCompanyRoutes(app, deps) {
   });
 
 
-  app.post('/companies/:id/update', requireMaster, (req, res) => {
+  app.post('/companies/:id/update', requireMaster, handleCompanyLogoUpload('logo'), csrfMiddleware, (req, res) => {
     const id = req.params.id;
+    const redirectTarget = getCompanyRedirectTarget(req, `/master/companies/${id}`);
+    const uploadError = req.companyLogoUploadError;
+    if (uploadError) {
+      const message = uploadError.code === 'LIMIT_FILE_SIZE'
+        ? 'El logo no puede superar los 5 MB.'
+        : 'No se pudo procesar el archivo del logo.';
+      setFlash(req, 'error', message);
+      return res.redirect(redirectTarget);
+    }
     loadBusinessActivities((activities) => {
       const {
         name, legal_name, address, tax_address, phone, nit, employees, business_type, activity_id, country, base_currency, allowed_currencies,
@@ -431,19 +495,31 @@ function registerCompanyRoutes(app, deps) {
         contact_ops_first_name, contact_ops_last_name, contact_ops_phone, contact_ops_mobile, contact_ops_email, contact_ops_position
       } = req.body;
 
-      if (!name || !username) return res.redirect('/master');
+      if (!name || !username) {
+        cleanupUploadedFile(req.file);
+        return res.redirect('/master');
+      }
+
+      const logoValidationError = validateCompanyLogoFile(req.file);
+      if (logoValidationError) {
+        cleanupUploadedFile(req.file);
+        setFlash(req, 'error', logoValidationError);
+        return res.redirect(redirectTarget);
+      }
 
       const activityId = Number(activity_id);
       const activityMap = new Map((activities || []).map((row) => [Number(row.id), row]));
       const selectedActivity = activityMap.get(activityId);
       if (!Number.isInteger(activityId) || activityId <= 0 || !selectedActivity) {
+        cleanupUploadedFile(req.file);
         setFlash(req, 'error', 'Selecciona una actividad valida.');
-        return res.redirect(`/master/companies/${id}`);
+        return res.redirect(redirectTarget);
       }
       const allowedModules = normalizeAllowedModules(parseJsonList(selectedActivity.modules_json));
       if (!allowedModules.length) {
+        cleanupUploadedFile(req.file);
         setFlash(req, 'error', 'La actividad seleccionada no tiene modulos habilitados.');
-        return res.redirect(`/master/companies/${id}`);
+        return res.redirect(redirectTarget);
       }
 
       const baseCurrency = base_currency || currency || 'GTQ';
@@ -455,31 +531,84 @@ function registerCompanyRoutes(app, deps) {
       const accountingMethodValue = 'accrual';
       const currencyLegacy = baseCurrency;
 
-      db.run(
-        `
-      UPDATE companies
-      SET name = ?, legal_name = ?, address = ?, tax_address = ?, phone = ?, nit = ?, employees = ?, business_type = ?, activity_id = ?, allowed_modules = ?, country = ?, base_currency = ?, allowed_currencies = ?, tax_rate = ?, tax_name = ?, costing_method = ?, multi_currency_enabled = ?, accounting_method = ?, currency = ?,
-          username = ?, primary_color = ?, secondary_color = ?, active_from = ?, active_until = ?,
-          contact_general_first_name = ?, contact_general_last_name = ?, contact_general_phone = ?, contact_general_mobile = ?, contact_general_email = ?, contact_general_position = ?,
-          contact_payments_first_name = ?, contact_payments_last_name = ?, contact_payments_phone = ?, contact_payments_mobile = ?, contact_payments_email = ?, contact_payments_position = ?,
-          contact_ops_first_name = ?, contact_ops_last_name = ?, contact_ops_phone = ?, contact_ops_mobile = ?, contact_ops_email = ?, contact_ops_position = ?
-      WHERE id = ?
-      `,
-        [
-          name, legal_name || null, address, tax_address || null, phone, nit, employees, business_type, activityId, JSON.stringify(allowedModules),
-          country, baseCurrency, allowedCurrencies, taxRateValue, taxNameValue, costingMethodValue, multiCurrencyValue, accountingMethodValue, currencyLegacy,
-          username, primary_color, secondary_color, active_from || null, active_until || null,
-          contact_general_first_name || null, contact_general_last_name || null, contact_general_phone || null, contact_general_mobile || null, contact_general_email || null, contact_general_position || null,
-          contact_payments_first_name || null, contact_payments_last_name || null, contact_payments_phone || null, contact_payments_mobile || null, contact_payments_email || null, contact_payments_position || null,
-          contact_ops_first_name || null, contact_ops_last_name || null, contact_ops_phone || null, contact_ops_mobile || null, contact_ops_email || null, contact_ops_position || null,
-          id
-        ],
-        (err) => {
-          if (err) setFlash(req, 'error', 'No se pudo guardar la empresa.');
-          else setFlash(req, 'success', 'Cambios guardados correctamente.');
-          return res.redirect(`/master/companies/${id}`);
+      db.get('SELECT id, logo FROM companies WHERE id = ?', [id], (companyErr, company) => {
+        if (companyErr || !company) {
+          cleanupUploadedFile(req.file);
+          setFlash(req, 'error', 'No se encontro la empresa.');
+          return res.redirect('/master');
         }
-      );
+
+        const resolvedLogo = req.file ? req.file.path : (company.logo || null);
+
+        db.run(
+          `
+        UPDATE companies
+        SET name = ?, legal_name = ?, address = ?, tax_address = ?, phone = ?, nit = ?, employees = ?, business_type = ?, activity_id = ?, allowed_modules = ?, country = ?, base_currency = ?, allowed_currencies = ?, tax_rate = ?, tax_name = ?, costing_method = ?, multi_currency_enabled = ?, accounting_method = ?, currency = ?,
+            logo = ?, username = ?, primary_color = ?, secondary_color = ?, active_from = ?, active_until = ?,
+            contact_general_first_name = ?, contact_general_last_name = ?, contact_general_phone = ?, contact_general_mobile = ?, contact_general_email = ?, contact_general_position = ?,
+            contact_payments_first_name = ?, contact_payments_last_name = ?, contact_payments_phone = ?, contact_payments_mobile = ?, contact_payments_email = ?, contact_payments_position = ?,
+            contact_ops_first_name = ?, contact_ops_last_name = ?, contact_ops_phone = ?, contact_ops_mobile = ?, contact_ops_email = ?, contact_ops_position = ?
+        WHERE id = ?
+        `,
+          [
+            name, legal_name || null, address, tax_address || null, phone, nit, employees, business_type, activityId, JSON.stringify(allowedModules),
+            country, baseCurrency, allowedCurrencies, taxRateValue, taxNameValue, costingMethodValue, multiCurrencyValue, accountingMethodValue, currencyLegacy,
+            resolvedLogo, username, primary_color, secondary_color, active_from || null, active_until || null,
+            contact_general_first_name || null, contact_general_last_name || null, contact_general_phone || null, contact_general_mobile || null, contact_general_email || null, contact_general_position || null,
+            contact_payments_first_name || null, contact_payments_last_name || null, contact_payments_phone || null, contact_payments_mobile || null, contact_payments_email || null, contact_payments_position || null,
+            contact_ops_first_name || null, contact_ops_last_name || null, contact_ops_phone || null, contact_ops_mobile || null, contact_ops_email || null, contact_ops_position || null,
+            id
+          ],
+          (err) => {
+            if (err) {
+              cleanupUploadedFile(req.file);
+              setFlash(req, 'error', 'No se pudo guardar la empresa.');
+              return res.redirect(redirectTarget);
+            }
+            const refreshSessionAndRedirect = () => {
+              setFlash(req, 'success', req.file ? 'Logo y cambios guardados correctamente.' : 'Cambios guardados correctamente.');
+              return res.redirect(redirectTarget);
+            };
+
+            if (req.session && req.session.company && Number(req.session.company.id) === Number(id)) {
+              const companyName = typeof name === 'string' ? name.trim() : '';
+              const companySlug = createCompanySlug(companyName);
+              req.session.company_name = companyName;
+              req.session.company_slug = companySlug;
+              req.session.company = {
+                ...req.session.company,
+                name: companyName,
+                slug: companySlug,
+                legal_name: legal_name || null,
+                activity_id: activityId,
+                allowed_modules: allowedModules,
+                display_name: resolveCompanyDisplayName({
+                  ...req.session.company,
+                  name: companyName,
+                  legal_name: legal_name || null
+                })
+              };
+
+              if (req.session.user && req.session.user.id) {
+                return getPermissionMap(req.session.user.id, Number(id), allowedModules, (permErr, permissionMap) => {
+                  if (permErr) {
+                    console.error('[companies/update] permission map refresh failed', permErr);
+                    req.session.permissionMap = {
+                      ...(req.session.permissionMap || {}),
+                      allowedModules: allowedModules
+                    };
+                  } else {
+                    req.session.permissionMap = permissionMap;
+                  }
+                  return refreshSessionAndRedirect();
+                });
+              }
+            }
+
+            return refreshSessionAndRedirect();
+          }
+        );
+      });
     });
   });
 

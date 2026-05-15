@@ -3,289 +3,1435 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>
-<%= t('invoices.title') %>
-</title>
+<title>Facturacion ERP</title>
 <%- include('partials/head-assets') %>
+<link rel="stylesheet" href="/css/invoices.css" />
 </head>
-<body class="page invoices-page">
-<%- include('partials/header') %>
-<main class="container invoices-module app-module">
-<%- include('partials/page-shell', {
-  pageTitle: t('invoices.title'),
-  pageSubtitle: t('invoices.history')
+<%
+  const formatMoney = (currency, amount) => `${currency || company.baseCurrency} ${Number(amount || 0).toFixed(2)}`;
+  const formatDate = (value) => {
+    if (!value) return 'Sin fecha';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString('es-GT', { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+  const formatDateTime = (value) => {
+    if (!value) return 'Sin registro';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleString('es-GT', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+  const createTabActive = ['nueva-factura', 'manual', 'desde-inventario'].includes(activeTab);
+  const listTabActive = ['facturas', 'emitidas', 'pagadas', 'anuladas', 'pendientes'].includes(activeTab);
+  const showDashboard = activeTab === 'dashboard';
+  const showHistory = activeTab === 'historial-clientes';
+  const showReports = activeTab === 'reportes';
+  const showInsights = showDashboard || showReports;
+  const showFilterPanel = listTabActive || showHistory || showReports;
+  const draftMode = draftForm && draftForm.mode === 'inventory' ? 'inventory' : 'manual';
+  const publicTabMap = {
+    'nueva-factura': 'nueva',
+    'desde-inventario': 'inventario',
+    'historial-clientes': 'historial'
+  };
+  const toPublicTab = (tab) => publicTabMap[tab] || tab || 'dashboard';
+  const currentTabParam = toPublicTab(activeTab);
+  const createPanelKey = toPublicTab(activeTab);
+  const listPanelMeta = {
+    facturas: {
+      key: 'facturas',
+      title: 'Listado de facturas',
+      description: 'Consulta el historial general de facturas con accesos a preview, PDF y detalle.'
+    },
+    pendientes: {
+      key: 'pendientes',
+      title: 'Facturas pendientes',
+      description: 'Solo se muestran facturas pendientes de firma segun los filtros activos.'
+    },
+    emitidas: {
+      key: 'emitidas',
+      title: 'Facturas emitidas',
+      description: 'Facturas emitidas y listas para seguimiento, cobro o reenvio.'
+    },
+    pagadas: {
+      key: 'pagadas',
+      title: 'Facturas pagadas',
+      description: 'Facturas liquidadas completamente dentro del periodo seleccionado.'
+    },
+    anuladas: {
+      key: 'anuladas',
+      title: 'Facturas anuladas',
+      description: 'Documentos anulados con sus accesos de consulta y trazabilidad.'
+    }
+  };
+  const activeListPanel = listPanelMeta[activeTab] || listPanelMeta.facturas;
+  const draftInvoiceLanguage = draftForm && draftForm.invoiceLanguage === 'en' ? 'en' : 'es';
+  const invoiceTextMap = {
+    es: {
+      invoice: 'Factura',
+      customer: 'Cliente',
+      dueDate: 'Fecha de vencimiento',
+      paymentMethod: 'Metodo',
+      detail: 'Descripcion',
+      total: 'Total',
+      subtotal: 'Subtotal',
+      taxes: 'Impuestos',
+      discounts: 'Descuentos',
+      notes: 'Observaciones',
+      noDate: 'Sin fecha',
+      noMethod: 'Sin definir',
+      noNotes: 'Sin observaciones.',
+      manualLine: 'Linea manual',
+      preview: 'Vista previa'
+    },
+    en: {
+      invoice: 'Invoice',
+      customer: 'Customer',
+      dueDate: 'Due Date',
+      paymentMethod: 'Method',
+      detail: 'Description',
+      total: 'Total',
+      subtotal: 'Subtotal',
+      taxes: 'Taxes',
+      discounts: 'Discounts',
+      notes: 'Notes',
+      noDate: 'No date',
+      noMethod: 'Not defined',
+      noNotes: 'No notes.',
+      manualLine: 'Manual line',
+      preview: 'Preview'
+    }
+  };
+  const draftInvoiceText = invoiceTextMap[draftInvoiceLanguage];
+  const createPanelMeta = {
+    'nueva-factura': {
+      title: 'Nueva factura',
+      description: 'Inicia una factura nueva y elige si las lineas seran manuales o tomadas de inventario.'
+    },
+    manual: {
+      title: 'Facturacion manual',
+      description: 'Captura conceptos libres, servicios o ajustes sin depender del catalogo de inventario.'
+    },
+    'desde-inventario': {
+      title: 'Facturacion desde inventario',
+      description: 'Trabaja sobre productos del catalogo y conserva el flujo existente de stock y emision.'
+    }
+  };
+  const activeCreatePanel = createPanelMeta[activeTab] || createPanelMeta['nueva-factura'];
+  const summaryLabels = {
+    compareDelta: dashboard.compareDelta >= 0 ? 'Variacion positiva' : 'Variacion negativa'
+  };
+%>
+<body class="page invoice-erp-page">
+<%- include('partials/header', {
+  moduleTabs,
+  activeTab,
+  currentModule: 'invoices'
 }) %>
-<section class="panel app-panel">
-<div class="panel-header app-panel-header">
-<div>
-<h2>
-<%= t('invoices.create_invoice') %>
-</h2>
-</div>
-</div>
-<% if (error) { %>
-<div class="alert app-message app-message-error error">
-<%= error %>
-</div>
-<% } %>
-<form method="POST" action="/invoices/create" class="form app-form-grid" id="invoice-form" data-base-currency="<%= companySettings.baseCurrency %>">
-<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-<div class="invoice-form-grid">
-<label>
-<%= t('invoices.customer') %>
-<select name="customer_id">
-<option value="">
-<%= t('invoices.walk_in_unassigned') %>
-</option>
-<% customers.forEach(c => { %>
-<option value="<%= c.id %>">
-<%= c.customer_code ? `${c.customer_code} - ` : '' %><%= c.name %>
-</option>
-<% }) %>
-</select>
-</label>
-<label>
-<%= t('invoices.currency') %>
-<select name="currency" id="invoice-currency">
-<% companySettings.allowedCurrencies.forEach(curr => { %>
-<option value="<%= curr %>" <%= curr === companySettings.baseCurrency ? 'selected' : '' %>>
-<%= curr %>
-</option>
-<% }) %>
-</select>
-</label>
-<label id="exchange-rate-field">
-<%= t('invoices.exchange_rate') %> (<%= companySettings.baseCurrency %>)
-<input type="number" name="exchange_rate" min="0" step="0.0001" value="1" id="exchange-rate" />
-</label>
-<label>
-<%= t('invoices.tax_default') %>
-<input type="number" name="tax_rate" min="0" step="0.01" value="<%= companySettings.taxRate != null ? Number(companySettings.taxRate).toFixed(2) : 0 %>" id="tax-rate" />
-</label>
-<label>
-<%= t('invoices.discount_type') %>
-<select name="discount_type" id="discount-type">
-<option value="amount">
-<%= t('invoices.fixed_amount') %>
-</option>
-<option value="percent">
-<%= t('invoices.percentage') %>
-</option>
-</select>
-</label>
-<label>
-<%= t('invoices.discount_value') %>
-<input type="number" name="discount_value" min="0" step="0.01" value="0" id="discount-value" />
-</label>
-</div>
-<div class="table app-table-wrap invoice-lines-table">
-<div class="table-row header invoice-items">
-<div>
-<%= t('invoices.table.product') %>
-</div>
-<div>
-<%= t('invoices.table.qty') %>
-</div>
-<div>
-<%= t('invoices.table.unit_price') %>
-</div>
-<div>
-<%= t('invoices.table.line_total') %>
-</div>
-<div>
-<%= t('invoices.table.actions') %>
-</div>
-</div>
-<div id="invoice-lines">
-<div class="table-row invoice-items">
-<select name="item_id" class="line-item">
-<option value="">
-<%= t('invoices.select_product') %>
-</option>
-<% items.forEach(item => { %>
-<option value="<%= item.id %>" data-price="<%= Number(item.price || 0).toFixed(2) %>">
-<%= item.name %> (<%= companySettings.baseCurrency %> <%= Number(item.price || 0).toFixed(2) %>)                  </option>
-<% }) %>
-</select>
-<input type="number" name="qty" min="0" value="1" class="line-qty" />
-<input type="number" name="unit_price" min="0" step="0.01" value="0" class="line-price" />
-<input type="text" class="line-total" value="<%= companySettings.baseCurrency %> 0.00" disabled />
-<div class="actions">
-<button type="button" class="btn danger app-btn app-btn-danger line-remove">
-<%= t('invoices.remove') %>
-</button>
-</div>
-</div>
-</div>
-</div>
-<div class="invoice-actions">
-<button type="button" class="btn app-btn" id="add-line">
-<%= t('invoices.add_line') %>
-</button>
-<div class="invoice-summary">
-<span>
-<%= t('invoices.subtotal') %>
-</span>
-<strong id="invoice-subtotal"><%= companySettings.baseCurrency %> 0.00</strong>
-<span>
-<%= t('invoices.tax') %>
-</span>
-<strong id="invoice-tax"><%= companySettings.baseCurrency %> 0.00</strong>
-<span>
-<%= t('invoices.discount') %>
-</span>
-<strong id="invoice-discount"><%= companySettings.baseCurrency %> 0.00</strong>
-<span>
-<%= t('invoices.total') %>
-</span>
-<strong id="invoice-total"><%= companySettings.baseCurrency %> 0.00</strong>
-</div>
-<button type="submit" class="btn primary app-btn app-btn-primary">
-<%= t('invoices.create_invoice_button') %>
-</button>
-</div>
-</form>
+<main class="container invoice-erp-shell">
+<%- include('partials/page-shell', {
+  pageTitle: 'Facturacion ERP multiempresa',
+  pageSubtitle: 'Facturacion manual, desde inventario, estados, dashboard, PDF profesional e historiales consolidados.'
+}) %>
+
+<%- include('partials/toasts', {
+  flash,
+  error,
+  message: notice ? { type: 'success', message: notice } : null
+}) %>
+
+<% if (showDashboard || showReports) { %>
+<section class="invoice-kpi-grid billing-panel active" data-billing-panel="<%= showDashboard ? 'dashboard' : 'reportes' %>">
+  <article class="invoice-kpi-card">
+    <span class="invoice-kpi-label">Ventas del dia</span>
+    <strong class="invoice-kpi-value"><%= formatMoney(company.baseCurrency, dashboard.dailySales) %></strong>
+  </article>
+  <article class="invoice-kpi-card">
+    <span class="invoice-kpi-label">Ventas del mes</span>
+    <strong class="invoice-kpi-value"><%= formatMoney(company.baseCurrency, dashboard.monthlySales) %></strong>
+  </article>
+  <article class="invoice-kpi-card">
+    <span class="invoice-kpi-label">Ventas del anio</span>
+    <strong class="invoice-kpi-value"><%= formatMoney(company.baseCurrency, dashboard.yearlySales) %></strong>
+  </article>
+  <article class="invoice-kpi-card">
+    <span class="invoice-kpi-label">Total facturado</span>
+    <strong class="invoice-kpi-value"><%= formatMoney(company.baseCurrency, dashboard.totalFactured) %></strong>
+  </article>
+  <article class="invoice-kpi-card">
+    <span class="invoice-kpi-label">Total pendiente</span>
+    <strong class="invoice-kpi-value"><%= formatMoney(company.baseCurrency, dashboard.totalPending) %></strong>
+  </article>
+  <article class="invoice-kpi-card">
+    <span class="invoice-kpi-label">Total anulado</span>
+    <strong class="invoice-kpi-value"><%= formatMoney(company.baseCurrency, dashboard.totalVoided) %></strong>
+  </article>
+  <article class="invoice-kpi-card invoice-kpi-card-accent">
+    <span class="invoice-kpi-label"><%= summaryLabels.compareDelta %></span>
+    <strong class="invoice-kpi-value"><%= formatMoney(company.baseCurrency, dashboard.compareDelta) %></strong>
+    <small class="muted">Periodo previo: <%= formatMoney(company.baseCurrency, dashboard.comparePrevious) %></small>
+  </article>
 </section>
-<section class="panel app-panel">
-<div class="panel-header app-panel-header">
-<div>
-<h2>
-<%= t('invoices.history') %>
-</h2>
-</div>
-</div>
-<div class="table app-table-wrap invoices-table">
-<div class="table-row header invoices">
-<div>
-<%= t('invoices.table.invoice') %>
-</div>
-<div>
-<%= t('invoices.table.customer') %>
-</div>
-<div>
-<%= t('invoices.table.subtotal') %>
-</div>
-<div>
-<%= t('invoices.table.tax') %>
-</div>
-<div>
-<%= t('invoices.table.discount') %>
-</div>
-<div>
-<%= t('invoices.table.total') %>
-</div>
-<div>
-<%= t('invoices.table.created') %>
-</div>
-<div>
-<%= t('invoices.table.actions_header') %>
-</div>
-</div>
-<% if (invoices.length === 0) { %>
-<div class="table-row empty app-empty-state">
-<%= t('invoices.no_invoices') %>
-</div>
 <% } %>
-<% invoices.forEach(inv => { %>
-<div class="table-row invoices app-table-row">
-<div>#<%= inv.id %>
-</div>
-<div>
-<%= inv.customer_code ? `${inv.customer_code} - ` : '' %><%= inv.customer_name || t('common.walk_in') %>
-</div>
-<div><%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.subtotal || 0).toFixed(2) %>
-</div>
-<div><%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.tax_amount || 0).toFixed(2) %> (<%= Number(inv.tax_rate || 0).toFixed(2) %>%)</div>
-<div>              <%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.discount_amount || 0).toFixed(2) %>
-<% if (inv.discount_type === 'percent') { %>                (<%= Number(inv.discount_value || 0).toFixed(2) %>%)              <% } else { %>                (<%= t('invoices.fixed') %>)              <% } %>
-</div>
-<div><%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.total || 0).toFixed(2) %>
-</div>
-<div>
-<%= new Date(inv.created_at).toLocaleString() %>
-</div>
-<div class="actions">
-<a class="btn app-btn" href="/invoices/<%= inv.id %>">
-<%= t('common.view') %>
-</a>
-</div>
-</div>
-<div class="table-row invoices-mobile app-card">
-<div class="invoice-mobile-main">
-<div>
-<strong>#<%= inv.id %>
-</strong>
-<span class="muted">&bull; <%= inv.customer_code ? `${inv.customer_code} - ` : '' %><%= inv.customer_name || t('common.walk_in') %>
-</span>
-</div>
-<div class="invoice-mobile-total"><%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.total || 0).toFixed(2) %>
-</div>
-</div>
-<details class="invoice-mobile-details">
-<summary class="btn app-btn">
-<%= t('invoices.view_breakdown') %>
-</summary>
-<div class="invoice-mobile-grid">
-<div>
-<%= t('invoices.subtotal') %>
-</div>
-<div><%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.subtotal || 0).toFixed(2) %>
-</div>
-<div>
-<%= t('invoices.tax') %>
-</div>
-<div><%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.tax_amount || 0).toFixed(2) %> (<%= Number(inv.tax_rate || 0).toFixed(2) %>%)</div>
-<div>
-<%= t('invoices.discount') %>
-</div>
-<div>                  <%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.discount_amount || 0).toFixed(2) %>
-<% if (inv.discount_type === 'percent') { %>                    (<%= Number(inv.discount_value || 0).toFixed(2) %>%)                  <% } else { %>                    (<%= t('invoices.fixed') %>)                  <% } %>
-</div>
-<div>
-<%= t('invoices.total') %>
-</div>
-<div><%= (inv.currency || companySettings.baseCurrency) %> <%= Number(inv.total || 0).toFixed(2) %>
-</div>
-<div>
-<%= t('invoices.table.created') %>
-</div>
-<div>
-<%= new Date(inv.created_at).toLocaleString() %>
-</div>
-</div>
-<div class="actions">
-<a class="btn app-btn" href="/invoices/<%= inv.id %>">
-<%= t('invoices.view_invoice') %>
-</a>
-</div>
-</details>
-</div>
-<% }) %>
-</div>
+
+<% if (showFilterPanel) { %>
+<section class="panel app-panel invoice-filter-panel">
+  <div class="panel-header app-panel-header">
+    <div>
+      <h2>Filtros por calendario y busqueda</h2>
+      <p class="muted">Aplica filtros por dia, semana, mes, anio o rango personalizado. Todo el modulo respeta `company_id`.</p>
+    </div>
+    <div class="invoice-toolbar-actions">
+      <a class="btn app-btn" href="/invoices/export?tab=<%= encodeURIComponent(currentTabParam) %>&period=<%= encodeURIComponent(filters.period || 'month') %>&from=<%= encodeURIComponent(filters.fromDate || '') %>&to=<%= encodeURIComponent(filters.toDate || '') %>&status=<%= encodeURIComponent(filters.status || '') %>&customer_id=<%= encodeURIComponent(filters.customerId || '') %>&q=<%= encodeURIComponent(filters.query || '') %>">Exportar CSV</a>
+      <a class="btn primary app-btn app-btn-primary" href="/invoices?tab=nueva">Nueva factura</a>
+    </div>
+  </div>
+  <form method="GET" action="/invoices" class="app-filter-grid invoice-filter-grid">
+    <input type="hidden" name="tab" value="<%= currentTabParam %>" />
+    <label class="app-field">
+      <span>Periodo</span>
+      <select name="period">
+        <option value="day" <%= filters.period === 'day' ? 'selected' : '' %>>Dia</option>
+        <option value="week" <%= filters.period === 'week' ? 'selected' : '' %>>Semana</option>
+        <option value="month" <%= filters.period === 'month' ? 'selected' : '' %>>Mes</option>
+        <option value="year" <%= filters.period === 'year' ? 'selected' : '' %>>Anio</option>
+        <option value="custom" <%= filters.period === 'custom' ? 'selected' : '' %>>Rango personalizado</option>
+      </select>
+    </label>
+    <label class="app-field">
+      <span>Desde</span>
+      <input class="app-input" type="date" name="from" value="<%= filters.fromDate || '' %>" />
+    </label>
+    <label class="app-field">
+      <span>Hasta</span>
+      <input class="app-input" type="date" name="to" value="<%= filters.toDate || '' %>" />
+    </label>
+    <label class="app-field">
+      <span>Estado</span>
+      <select name="status">
+        <option value="">Todos</option>
+        <% invoiceStatuses.forEach((statusItem) => { %>
+          <option value="<%= statusItem.key %>" <%= filters.status === statusItem.key ? 'selected' : '' %>><%= statusItem.label %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label class="app-field">
+      <span>Cliente</span>
+      <select name="customer_id">
+        <option value="">Todos</option>
+        <% customers.forEach((customer) => { %>
+          <option value="<%= customer.id %>" <%= String(filters.customerId || '') === String(customer.id) ? 'selected' : '' %>><%= customer.customerCode ? `${customer.customerCode} - ` : '' %><%= customer.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label class="app-field invoice-filter-search">
+      <span>Busqueda avanzada</span>
+      <input class="app-input" type="search" name="q" value="<%= filters.query || '' %>" placeholder="Factura, cliente, codigo, nota..." />
+    </label>
+    <div class="invoice-filter-actions">
+      <button type="submit" class="btn app-btn app-btn-primary primary">Aplicar filtros</button>
+      <a class="btn app-btn" href="/invoices?tab=<%= encodeURIComponent(currentTabParam) %>">Limpiar</a>
+    </div>
+  </form>
 </section>
+<% } %>
+
+<% if (showInsights) { %>
+<section class="invoice-dashboard-grid billing-panel active" data-billing-panel="<%= showDashboard ? 'dashboard' : 'reportes' %>">
+  <article class="panel app-panel invoice-compare-card">
+    <div class="panel-header app-panel-header">
+      <div>
+        <h2>Comparativo del periodo</h2>
+        <p class="muted">Comparacion del total facturado en el rango actual frente al rango anterior equivalente.</p>
+      </div>
+    </div>
+    <div class="invoice-compare-stats">
+      <div class="invoice-compare-block">
+        <span class="muted">Actual</span>
+        <strong><%= formatMoney(company.baseCurrency, dashboard.compareCurrent) %></strong>
+      </div>
+      <div class="invoice-compare-block">
+        <span class="muted">Anterior</span>
+        <strong><%= formatMoney(company.baseCurrency, dashboard.comparePrevious) %></strong>
+      </div>
+      <div class="invoice-compare-block">
+        <span class="muted">Delta</span>
+        <strong class="<%= dashboard.compareDelta >= 0 ? 'invoice-positive' : 'invoice-negative' %>"><%= formatMoney(company.baseCurrency, dashboard.compareDelta) %></strong>
+      </div>
+    </div>
+  </article>
+
+  <article class="panel app-panel invoice-ranking-card">
+    <div class="panel-header app-panel-header">
+      <div>
+        <h2>Clientes top</h2>
+        <p class="muted">Clientes con mayor monto facturado dentro del filtro activo.</p>
+      </div>
+    </div>
+    <% if (!dashboard.topClients.length) { %>
+      <div class="app-empty-state">No hay clientes para este rango.</div>
+    <% } else { %>
+      <div class="invoice-ranking-list">
+        <% dashboard.topClients.forEach((row) => { %>
+          <div class="invoice-ranking-row">
+            <div>
+              <strong><%= row.customerCode ? `${row.customerCode} - ` : '' %><%= row.customerName %></strong>
+              <small class="muted"><%= row.invoiceCount %> facturas · saldo <%= formatMoney(company.baseCurrency, row.balanceDue) %></small>
+            </div>
+            <strong><%= formatMoney(company.baseCurrency, row.totalBilled) %></strong>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </article>
+
+  <article class="panel app-panel invoice-ranking-card">
+    <div class="panel-header app-panel-header">
+      <div>
+        <h2>Productos mas vendidos</h2>
+        <p class="muted">Ranking por cantidad y monto facturado.</p>
+      </div>
+    </div>
+    <% if (!dashboard.topProducts.length) { %>
+      <div class="app-empty-state">No hay productos para este rango.</div>
+    <% } else { %>
+      <div class="invoice-ranking-list">
+        <% dashboard.topProducts.forEach((row) => { %>
+          <div class="invoice-ranking-row">
+            <div>
+              <strong><%= row.lineName %></strong>
+              <small class="muted"><%= row.sku || 'Sin SKU' %> · <%= row.totalQty %> uds.</small>
+            </div>
+            <strong><%= formatMoney(company.baseCurrency, row.totalBilled) %></strong>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </article>
+</section>
+<% } %>
+
+<% if (createTabActive) { %>
+<section class="invoice-workspace billing-panel active" data-billing-panel="<%= createPanelKey %>">
+  <div class="panel app-panel invoice-form-panel">
+    <div class="panel-header app-panel-header">
+      <div>
+        <h2><%= activeCreatePanel.title %></h2>
+        <p class="muted"><%= activeCreatePanel.description %></p>
+      </div>
+    </div>
+
+    <form method="POST" action="/invoices/create" id="invoice-erp-form" class="invoice-erp-form <%= draftMode === 'inventory' ? 'invoice-mode-inventory' : 'invoice-mode-manual' %>">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <input type="hidden" name="active_tab" value="<%= activeTab %>" />
+      <input type="hidden" name="form_mode" id="invoice-form-mode" value="<%= draftMode %>" />
+      <input type="hidden" name="invoice_language" id="invoice-language" value="<%= draftInvoiceLanguage %>" />
+      <input type="hidden" name="lines_json" id="invoice-lines-json" />
+
+      <div class="invoice-create-toolbar">
+        <div class="invoice-toolbar-actions">
+          <button type="button" class="btn app-btn" id="invoice-add-manual-line">Agregar linea manual</button>
+          <button type="button" class="btn app-btn invoice-inventory-only" id="invoice-add-inventory-line">Agregar desde inventario</button>
+          <button type="button" class="btn app-btn" id="invoice-open-preview">Ver vista previa</button>
+        </div>
+        <div class="invoice-toolbar-actions">
+          <div class="invoice-toggle-group" role="group" aria-label="Modo de factura">
+            <button type="button" class="btn app-btn" id="invoice-mode-manual">Modo manual</button>
+            <button type="button" class="btn app-btn" id="invoice-mode-inventory">Modo inventario</button>
+          </div>
+          <div class="invoice-toggle-group" role="group" aria-label="Idioma de factura">
+            <button type="button" class="btn app-btn" id="invoice-language-es">Español</button>
+            <button type="button" class="btn app-btn" id="invoice-language-en">Ingles</button>
+          </div>
+          <button type="submit" class="btn app-btn" name="status" value="draft">Guardar borrador</button>
+          <button type="submit" class="btn primary app-btn app-btn-primary" name="status" value="issued">Emitir factura</button>
+          <button type="button" class="btn app-btn" disabled>Descargar PDF</button>
+          <button type="button" class="btn app-btn" disabled>Descargar Packing List</button>
+        </div>
+      </div>
+
+      <div class="invoice-create-note muted">
+        PDF y Packing List se habilitan despues de guardar la factura. Si necesitas Packing List antes, primero guarda el borrador.
+      </div>
+
+      <div class="invoice-form-grid">
+        <label class="app-field">
+          <span>Cliente</span>
+          <select name="customer_id" id="invoice-customer">
+            <option value="">Mostrador / sin asignar</option>
+            <% customers.forEach((customer) => { %>
+              <option value="<%= customer.id %>" <%= String(draftForm.customerId || '') === String(customer.id) ? 'selected' : '' %>><%= customer.customerCode ? `${customer.customerCode} - ` : '' %><%= customer.name %></option>
+            <% }) %>
+          </select>
+        </label>
+        <label class="app-field">
+          <span>Moneda</span>
+          <select name="currency" id="invoice-currency">
+            <% company.allowedCurrencies.forEach((currencyCode) => { %>
+              <option value="<%= currencyCode %>" <%= draftForm.currency === currencyCode ? 'selected' : '' %>><%= currencyCode %></option>
+            <% }) %>
+          </select>
+        </label>
+        <label class="app-field" id="invoice-exchange-wrap">
+          <span>Tipo de cambio</span>
+          <input class="app-input" type="number" step="0.0001" min="0" name="exchange_rate" id="invoice-exchange-rate" value="<%= draftForm.exchangeRate || '1' %>" />
+        </label>
+        <label class="app-field">
+          <span>Fecha de emision</span>
+          <input class="app-input" type="date" name="issue_date" id="invoice-issue-date" value="<%= draftForm.issueDate %>" />
+        </label>
+        <label class="app-field">
+          <span>Fecha de vencimiento</span>
+          <input class="app-input" type="date" name="due_date" id="invoice-due-date" value="<%= draftForm.dueDate || '' %>" />
+        </label>
+        <label class="app-field">
+          <span>Metodo de pago</span>
+          <select name="payment_method" id="invoice-payment-method">
+            <option value="">Seleccionar</option>
+            <% paymentMethods.forEach((method) => { %>
+              <option value="<%= method %>" <%= draftForm.paymentMethod === method ? 'selected' : '' %>><%= method %></option>
+            <% }) %>
+          </select>
+        </label>
+        <label class="app-field">
+          <span>Estado inicial</span>
+          <select name="status" id="invoice-status">
+            <option value="draft" <%= draftForm.status === 'draft' ? 'selected' : '' %>>Borrador</option>
+            <option value="pending_signature" <%= draftForm.status === 'pending_signature' ? 'selected' : '' %>>Pendiente de firma</option>
+            <option value="issued" <%= draftForm.status === 'issued' ? 'selected' : '' %>>Emitida</option>
+          </select>
+        </label>
+        <label class="app-field">
+          <span>Impuesto base</span>
+          <input class="app-input" type="number" step="0.01" min="0" name="tax_rate" id="invoice-default-tax-rate" value="<%= draftForm.taxRate || 0 %>" />
+        </label>
+      </div>
+
+      <label class="app-field">
+        <span>Observaciones</span>
+        <textarea class="app-textarea" name="notes" id="invoice-notes" rows="3" placeholder="Notas comerciales, terminos, instrucciones o aclaraciones."><%= draftForm.notes || '' %></textarea>
+      </label>
+
+      <div class="invoice-create-layout invoice-create-layout--single">
+        <div class="invoice-create-main">
+          <section class="invoice-line-card">
+            <header class="invoice-line-card__header">
+              <div>
+                <h3>Detalle de lineas</h3>
+                <p class="muted">Cantidad, precio, descuento e impuesto se recalculan en tiempo real.</p>
+              </div>
+              <div class="invoice-inline-actions">
+                <button type="button" class="btn app-btn" id="invoice-clear-lines">Vaciar</button>
+              </div>
+            </header>
+            <div class="invoice-lines-wrapper invoice-lines-table-wrap">
+              <table class="app-table invoice-lines-table">
+                <thead>
+                  <tr>
+                    <th>Origen</th>
+                    <th>Detalle</th>
+                    <th id="invoice-lines-stock-head">SKU / Stock</th>
+                    <th>Cant.</th>
+                    <th>Precio</th>
+                    <th>Desc.</th>
+                    <th>Imp.</th>
+                    <th>Subtotal</th>
+                    <th>Total</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="invoice-lines-body"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="invoice-search-panel invoice-inventory-only" id="invoice-search-panel">
+            <header class="invoice-search-panel__header">
+              <div>
+                <h3>Buscador de inventario</h3>
+                <p class="muted">Busca por nombre, SKU, codigo, categoria o codigo de barras.</p>
+              </div>
+              <span class="app-badge app-badge-info">Stock negativo <%= company.invoiceNegativeStockAllowed ? 'permitido' : 'bloqueado' %></span>
+            </header>
+            <div class="invoice-search-controls">
+              <input class="app-input" type="search" id="inventory-search-input" placeholder="Ej: cable, SKU-1002, ELC, barras..." />
+            </div>
+            <div class="invoice-search-results" id="inventory-search-results">
+              <% inventoryCatalog.slice(0, 12).forEach((item) => { %>
+                <button type="button" class="invoice-search-row" data-item-id="<%= item.id %>">
+                  <span>
+                    <strong><%= item.name %></strong>
+                    <small><%= item.categoryName || 'Sin categoria' %> · <%= item.sku || 'Sin SKU' %></small>
+                  </span>
+                  <span>
+                    <strong><%= formatMoney(company.baseCurrency, item.price) %></strong>
+                    <small>Stock: <%= Number(item.qty || 0).toFixed(2) %></small>
+                  </span>
+                </button>
+              <% }) %>
+            </div>
+          </section>
+
+          <section class="invoice-summary-strip" aria-label="Resumen de factura">
+            <div>
+              <span id="invoice-summary-subtotal-label"><%= draftInvoiceText.subtotal %></span>
+              <strong id="invoice-summary-subtotal"><%= formatMoney(company.baseCurrency, 0) %></strong>
+            </div>
+            <div>
+              <span id="invoice-summary-tax-label"><%= draftInvoiceText.taxes %></span>
+              <strong id="invoice-summary-tax"><%= formatMoney(company.baseCurrency, 0) %></strong>
+            </div>
+            <div>
+              <span id="invoice-summary-discount-label"><%= draftInvoiceText.discounts %></span>
+              <strong id="invoice-summary-discount"><%= formatMoney(company.baseCurrency, 0) %></strong>
+            </div>
+            <div class="invoice-summary-strip__total">
+              <span id="invoice-summary-total-label"><%= draftInvoiceText.total %></span>
+              <strong id="invoice-summary-total"><%= formatMoney(company.baseCurrency, 0) %></strong>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div class="invoice-submit-bar">
+        <div class="invoice-submit-meta">
+          <strong>Auto-stock al emitir:</strong>
+          <span><%= company.invoiceAutoDeductStock ? 'si' : 'no' %></span>
+        </div>
+        <div class="invoice-inline-actions">
+          <button type="submit" class="btn app-btn" name="status" value="draft">Guardar borrador</button>
+          <button type="submit" class="btn app-btn" name="status" value="pending_signature">Pendiente de firma</button>
+          <button type="submit" class="btn primary app-btn app-btn-primary" name="status" value="issued">Emitir factura</button>
+        </div>
+      </div>
+
+      <div class="invoice-preview-modal" id="invoice-preview-modal" hidden aria-hidden="true">
+        <div class="invoice-preview-modal-content" role="dialog" aria-modal="true" aria-labelledby="invoice-preview-modal-title">
+          <div class="invoice-preview-modal-header invoice-preview-actions">
+            <div>
+              <h3 id="invoice-preview-modal-title">Vista previa de factura</h3>
+              <p class="muted">Puedes abrir o descargar el PDF completo sin guardar la factura.</p>
+            </div>
+            <div class="invoice-inline-actions">
+              <button type="button" class="btn app-btn" id="invoice-preview-open-pdf">Abrir PDF completo</button>
+              <button type="button" class="btn app-btn" id="invoice-preview-download">Descargar PDF</button>
+              <button type="submit" class="btn primary app-btn app-btn-primary" name="status" value="issued">Emitir factura</button>
+              <button type="button" class="btn app-btn" id="invoice-preview-close">Cerrar</button>
+            </div>
+          </div>
+
+          <div class="invoice-preview-modal-body invoice-preview-scroll">
+            <div class="invoice-preview-sheet" id="invoice-preview-sheet">
+              <header class="invoice-preview-header">
+                <div class="invoice-preview-brand">
+                  <% if (company.logoUrl) { %>
+                    <img src="<%= company.logoUrl %>" alt="Logo empresa" class="invoice-preview-logo" />
+                  <% } else { %>
+                    <div class="invoice-preview-logo invoice-preview-logo-fallback"><%= (company.name || 'ER').slice(0, 2).toUpperCase() %></div>
+                  <% } %>
+                  <div>
+                    <strong><%= company.name %></strong>
+                    <small><%= company.legalName || company.name %></small>
+                    <small><%= company.nit ? `NIT: ${company.nit}` : 'Sin dato fiscal' %></small>
+                  </div>
+                </div>
+                <div class="invoice-preview-meta">
+                  <span class="invoice-preview-kicker" id="preview-document-title"><%= draftInvoiceText.invoice %></span>
+                  <span class="invoice-preview-badge" id="preview-status-badge">Borrador</span>
+                  <strong id="preview-invoice-number"><%= draftInvoiceText.preview %></strong>
+                  <small id="preview-issue-date"><%= draftForm.issueDate %></small>
+                </div>
+              </header>
+
+              <section class="invoice-preview-customer">
+                <div>
+                  <span class="muted" id="preview-customer-label"><%= draftInvoiceText.customer %></span>
+                  <strong id="preview-customer-name">Mostrador / sin asignar</strong>
+                </div>
+                <div>
+                  <span class="muted" id="preview-due-date-label"><%= draftInvoiceText.dueDate %></span>
+                  <strong id="preview-due-date"><%= draftForm.dueDate || draftInvoiceText.noDate %></strong>
+                </div>
+                <div>
+                  <span class="muted" id="preview-payment-label"><%= draftInvoiceText.paymentMethod %></span>
+                  <strong id="preview-payment-method"><%= draftForm.paymentMethod || draftInvoiceText.noMethod %></strong>
+                </div>
+              </section>
+
+              <section class="invoice-preview-lines">
+                <div class="invoice-preview-lines__head">
+                  <span id="preview-lines-head-detail"><%= draftInvoiceText.detail %></span>
+                  <span id="preview-lines-head-total"><%= draftInvoiceText.total %></span>
+                </div>
+                <div id="invoice-preview-lines-body" class="invoice-preview-lines__body"></div>
+              </section>
+
+              <section class="invoice-preview-summary">
+                <div><span id="preview-subtotal-label"><%= draftInvoiceText.subtotal %></span><strong id="preview-subtotal"><%= formatMoney(company.baseCurrency, 0) %></strong></div>
+                <div><span id="preview-tax-label"><%= draftInvoiceText.taxes %></span><strong id="preview-tax"><%= formatMoney(company.baseCurrency, 0) %></strong></div>
+                <div><span id="preview-discount-label"><%= draftInvoiceText.discounts %></span><strong id="preview-discount"><%= formatMoney(company.baseCurrency, 0) %></strong></div>
+                <div class="invoice-preview-summary__total"><span id="preview-total-label"><%= draftInvoiceText.total %></span><strong id="preview-total"><%= formatMoney(company.baseCurrency, 0) %></strong></div>
+              </section>
+
+              <section class="invoice-preview-notes">
+                <span class="muted" id="preview-notes-label"><%= draftInvoiceText.notes %></span>
+                <p id="preview-notes"><%= draftForm.notes || draftInvoiceText.noNotes %></p>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+</section>
+<% } %>
+
+<% if (listTabActive) { %>
+<section class="panel app-panel billing-panel active" data-billing-panel="<%= activeListPanel.key %>">
+  <div class="panel-header app-panel-header">
+    <div>
+      <h2><%= activeListPanel.title %></h2>
+      <p class="muted"><%= activeListPanel.description %></p>
+    </div>
+  </div>
+  <% if (!invoices.length) { %>
+    <div class="app-empty-state">No hay facturas para los filtros seleccionados.</div>
+  <% } else { %>
+    <div class="invoice-table-stack">
+      <% invoices.forEach((invoice) => { %>
+        <article class="invoice-record-card">
+          <div class="invoice-record-card__head">
+            <div>
+              <div class="invoice-record-title">
+                <strong><%= invoice.invoiceNumber %></strong>
+                <span class="app-badge <%= invoice.statusMeta.badgeClass %>"><%= invoice.statusMeta.label %></span>
+              </div>
+              <p class="muted"><%= invoice.customerCode ? `${invoice.customerCode} - ` : '' %><%= invoice.customerName %></p>
+            </div>
+            <div class="invoice-record-total">
+              <strong><%= formatMoney(invoice.currency, invoice.total) %></strong>
+              <small class="muted">Pendiente: <%= formatMoney(invoice.currency, invoice.balanceDue) %></small>
+            </div>
+          </div>
+          <div class="invoice-record-grid">
+            <div><span class="muted">Emision</span><strong><%= formatDate(invoice.issueDate) %></strong></div>
+            <div><span class="muted">Vencimiento</span><strong><%= formatDate(invoice.dueDate) %></strong></div>
+            <div><span class="muted">Metodo</span><strong><%= invoice.paymentMethod || 'Sin definir' %></strong></div>
+            <div><span class="muted">Origen</span><strong><%= invoice.source %></strong></div>
+            <div><span class="muted">Creada por</span><strong><%= invoice.createdByName || 'Sistema' %></strong></div>
+            <div><span class="muted">Ultima actualizacion</span><strong><%= formatDateTime(invoice.updatedAt) %></strong></div>
+          </div>
+          <div class="invoice-record-actions">
+            <a class="btn app-btn" href="/invoices/<%= invoice.id %>">Abrir</a>
+            <a class="btn app-btn" href="/invoices/<%= invoice.id %>/preview">Preview</a>
+            <a class="btn app-btn" href="/invoices/<%= invoice.id %>/pdf">Visualizar PDF</a>
+            <a class="btn app-btn" href="/invoices/<%= invoice.id %>/packing-list/edit">Packing List</a>
+            <a class="btn app-btn" href="/invoices/<%= invoice.id %>/pdf?download=1">Descargar PDF</a>
+          </div>
+        </article>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+<% } %>
+
+<% if (showHistory) { %>
+<section class="invoice-history-grid billing-panel active" data-billing-panel="historial">
+  <article class="panel app-panel">
+    <div class="panel-header app-panel-header">
+      <div>
+        <h2>Historial por cliente</h2>
+        <p class="muted">Total comprado, saldo pendiente y ultima compra.</p>
+      </div>
+    </div>
+    <% if (!customerHistory.length) { %>
+      <div class="app-empty-state">No hay historial de clientes para este rango.</div>
+    <% } else { %>
+      <div class="invoice-ranking-list">
+        <% customerHistory.forEach((row) => { %>
+          <div class="invoice-ranking-row">
+            <div>
+              <strong><%= row.customerCode ? `${row.customerCode} - ` : '' %><%= row.customerName %></strong>
+              <small class="muted">Ultima compra: <%= formatDate(row.lastPurchase) %> · <%= row.invoiceCount %> facturas</small>
+            </div>
+            <div class="invoice-ranking-values">
+              <strong><%= formatMoney(company.baseCurrency, row.totalBilled) %></strong>
+              <small class="muted">Pendiente: <%= formatMoney(company.baseCurrency, row.totalPending) %></small>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </article>
+
+  <article class="panel app-panel">
+    <div class="panel-header app-panel-header">
+      <div>
+        <h2>Historial de anuladas</h2>
+        <p class="muted">Usuario, motivo, fecha y monto anulado.</p>
+      </div>
+    </div>
+    <% if (!cancelledHistory.length) { %>
+      <div class="app-empty-state">No hay facturas anuladas en el rango actual.</div>
+    <% } else { %>
+      <div class="invoice-ranking-list">
+        <% cancelledHistory.forEach((row) => { %>
+          <div class="invoice-ranking-row">
+            <div>
+              <strong><%= row.invoiceNumber %> · <%= row.customerName %></strong>
+              <small class="muted"><%= row.voidedByName || 'Sin usuario' %> · <%= formatDateTime(row.voidedAt) %></small>
+              <small class="muted"><%= row.voidedReason || 'Sin motivo registrado' %></small>
+            </div>
+            <strong><%= formatMoney(company.baseCurrency, row.total) %></strong>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </article>
+
+  <article class="panel app-panel">
+    <div class="panel-header app-panel-header">
+      <div>
+        <h2>Pendientes de firma</h2>
+        <p class="muted">Control rapido de recordatorios y antiguedad.</p>
+      </div>
+    </div>
+    <% if (!pendingSignatureHistory.length) { %>
+      <div class="app-empty-state">No hay facturas pendientes de firma.</div>
+    <% } else { %>
+      <div class="invoice-ranking-list">
+        <% pendingSignatureHistory.forEach((row) => { %>
+          <div class="invoice-ranking-row">
+            <div>
+              <strong><%= row.invoiceNumber %> · <%= row.customerName %></strong>
+              <small class="muted">Emision: <%= formatDate(row.issueDate) %> · Vence: <%= formatDate(row.dueDate) %></small>
+            </div>
+            <div class="invoice-ranking-values">
+              <strong><%= formatMoney(company.baseCurrency, row.total) %></strong>
+              <small class="muted"><%= row.ageDays %> dias abierta</small>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </article>
+  </section>
+<% } %>
 </main>
-<template id="invoice-line-template">
-<div class="table-row invoice-items">
-<select name="item_id" class="line-item">
-<option value="">
-<%= t('invoices.select_product') %>
-</option>
-<% items.forEach(item => { %>
-<option value="<%= item.id %>" data-price="<%= Number(item.price || 0).toFixed(2) %>">
-<%= item.name %> (<%= companySettings.baseCurrency %> <%= Number(item.price || 0).toFixed(2) %>)          </option>
-<% }) %>
-</select>
-<input type="number" name="qty" min="0" value="1" class="line-qty" />
-<input type="number" name="unit_price" min="0" step="0.01" value="0" class="line-price" />
-<input type="text" class="line-total" value="<%= companySettings.baseCurrency %> 0.00" disabled />
-<div class="actions">
-<button type="button" class="btn danger app-btn app-btn-danger line-remove">
-<%= t('invoices.remove') %>
-</button>
-</div>
-</div>
-</template>
-<script>    (function () {      const linesContainer = document.getElementById('invoice-lines');      const addBtn = document.getElementById('add-line');      const template = document.getElementById('invoice-line-template');      const subtotalEl = document.getElementById('invoice-subtotal');      const taxEl = document.getElementById('invoice-tax');      const discountEl = document.getElementById('invoice-discount');      const totalEl = document.getElementById('invoice-total');      const taxRateInput = document.getElementById('tax-rate');      const discountTypeInput = document.getElementById('discount-type');      const discountValueInput = document.getElementById('discount-value');      const currencySelect = document.getElementById('invoice-currency');      const exchangeRateField = document.getElementById('exchange-rate-field');      const exchangeRateInput = document.getElementById('exchange-rate');      const baseCurrency = document.getElementById('invoice-form').dataset.baseCurrency;      const parseNumber = (value) => {        const parsed = Number(value);        return Number.isFinite(parsed) ? parsed : 0;      };      const formatAmount = (value) => {        const currency = currencySelect ? currencySelect.value : baseCurrency;        return `${currency} ${value.toFixed(2)}`;      };      const updateExchangeRateVisibility = () => {        if (!currencySelect || !exchangeRateField || !exchangeRateInput) return;        const currency = currencySelect.value;        const show = currency !== baseCurrency;        exchangeRateField.style.display = show ? '' : 'none';        if (!show) {          exchangeRateInput.value = '1';        }      };      const updateLineTotal = (row) => {        const qtyInput = row.querySelector('.line-qty');        const priceInput = row.querySelector('.line-price');        const totalInput = row.querySelector('.line-total');        const qty = parseNumber(qtyInput.value);        const price = parseNumber(priceInput.value);        const total = qty * price;        totalInput.value = formatAmount(total);        return total;      };      const updateTotals = () => {        let subtotal = 0;        linesContainer.querySelectorAll('.table-row.invoice-items').forEach((row) => {          subtotal += updateLineTotal(row);        });        const taxRate = parseNumber(taxRateInput.value);        const discountValue = parseNumber(discountValueInput.value);        const discountType = discountTypeInput.value === 'percent' ? 'percent' : 'amount';        const taxAmount = subtotal * (taxRate / 100);        const discountAmount =          discountType === 'percent'            ? subtotal * (discountValue / 100)            : discountValue;        const total = Math.max(0, subtotal + taxAmount - discountAmount);        subtotalEl.textContent = formatAmount(subtotal);        taxEl.textContent = formatAmount(taxAmount);        discountEl.textContent = formatAmount(discountAmount);        totalEl.textContent = formatAmount(total);      };      const handleProductChange = (event) => {        if (!event.target.classList.contains('line-item')) return;        const selected = event.target.options[event.target.selectedIndex];        const price = selected ? selected.dataset.price : '0';        const row = event.target.closest('.table-row.invoice-items');        const priceInput = row.querySelector('.line-price');        priceInput.value = parseNumber(price).toFixed(2);        updateTotals();      };      const handleInputChange = (event) => {        if (!event.target.classList.contains('line-qty') && !event.target.classList.contains('line-price')) {          return;        }        updateTotals();      };      const handleRemove = (event) => {        if (!event.target.classList.contains('line-remove')) return;        const rows = linesContainer.querySelectorAll('.table-row.invoice-items');        if (rows.length <= 1) {          return;        }        event.target.closest('.table-row.invoice-items').remove();        updateTotals();      };      addBtn.addEventListener('click', () => {        const clone = template.content.firstElementChild.cloneNode(true);        linesContainer.appendChild(clone);        updateTotals();      });      linesContainer.addEventListener('change', handleProductChange);      linesContainer.addEventListener('input', handleInputChange);      linesContainer.addEventListener('click', handleRemove);      [taxRateInput, discountTypeInput, discountValueInput].forEach((input) => {        input.addEventListener('input', updateTotals);      });      if (currencySelect) {        currencySelect.addEventListener('change', () => {          updateExchangeRateVisibility();          updateTotals();        });      }      updateExchangeRateVisibility();      updateTotals();    })();  </script>
+
+<script id="invoice-draft-data" type="application/json"><%- draftFormJson %></script>
+<script id="invoice-catalog-data" type="application/json"><%- inventorySearchIndexJson %></script>
+<script>
+  (function () {
+    const form = document.getElementById('invoice-erp-form');
+    if (!form) return;
+
+    const draftDataEl = document.getElementById('invoice-draft-data');
+    const catalogDataEl = document.getElementById('invoice-catalog-data');
+    const state = {
+      formMode: document.getElementById('invoice-form-mode').value === 'inventory' ? 'inventory' : 'manual',
+      invoiceLanguage: document.getElementById('invoice-language').value === 'en' ? 'en' : 'es',
+      draft: draftDataEl ? JSON.parse(draftDataEl.textContent || '{}') : {},
+      catalog: catalogDataEl ? JSON.parse(catalogDataEl.textContent || '[]') : [],
+      lines: []
+    };
+
+    const elements = {
+      formMode: document.getElementById('invoice-form-mode'),
+      invoiceLanguage: document.getElementById('invoice-language'),
+      currency: document.getElementById('invoice-currency'),
+      exchangeWrap: document.getElementById('invoice-exchange-wrap'),
+      exchangeRate: document.getElementById('invoice-exchange-rate'),
+      customer: document.getElementById('invoice-customer'),
+      issueDate: document.getElementById('invoice-issue-date'),
+      dueDate: document.getElementById('invoice-due-date'),
+      paymentMethod: document.getElementById('invoice-payment-method'),
+      notes: document.getElementById('invoice-notes'),
+      status: document.getElementById('invoice-status'),
+      defaultTaxRate: document.getElementById('invoice-default-tax-rate'),
+      linesBody: document.getElementById('invoice-lines-body'),
+      linesJson: document.getElementById('invoice-lines-json'),
+      linesStockHead: document.getElementById('invoice-lines-stock-head'),
+      addManualLine: document.getElementById('invoice-add-manual-line'),
+      addInventoryLine: document.getElementById('invoice-add-inventory-line'),
+      clearLines: document.getElementById('invoice-clear-lines'),
+      modeManual: document.getElementById('invoice-mode-manual'),
+      modeInventory: document.getElementById('invoice-mode-inventory'),
+      languageEs: document.getElementById('invoice-language-es'),
+      languageEn: document.getElementById('invoice-language-en'),
+      searchInput: document.getElementById('inventory-search-input'),
+      searchResults: document.getElementById('inventory-search-results'),
+      summarySubtotalLabel: document.getElementById('invoice-summary-subtotal-label'),
+      summaryTaxLabel: document.getElementById('invoice-summary-tax-label'),
+      summaryDiscountLabel: document.getElementById('invoice-summary-discount-label'),
+      summaryTotalLabel: document.getElementById('invoice-summary-total-label'),
+      summarySubtotal: document.getElementById('invoice-summary-subtotal'),
+      summaryTax: document.getElementById('invoice-summary-tax'),
+      summaryDiscount: document.getElementById('invoice-summary-discount'),
+      summaryTotal: document.getElementById('invoice-summary-total'),
+      openPreview: document.getElementById('invoice-open-preview'),
+      previewModal: document.getElementById('invoice-preview-modal'),
+      previewClose: document.getElementById('invoice-preview-close'),
+      previewOpenPdf: document.getElementById('invoice-preview-open-pdf'),
+      previewDownload: document.getElementById('invoice-preview-download'),
+      previewDocumentTitle: document.getElementById('preview-document-title'),
+      previewStatusBadge: document.getElementById('preview-status-badge'),
+      previewIssueDate: document.getElementById('preview-issue-date'),
+      previewDueDate: document.getElementById('preview-due-date'),
+      previewPaymentMethod: document.getElementById('preview-payment-method'),
+      previewPaymentLabel: document.getElementById('preview-payment-label'),
+      previewCustomerLabel: document.getElementById('preview-customer-label'),
+      previewDueDateLabel: document.getElementById('preview-due-date-label'),
+      previewCustomerName: document.getElementById('preview-customer-name'),
+      previewLinesHeadDetail: document.getElementById('preview-lines-head-detail'),
+      previewLinesHeadTotal: document.getElementById('preview-lines-head-total'),
+      previewLinesBody: document.getElementById('invoice-preview-lines-body'),
+      previewSubtotalLabel: document.getElementById('preview-subtotal-label'),
+      previewTaxLabel: document.getElementById('preview-tax-label'),
+      previewDiscountLabel: document.getElementById('preview-discount-label'),
+      previewTotalLabel: document.getElementById('preview-total-label'),
+      previewSubtotal: document.getElementById('preview-subtotal'),
+      previewTax: document.getElementById('preview-tax'),
+      previewDiscount: document.getElementById('preview-discount'),
+      previewTotal: document.getElementById('preview-total'),
+      previewNotesLabel: document.getElementById('preview-notes-label'),
+      previewNotes: document.getElementById('preview-notes'),
+      previewInvoiceNumber: document.getElementById('preview-invoice-number')
+    };
+
+    const baseCurrency = '<%= company.baseCurrency %>';
+    const customerMap = new Map(<%- JSON.stringify(customers.map((customer) => ({
+      id: customer.id,
+      name: customer.name,
+      code: customer.customerCode || ''
+    }))).replace(/</g, '\\u003c') %>.map((customer) => [String(customer.id), customer]));
+    const invoiceText = <%- JSON.stringify(invoiceTextMap).replace(/</g, '\\u003c') %>;
+    const statusLabels = {
+      draft: 'Borrador',
+      pending_signature: 'Pendiente de firma',
+      issued: 'Emitida'
+    };
+
+    const formatMoney = (currency, value) => `${currency || baseCurrency} ${Number(value || 0).toFixed(2)}`;
+    const formatInputNumber = (value) => Number(value || 0).toFixed(2);
+    const sanitizeText = (value) => value == null ? '' : String(value);
+    const findCatalogItem = (itemId) => state.catalog.find((item) => String(item.id) === String(itemId));
+    const getText = () => invoiceText[state.invoiceLanguage] || invoiceText.es;
+
+    function computeLine(line) {
+      const qty = Number(line.qty || 0);
+      const unitPrice = Number(line.unitPrice || 0);
+      const discountValue = Number(line.discountValue || 0);
+      const subtotal = qty * unitPrice;
+      const discountAmount = line.discountType === 'percent'
+        ? subtotal * (discountValue / 100)
+        : Math.min(subtotal, discountValue);
+      const taxBase = Math.max(0, subtotal - discountAmount);
+      const taxAmount = taxBase * (Number(line.taxRate || 0) / 100);
+      line.subtotal = subtotal;
+      line.discountAmount = discountAmount;
+      line.taxAmount = taxAmount;
+      line.total = taxBase + taxAmount;
+      return line;
+    }
+
+    function createManualLine() {
+      return computeLine({
+        rowId: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        lineType: 'manual',
+        itemId: '',
+        description: '',
+        sku: '',
+        barcode: '',
+        categoryName: '',
+        stock: 0,
+        qty: 1,
+        unitPrice: 0,
+        taxRate: Number(elements.defaultTaxRate.value || 0),
+        discountType: 'amount',
+        discountValue: 0
+      });
+    }
+
+    function createInventoryLine(item) {
+      return computeLine({
+        rowId: `inventory-${item.id}-${Date.now()}`,
+        lineType: 'inventory',
+        itemId: item.id,
+        description: item.name,
+        sku: item.sku || '',
+        barcode: item.barcode || '',
+        categoryName: item.categoryName || '',
+        stock: Number(item.qty || 0),
+        qty: 1,
+        unitPrice: Number(item.price || 0),
+        taxRate: Number(item.taxRate || elements.defaultTaxRate.value || 0),
+        discountType: 'amount',
+        discountValue: 0
+      });
+    }
+
+    function convertLineToManual(line) {
+      line.lineType = 'manual';
+      line.itemId = '';
+      line.sku = '';
+      line.barcode = '';
+      line.categoryName = '';
+      line.stock = 0;
+      return computeLine(line);
+    }
+
+    function syncSummaryLabels() {
+      const text = getText();
+      elements.summarySubtotalLabel.textContent = text.subtotal;
+      elements.summaryTaxLabel.textContent = text.taxes;
+      elements.summaryDiscountLabel.textContent = text.discounts;
+      elements.summaryTotalLabel.textContent = text.total;
+    }
+
+    function syncPreviewLabels() {
+      const text = getText();
+      elements.previewDocumentTitle.textContent = text.invoice;
+      elements.previewCustomerLabel.textContent = text.customer;
+      elements.previewDueDateLabel.textContent = text.dueDate;
+      elements.previewPaymentLabel.textContent = text.paymentMethod;
+      elements.previewLinesHeadDetail.textContent = text.detail;
+      elements.previewLinesHeadTotal.textContent = text.total;
+      elements.previewSubtotalLabel.textContent = text.subtotal;
+      elements.previewTaxLabel.textContent = text.taxes;
+      elements.previewDiscountLabel.textContent = text.discounts;
+      elements.previewTotalLabel.textContent = text.total;
+      elements.previewNotesLabel.textContent = text.notes;
+    }
+
+    function calculateInvoiceTotals() {
+      return state.lines.reduce((acc, line) => {
+        computeLine(line);
+        acc.subtotal += Number(line.subtotal || 0);
+        acc.discount += Number(line.discountAmount || 0);
+        acc.tax += Number(line.taxAmount || 0);
+        acc.total += Number(line.total || 0);
+        return acc;
+      }, { subtotal: 0, discount: 0, tax: 0, total: 0 });
+    }
+
+    function updateSummaryTotals() {
+      const currency = elements.currency.value || baseCurrency;
+      const totals = calculateInvoiceTotals();
+      elements.summarySubtotal.textContent = formatMoney(currency, totals.subtotal);
+      elements.summaryTax.textContent = formatMoney(currency, totals.tax);
+      elements.summaryDiscount.textContent = formatMoney(currency, totals.discount);
+      elements.summaryTotal.textContent = formatMoney(currency, totals.total);
+      return totals;
+    }
+
+    function renderPreview() {
+      const text = getText();
+      const currency = elements.currency.value || baseCurrency;
+      const selectedCustomer = customerMap.get(String(elements.customer.value || ''));
+      const totals = calculateInvoiceTotals();
+
+      syncPreviewLabels();
+      elements.previewStatusBadge.textContent = statusLabels[elements.status.value] || 'Borrador';
+      elements.previewIssueDate.textContent = elements.issueDate.value || text.noDate;
+      elements.previewDueDate.textContent = elements.dueDate.value || text.noDate;
+      elements.previewPaymentMethod.textContent = elements.paymentMethod.value || text.noMethod;
+      elements.previewCustomerName.textContent = selectedCustomer
+        ? `${selectedCustomer.code ? `${selectedCustomer.code} - ` : ''}${selectedCustomer.name}`
+        : 'Mostrador / sin asignar';
+      elements.previewSubtotal.textContent = formatMoney(currency, totals.subtotal);
+      elements.previewTax.textContent = formatMoney(currency, totals.tax);
+      elements.previewDiscount.textContent = formatMoney(currency, totals.discount);
+      elements.previewTotal.textContent = formatMoney(currency, totals.total);
+      elements.previewNotes.textContent = elements.notes.value || text.noNotes;
+      elements.previewInvoiceNumber.textContent = `${text.preview} ${elements.issueDate.value || ''}`.trim();
+
+      const fragment = document.createDocumentFragment();
+      state.lines.forEach((line) => {
+        const block = document.createElement('div');
+        block.className = 'invoice-preview-line';
+        const metaText = line.lineType === 'inventory'
+          ? sanitizeText(line.sku || 'Inventario')
+          : text.manualLine;
+        block.innerHTML = `
+          <div>
+            <strong>${sanitizeText(line.description || 'Sin descripcion')}</strong>
+            <small>${metaText} - ${formatInputNumber(line.qty)} x ${formatMoney(currency, line.unitPrice || 0)}</small>
+          </div>
+          <strong>${formatMoney(currency, line.total || 0)}</strong>
+        `;
+        fragment.appendChild(block);
+      });
+      elements.previewLinesBody.replaceChildren(fragment);
+    }
+
+    function openPreviewModal() {
+      renderPreview();
+      elements.previewModal.hidden = false;
+      elements.previewModal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('invoice-preview-modal-open');
+    }
+
+    function closePreviewModal() {
+      elements.previewModal.hidden = true;
+      elements.previewModal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('invoice-preview-modal-open');
+    }
+
+    function renderSearchResults() {
+      if (!elements.searchResults) return;
+      const search = (elements.searchInput && elements.searchInput.value || '').trim().toLowerCase();
+      const matches = state.catalog
+        .filter((item) => !search || String(item.searchIndex || '').includes(search))
+        .slice(0, 20);
+
+      elements.searchResults.innerHTML = '';
+      if (!matches.length) {
+        elements.searchResults.innerHTML = '<div class="app-empty-state">No hay coincidencias en inventario.</div>';
+        return;
+      }
+
+      matches.forEach((item) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'invoice-search-row';
+        button.dataset.itemId = String(item.id);
+        button.innerHTML = `
+          <span>
+            <strong>${sanitizeText(item.name)}</strong>
+            <small>${sanitizeText(item.categoryName || 'Sin categoria')} · ${sanitizeText(item.sku || 'Sin SKU')}</small>
+          </span>
+          <span>
+            <strong>${formatMoney(elements.currency.value, item.price || 0)}</strong>
+            <small>Stock: ${Number(item.qty || 0).toFixed(2)}</small>
+          </span>
+        `;
+        elements.searchResults.appendChild(button);
+      });
+    }
+
+    function renderLines() {
+      if (!elements.linesBody) return;
+      if (!state.lines.length) state.lines.push(createManualLine());
+      const text = getText();
+      const showInventoryMeta = state.formMode === 'inventory';
+      const canRemove = state.lines.length > 1;
+      const fragment = document.createDocumentFragment();
+
+      state.lines.forEach((line) => {
+        computeLine(line);
+        const row = document.createElement('tr');
+        row.className = 'invoice-line-row';
+        row.dataset.rowId = line.rowId;
+        row.setAttribute('data-invoice-line', '');
+        row.innerHTML = `
+          <td>
+            <span class="app-badge ${line.lineType === 'inventory' ? 'invoice-status-issued' : 'invoice-status-draft'}">${line.lineType === 'inventory' ? 'Inventario' : 'Manual'}</span>
+          </td>
+          <td>
+            <textarea class="app-textarea invoice-line-description" rows="2" data-field="description" data-invoice-line-field="">${sanitizeText(line.description)}</textarea>
+          </td>
+          <td class="${showInventoryMeta ? '' : 'invoice-cell-hidden'}">
+            <div class="invoice-line-meta">
+              <strong>${sanitizeText(line.sku || 'Sin SKU')}</strong>
+              <small>${line.lineType === 'inventory' ? `Stock: ${Number(line.stock || 0).toFixed(2)}` : text.manualLine}</small>
+            </div>
+          </td>
+          <td><input class="app-input" type="number" min="0.01" step="0.01" data-field="qty" data-invoice-line-field="" value="${formatInputNumber(line.qty)}" /></td>
+          <td><input class="app-input" type="number" min="0" step="0.01" data-field="unitPrice" data-invoice-line-field="" value="${formatInputNumber(line.unitPrice)}" /></td>
+          <td>
+            <div class="invoice-inline-compact">
+              <select data-field="discountType" data-invoice-line-field="">
+                <option value="amount" ${line.discountType === 'amount' ? 'selected' : ''}>Monto</option>
+                <option value="percent" ${line.discountType === 'percent' ? 'selected' : ''}>%</option>
+              </select>
+              <input class="app-input" type="number" min="0" step="0.01" data-field="discountValue" data-invoice-line-field="" value="${formatInputNumber(line.discountValue)}" />
+            </div>
+          </td>
+          <td><input class="app-input" type="number" min="0" step="0.01" data-field="taxRate" data-invoice-line-field="" value="${formatInputNumber(line.taxRate)}" /></td>
+          <td><strong data-line-subtotal>${formatMoney(elements.currency.value, line.subtotal)}</strong></td>
+          <td><strong data-line-total>${formatMoney(elements.currency.value, line.total)}</strong></td>
+          <td>
+            <div class="invoice-inline-actions invoice-line-actions">
+              <button type="button" class="btn app-btn app-btn-small btn-line-add" data-add-line-after data-action="insert" title="Agregar una linea debajo" aria-label="Agregar linea debajo">+</button>
+              <button type="button" class="btn danger app-btn app-btn-danger app-btn-small btn-line-remove" data-remove-line data-action="remove" ${canRemove ? '' : 'disabled'}>Eliminar</button>
+            </div>
+          </td>
+        `;
+        fragment.appendChild(row);
+      });
+
+      elements.linesBody.replaceChildren(fragment);
+      elements.clearLines.disabled = state.lines.length <= 1;
+      updateSummaryTotals();
+    }
+
+    function updatePreview() {
+      const text = getText();
+      const currency = elements.currency.value || baseCurrency;
+      const selectedCustomer = customerMap.get(String(elements.customer.value || ''));
+      const totals = state.lines.reduce((acc, line) => {
+        computeLine(line);
+        acc.subtotal += Number(line.subtotal || 0);
+        acc.discount += Number(line.discountAmount || 0);
+        acc.tax += Number(line.taxAmount || 0);
+        acc.total += Number(line.total || 0);
+        return acc;
+      }, { subtotal: 0, discount: 0, tax: 0, total: 0 });
+
+      elements.previewStatusBadge.textContent = statusLabels[elements.status.value] || 'Borrador';
+      elements.previewIssueDate.textContent = elements.issueDate.value || text.noDate;
+      elements.previewDueDate.textContent = elements.dueDate.value || text.noDate;
+      elements.previewPaymentMethod.textContent = elements.paymentMethod.value || text.noMethod;
+      elements.previewCustomerName.textContent = selectedCustomer
+        ? `${selectedCustomer.code ? `${selectedCustomer.code} - ` : ''}${selectedCustomer.name}`
+        : 'Mostrador / sin asignar';
+      elements.previewSubtotal.textContent = formatMoney(currency, totals.subtotal);
+      elements.previewTax.textContent = formatMoney(currency, totals.tax);
+      elements.previewDiscount.textContent = formatMoney(currency, totals.discount);
+      elements.previewTotal.textContent = formatMoney(currency, totals.total);
+      elements.previewNotes.textContent = elements.notes.value || text.noNotes;
+      elements.previewInvoiceNumber.textContent = `${text.preview} ${elements.issueDate.value || ''}`.trim();
+      elements.previewLinesBody.innerHTML = '';
+      state.lines.forEach((line) => {
+        const block = document.createElement('div');
+        block.className = 'invoice-preview-line';
+        block.innerHTML = `
+          <div>
+            <strong>${sanitizeText(line.description || 'Sin descripcion')}</strong>
+            <small>${line.lineType === 'inventory' ? sanitizeText(line.sku || 'Inventario') : 'Linea manual'} · ${Number(line.qty || 0).toFixed(2)} x ${formatMoney(currency, line.unitPrice || 0)}</small>
+          </div>
+          <strong>${formatMoney(currency, line.total || 0)}</strong>
+        `;
+        const metaText = line.lineType === 'inventory'
+          ? sanitizeText(line.sku || 'Inventario')
+          : text.manualLine;
+        const metaNode = block.querySelector('small');
+        if (metaNode) {
+          metaNode.textContent = `${metaText} · ${Number(line.qty || 0).toFixed(2)} x ${formatMoney(currency, line.unitPrice || 0)}`;
+        }
+        elements.previewLinesBody.appendChild(block);
+      });
+    }
+
+    function getLineByRowId(rowId) {
+      return state.lines.find((entry) => entry.rowId === rowId);
+    }
+
+    function getLineIndexByRowId(rowId) {
+      return state.lines.findIndex((entry) => entry.rowId === rowId);
+    }
+
+    function getRowById(rowId) {
+      return elements.linesBody.querySelector(`.invoice-line-row[data-row-id="${rowId}"]`);
+    }
+
+    function focusLineField(rowId, field) {
+      const nextField = field || 'description';
+      requestAnimationFrame(() => {
+        const row = getRowById(rowId);
+        if (!row) return;
+        const input = row.querySelector(`[data-field="${nextField}"]`);
+        if (!input) return;
+        input.focus();
+        if (typeof input.setSelectionRange === 'function') {
+          const end = input.value.length;
+          input.setSelectionRange(end, end);
+        }
+      });
+    }
+
+    function updateRowDisplay(row, line) {
+      if (!row || !line) return;
+      const subtotalEl = row.querySelector('[data-line-subtotal]');
+      const totalEl = row.querySelector('[data-line-total]');
+      if (subtotalEl) subtotalEl.textContent = formatMoney(elements.currency.value, line.subtotal);
+      if (totalEl) totalEl.textContent = formatMoney(elements.currency.value, line.total);
+    }
+
+    function refreshAllDisplayedTotals() {
+      state.lines.forEach((line) => {
+        computeLine(line);
+        updateRowDisplay(getRowById(line.rowId), line);
+      });
+      updateSummaryTotals();
+    }
+
+    function buildInsertedLine() {
+      return createManualLine();
+    }
+
+    function syncFormMode() {
+      elements.formMode.value = state.formMode;
+      form.classList.toggle('invoice-mode-manual', state.formMode === 'manual');
+      form.classList.toggle('invoice-mode-inventory', state.formMode === 'inventory');
+      elements.modeManual.classList.toggle('is-active', state.formMode === 'manual');
+      elements.modeInventory.classList.toggle('is-active', state.formMode === 'inventory');
+      if (elements.linesStockHead) {
+        elements.linesStockHead.textContent = state.formMode === 'inventory' ? 'SKU / Stock' : 'SKU';
+      }
+    }
+
+    function setFormMode(nextMode) {
+      state.formMode = nextMode === 'inventory' ? 'inventory' : 'manual';
+      if (state.formMode === 'manual') {
+        state.lines = state.lines.map((line) => convertLineToManual(line));
+      }
+      if (!state.lines.length) state.lines = [createManualLine()];
+      syncFormMode();
+      renderLines();
+    }
+
+    function syncLanguageButtons() {
+      elements.invoiceLanguage.value = state.invoiceLanguage;
+      elements.languageEs.classList.toggle('is-active', state.invoiceLanguage === 'es');
+      elements.languageEn.classList.toggle('is-active', state.invoiceLanguage === 'en');
+      syncSummaryLabels();
+      syncPreviewLabels();
+    }
+
+    function setInvoiceLanguage(language) {
+      state.invoiceLanguage = language === 'en' ? 'en' : 'es';
+      syncLanguageButtons();
+      renderLines();
+    }
+
+    function syncExchangeVisibility() {
+      const show = elements.currency.value !== baseCurrency;
+      if (elements.exchangeWrap) {
+        elements.exchangeWrap.style.display = show ? '' : 'none';
+      }
+      if (!show) elements.exchangeRate.value = '1';
+    }
+
+    function serializeLines() {
+      return state.lines.map((line) => ({
+        line_type: line.lineType,
+        item_id: line.itemId || '',
+        description: line.description,
+        qty: Number(line.qty || 0),
+        unit_price: Number(line.unitPrice || 0),
+        discount_type: line.discountType,
+        discount_value: Number(line.discountValue || 0),
+        tax_rate: Number(line.taxRate || 0)
+      }));
+    }
+
+    function rehydrateInitialLines() {
+      const initialLines = Array.isArray(state.draft.lines) ? state.draft.lines : [];
+      state.lines = initialLines.length
+        ? initialLines.map((line) => computeLine({
+          rowId: line.rowId || `line-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          lineType: line.lineType === 'inventory' ? 'inventory' : 'manual',
+          itemId: line.itemId || '',
+          description: line.description || '',
+          sku: line.sku || '',
+          barcode: line.barcode || '',
+          categoryName: line.categoryName || '',
+          stock: Number(line.stock || 0),
+          qty: Number(line.qty || 1),
+          unitPrice: Number(line.unitPrice || 0),
+          taxRate: Number(line.taxRate || 0),
+          discountType: line.discountType === 'percent' ? 'percent' : 'amount',
+          discountValue: Number(line.discountValue || 0)
+        }))
+        : [createManualLine()];
+      if (state.formMode === 'manual') {
+        state.lines = state.lines.map((line) => convertLineToManual(line));
+      }
+    }
+
+    function updateManualDefaultTax() {
+      state.lines.forEach((line) => {
+        if (line.lineType !== 'manual') return;
+        line.taxRate = Number(elements.defaultTaxRate.value || 0);
+        computeLine(line);
+        const row = getRowById(line.rowId);
+        if (!row) return;
+        const taxInput = row.querySelector('[data-field="taxRate"]');
+        if (taxInput) taxInput.value = formatInputNumber(line.taxRate);
+        updateRowDisplay(row, line);
+      });
+      updateSummaryTotals();
+    }
+
+    elements.linesBody.addEventListener('input', (event) => {
+      const field = event.target.closest('[data-invoice-line-field]');
+      if (!field) return;
+      const row = field.closest('[data-invoice-line]');
+      if (!row) return;
+      const line = getLineByRowId(row.dataset.rowId);
+      if (!line) return;
+      const fieldName = field.dataset.field;
+      if (!fieldName) return;
+      if (['qty', 'unitPrice', 'discountValue', 'taxRate'].includes(fieldName)) {
+        line[fieldName] = Number(field.value || 0);
+      } else {
+        line[fieldName] = field.value;
+      }
+      computeLine(line);
+      updateRowDisplay(row, line);
+      updateSummaryTotals();
+    });
+
+    elements.linesBody.addEventListener('change', (event) => {
+      const field = event.target.closest('[data-invoice-line-field]');
+      if (!field) return;
+      const row = field.closest('[data-invoice-line]');
+      if (!row) return;
+      const line = getLineByRowId(row.dataset.rowId);
+      if (!line) return;
+      const fieldName = field.dataset.field;
+      if (fieldName !== 'discountType') return;
+      line.discountType = field.value === 'percent' ? 'percent' : 'amount';
+      computeLine(line);
+      updateRowDisplay(row, line);
+      updateSummaryTotals();
+    });
+
+    elements.linesBody.addEventListener('click', (event) => {
+      const addButton = event.target.closest('[data-add-line-after]');
+      if (addButton) {
+        const row = addButton.closest('[data-invoice-line]');
+        if (!row) return;
+        const index = getLineIndexByRowId(row.dataset.rowId);
+        if (index === -1) return;
+        const nextLine = buildInsertedLine();
+        state.lines.splice(index + 1, 0, nextLine);
+        renderLines();
+        focusLineField(nextLine.rowId, 'description');
+        return;
+      }
+
+      const removeButton = event.target.closest('[data-remove-line]');
+      if (removeButton) {
+        const row = removeButton.closest('[data-invoice-line]');
+        if (!row) return;
+        const index = getLineIndexByRowId(row.dataset.rowId);
+        if (index === -1) return;
+        if (state.lines.length <= 1) return;
+        state.lines.splice(index, 1);
+        renderLines();
+      }
+    });
+
+    if (elements.searchInput) {
+      elements.searchInput.addEventListener('input', renderSearchResults);
+    }
+
+    if (elements.searchResults) {
+      elements.searchResults.addEventListener('click', (event) => {
+        const button = event.target.closest('.invoice-search-row');
+        if (!button) return;
+        const item = findCatalogItem(button.dataset.itemId);
+        if (!item) return;
+        const nextLine = createInventoryLine(item);
+        state.lines.push(nextLine);
+        state.formMode = 'inventory';
+        syncFormMode();
+        renderLines();
+        focusLineField(nextLine.rowId, 'description');
+      });
+    }
+
+    elements.addManualLine.addEventListener('click', () => {
+      const nextLine = createManualLine();
+      state.lines.push(nextLine);
+      renderLines();
+      focusLineField(nextLine.rowId, 'description');
+    });
+
+    elements.addInventoryLine.addEventListener('click', () => {
+      const first = state.catalog[0];
+      if (!first) return;
+      const nextLine = createInventoryLine(first);
+      state.lines.push(nextLine);
+      state.formMode = 'inventory';
+      syncFormMode();
+      renderLines();
+      focusLineField(nextLine.rowId, 'description');
+    });
+
+    elements.clearLines.addEventListener('click', () => {
+      if (state.lines.length <= 1) return;
+      const nextLine = createManualLine();
+      state.lines = [nextLine];
+      renderLines();
+      focusLineField(state.lines[0].rowId, 'description');
+    });
+
+    elements.modeManual.addEventListener('click', () => setFormMode('manual'));
+    elements.modeInventory.addEventListener('click', () => setFormMode('inventory'));
+    elements.languageEs.addEventListener('click', () => setInvoiceLanguage('es'));
+    elements.languageEn.addEventListener('click', () => setInvoiceLanguage('en'));
+    elements.openPreview.addEventListener('click', openPreviewModal);
+    elements.previewClose.addEventListener('click', closePreviewModal);
+    elements.previewOpenPdf.addEventListener('click', () => submitPreviewPdf(false));
+    elements.previewDownload.addEventListener('click', () => submitPreviewPdf(true));
+
+    if (elements.previewModal) {
+      elements.previewModal.addEventListener('click', (event) => {
+        if (event.target === elements.previewModal) closePreviewModal();
+      });
+    }
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && elements.previewModal && !elements.previewModal.hidden) {
+        closePreviewModal();
+      }
+    });
+
+    [elements.currency, elements.customer, elements.issueDate, elements.dueDate, elements.paymentMethod, elements.notes, elements.status].forEach((input) => {
+      input.addEventListener('input', () => {
+        if (input === elements.currency) {
+          renderSearchResults();
+          refreshAllDisplayedTotals();
+          return;
+        }
+        updateSummaryTotals();
+      });
+    });
+
+    elements.defaultTaxRate.addEventListener('input', updateManualDefaultTax);
+    elements.currency.addEventListener('change', () => {
+      syncExchangeVisibility();
+      renderSearchResults();
+      refreshAllDisplayedTotals();
+    });
+
+    function syncDraftSubmitState() {
+      elements.linesJson.value = JSON.stringify(serializeLines());
+      elements.formMode.value = state.formMode;
+      elements.invoiceLanguage.value = state.invoiceLanguage;
+    }
+
+    function submitPreviewPdf(download) {
+      syncDraftSubmitState();
+      const previousAction = form.getAttribute('action') || '/invoices/create';
+      const previousTarget = form.getAttribute('target');
+      form.setAttribute('action', download ? '/invoices/preview/pdf?download=1' : '/invoices/preview/pdf');
+      form.setAttribute('target', '_blank');
+      form.submit();
+      form.setAttribute('action', previousAction);
+      if (previousTarget) {
+        form.setAttribute('target', previousTarget);
+      } else {
+        form.removeAttribute('target');
+      }
+    }
+
+    form.addEventListener('submit', () => {
+      syncDraftSubmitState();
+    });
+
+    rehydrateInitialLines();
+    syncFormMode();
+    syncLanguageButtons();
+    syncExchangeVisibility();
+    renderLines();
+    renderSearchResults();
+  })();
+</script>
 <script src="/status-footer.js" defer></script>
 </body>
 </html>

@@ -3,14 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title><%= (companyBrand && companyBrand.name) ? companyBrand.name : t('common.brand') %> - <%= workspaceLabels.eyebrow %></title>
+<title><%= (companyBrand && companyBrand.name) ? companyBrand.name : currentCompanyName %> - <%= workspaceLabels.eyebrow %></title>
 <%- include('partials/head-assets') %>
 <link rel="stylesheet" href="/css/workspace.css" />
 </head>
 <body class="page workspace-page theme-font-<%= (companyBrand && companyBrand.font_family) ? companyBrand.font_family : 'space-grotesk' %>" style="<%= companyBrand && companyBrand.theme_style ? companyBrand.theme_style : '' %>">
 <%- include('partials/header', {
   headerClassName: 'workspace-topbar',
-  headerBrandText: (companyBrand && companyBrand.name) ? companyBrand.name : t('common.brand'),
   headerNavItems: [
     ...(can('settings', 'view') ? [{ href: '/settings', label: t('settings.title') }] : []),
     { href: '/logout', label: t('nav.logout') }

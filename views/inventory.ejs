@@ -1,4 +1,11 @@
-??<!DOCTYPE html>
+<!DOCTYPE html>
+<%
+  var inventoryModuleTabs = [
+    { key: 'items', label: t('inventory.items'), href: '/inventory' },
+    { key: 'categories', label: t('inventory.categories'), href: '/categories' },
+    { key: 'brands', label: t('inventory.brands'), href: '/brands' }
+  ];
+%>
 <html lang="<%= lang %>">
 <head>
 <meta charset="UTF-8" />
@@ -9,23 +16,16 @@
 <%- include('partials/head-assets') %>
 </head>
 <body class="page inventory-page">
-<%- include('partials/header') %>
+<%- include('partials/header', {
+  moduleTabs: inventoryModuleTabs,
+  activeTab: 'items',
+  currentModule: 'inventory'
+}) %>
 <main class="container inventory-module app-module">
 <%- include('partials/page-shell', {
   pageTitle: t('inventory.title'),
   pageSubtitle: t('inventory.value', { value: Number(totalValue || 0).toFixed(2) })
 }) %>
-<div class="subnav">
-<a class="active" href="/inventory">
-<%= t('inventory.items') %>
-</a>
-<a href="/categories">
-<%= t('inventory.categories') %>
-</a>
-<a href="/brands">
-<%= t('inventory.brands') %>
-</a>
-</div>
 <section class="panel app-panel">
 <div class="panel-header app-panel-header">
 <div>

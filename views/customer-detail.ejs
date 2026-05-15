@@ -1,4 +1,15 @@
 <!DOCTYPE html>
+<%
+  var customerDetailTabs = [
+    { key: 'list', label: t('customers.menu_list'), href: '/customers/list' },
+    { key: 'import', label: t('customers.menu_import'), href: '/customers/import' },
+    { key: 'create', label: t('customers.menu_create'), href: '/customers/create' },
+    { key: 'packages', label: t('customers.menu_packages'), href: '/customers/packages' }
+  ];
+  if (can('customers', 'view_voided')) {
+    customerDetailTabs.push({ key: 'voided', label: t('customers.menu_voided'), href: '/customers/voided' });
+  }
+%>
 <html lang="<%= lang %>">
 <head>
 <meta charset="UTF-8" />
@@ -9,7 +20,11 @@
 <%- include('partials/head-assets') %>
 </head>
 <body class="page">
-<%- include('partials/header') %>
+<%- include('partials/header', {
+  moduleTabs: customerDetailTabs,
+  activeTab: 'create',
+  currentModule: 'customers'
+}) %>
 <main class="container">
 <div class="page-header">
 <div>

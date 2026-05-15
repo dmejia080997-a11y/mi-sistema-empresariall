@@ -36,6 +36,7 @@ const { registerLogisticsRoutes } = require('./src/modules/logistics/routes');
 const { registerInvoiceRoutes } = require('./src/modules/invoices/routes');
 const { registerAgendaMedicaRoutes } = require('./src/modules/agenda-medica/routes');
 const { registerHrRoutes } = require('./src/modules/hr/routes');
+const { registerChatRoutes } = require('./src/modules/chat/routes');
 const { registerUserRoutes } = require('./src/modules/users/routes');
 const { registerAuditRoutes } = require('./src/modules/audit/routes');
 const { registerMasterActivitiesRoutes } = require('./src/modules/master-activities/routes');
@@ -385,6 +386,235 @@ const csrfMiddleware = (req, res, next) => {
     return next();
   });
 };
+
+function resolveCompanyDisplayName(company) {
+  if (!company || typeof company !== 'object') return 'Mi empresa';
+  const companyName = typeof company.name === 'string' ? company.name.trim() : '';
+  return companyName || 'Mi empresa';
+}
+
+function normalizeCompanyViewModel(company) {
+  if (!company || typeof company !== 'object') return null;
+  return {
+    ...company,
+    display_name: resolveCompanyDisplayName(company)
+  };
+}
+
+const COMPANY_ROUTE_ALIASES = [
+  { visiblePrefix: '/panel', internalPrefix: '/dashboard' },
+  { visiblePrefix: '/facturacion', internalPrefix: '/invoices' },
+  { visiblePrefix: '/clients', internalPrefix: '/customers' },
+  { visiblePrefix: '/hr', internalPrefix: '/rrhh' }
+];
+
+const COMPANY_SCOPE_EXCLUDED_PREFIXES = [
+  '/login',
+  '/master',
+  '/customer',
+  '/tracking',
+  '/files/',
+  '/packages/invoice/upload/',
+  '/css/',
+  '/js/',
+  '/images/',
+  '/fonts/',
+  '/styles.css',
+  '/status-footer.js',
+  '/favicon.ico'
+];
+
+const COMPANY_KNOWN_ROOTS = new Set([
+  'panel',
+  'dashboard',
+  'workspace',
+  'settings',
+  'chat',
+  'notifications',
+  'packages',
+  'inventory',
+  'categories',
+  'brands',
+  'invoices',
+  'facturacion',
+  'customers',
+  'clients',
+  'consignatarios',
+  'users',
+  'accounting',
+  'carrier-reception',
+  'agenda-medica',
+  'rrhh',
+  'hr',
+  'manifests',
+  'cuscar',
+  'airway-bills',
+  'audit',
+  'ai',
+  'launcher',
+  'sat',
+  'login',
+  'logout',
+  'master',
+  'customer',
+  'tracking',
+  'api',
+  'files',
+  'css',
+  'js',
+  'images',
+  'fonts'
+]);
+
+function createCompanySlug(name) {
+  return String(name || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function splitUrlParts(value) {
+  const text = String(value || '').trim() || '/';
+  const hashIndex = text.indexOf('#');
+  const queryIndex = text.indexOf('?');
+  let cutIndex = -1;
+  if (queryIndex >= 0 && hashIndex >= 0) {
+    cutIndex = Math.min(queryIndex, hashIndex);
+  } else {
+    cutIndex = Math.max(queryIndex, hashIndex);
+  }
+  if (cutIndex < 0) {
+    return { pathname: text || '/', suffix: '' };
+  }
+  return {
+    pathname: text.slice(0, cutIndex) || '/',
+    suffix: text.slice(cutIndex)
+  };
+}
+
+function replacePathPrefix(pathname, fromPrefix, toPrefix) {
+  if (pathname === fromPrefix) return toPrefix;
+  if (pathname.startsWith(`${fromPrefix}/`)) {
+    return `${toPrefix}${pathname.slice(fromPrefix.length)}`;
+  }
+  return null;
+}
+
+function translateVisiblePathToInternal(pathname) {
+  const safePath = pathname || '/';
+  for (const alias of COMPANY_ROUTE_ALIASES) {
+    const replaced = replacePathPrefix(safePath, alias.visiblePrefix, alias.internalPrefix);
+    if (replaced) return replaced;
+  }
+  return safePath;
+}
+
+function translateInternalPathToVisible(pathname) {
+  const safePath = pathname || '/';
+  for (const alias of COMPANY_ROUTE_ALIASES) {
+    const replaced = replacePathPrefix(safePath, alias.internalPrefix, alias.visiblePrefix);
+    if (replaced) return replaced;
+  }
+  return safePath;
+}
+
+function matchesPathPrefix(pathname, prefix) {
+  if (!prefix) return false;
+  if (prefix.endsWith('/')) {
+    return pathname.startsWith(prefix);
+  }
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+function isCompanyScopeExcluded(pathname) {
+  const safePath = pathname || '/';
+  return COMPANY_SCOPE_EXCLUDED_PREFIXES.some((prefix) => matchesPathPrefix(safePath, prefix));
+}
+
+function getSessionCompanySlug(req) {
+  if (!req || !req.session) return '';
+  const explicitSlug = createCompanySlug(req.session.company_slug);
+  if (explicitSlug) return explicitSlug;
+  const sessionName = req.session.company_name || (req.session.company && req.session.company.name) || '';
+  return createCompanySlug(sessionName);
+}
+
+function buildCompanyScopedPath(companySlug, rawPath) {
+  if (!companySlug || typeof rawPath !== 'string' || !rawPath.startsWith('/')) return rawPath;
+  const { pathname, suffix } = splitUrlParts(rawPath);
+  if (isCompanyScopeExcluded(pathname)) return rawPath;
+  const visiblePath = translateInternalPathToVisible(pathname);
+  if (visiblePath === `/${companySlug}` || visiblePath.startsWith(`/${companySlug}/`)) {
+    return `${visiblePath}${suffix}`;
+  }
+  return `/${companySlug}${visiblePath === '/' ? '' : visiblePath}${suffix}`;
+}
+
+function stripPotentialCompanySlug(pathname) {
+  const safePath = String(pathname || '/');
+  const segments = safePath.split('/').filter(Boolean);
+  if (segments.length < 2) return safePath;
+  if (COMPANY_KNOWN_ROOTS.has(segments[0])) return safePath;
+  return `/${segments.slice(1).join('/')}`;
+}
+
+function normalizePathForModuleDetection(pathname) {
+  const withoutSlug = stripPotentialCompanySlug(pathname);
+  return translateVisiblePathToInternal(withoutSlug);
+}
+
+function stripCompanyScopeFromUrl(rawUrl, companySlug) {
+  const { pathname, suffix } = splitUrlParts(rawUrl);
+  const scopedPrefix = `/${companySlug}`;
+  if (pathname !== scopedPrefix && !pathname.startsWith(`${scopedPrefix}/`)) {
+    return rawUrl;
+  }
+  const visiblePath = pathname.slice(scopedPrefix.length) || '/';
+  const internalPath = translateVisiblePathToInternal(visiblePath);
+  return `${internalPath}${suffix}`;
+}
+
+function rewriteCompanyScopedHtml(req, html) {
+  const companySlug = getSessionCompanySlug(req);
+  if (!companySlug || typeof html !== 'string') return html;
+
+  const rewriteUrl = (rawUrl) => buildCompanyScopedPath(companySlug, rawUrl);
+
+  return html
+    .replace(/\b(href|action|formaction)=("|')([^"'<>]+)\2/gi, (match, attr, quote, url) => {
+      const scopedUrl = rewriteUrl(url);
+      return scopedUrl === url ? match : `${attr}=${quote}${scopedUrl}${quote}`;
+    })
+    .replace(/\bfetch\(\s*(["'`])(\/[^"'`]+)\1/g, (match, quote, url) => {
+      const scopedUrl = rewriteUrl(url);
+      return scopedUrl === url ? match : `fetch(${quote}${scopedUrl}${quote}`;
+    })
+    .replace(/\b((?:window\.)?location(?:\.href)?\s*=\s*)(["'`])(\/[^"'`]+)\2/g, (match, prefix, quote, url) => {
+      const scopedUrl = rewriteUrl(url);
+      return scopedUrl === url ? match : `${prefix}${quote}${scopedUrl}${quote}`;
+    });
+}
+
+function requireCompanySlug(req, res, next) {
+  const companySlug = createCompanySlug(req.params && req.params.companySlug);
+  const sessionSlug = getSessionCompanySlug(req);
+
+  if (!sessionSlug) {
+    return res.redirect('/login');
+  }
+
+  if (companySlug !== sessionSlug) {
+    return res.status(403).send('No tienes acceso a esta empresa.');
+  }
+
+  res.locals.currentCompanySlug = sessionSlug;
+  res.locals.currentCompanyName = req.session.company_name || (req.session.company && req.session.company.name) || 'Mi empresa';
+  next();
+}
+
 app.use((req, res, next) => {
   if (req.is('multipart/form-data')) return next();
   return csrfMiddleware(req, res, next);
@@ -405,8 +635,19 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
+  const currentCompany = normalizeCompanyViewModel(req.session && req.session.company ? req.session.company : null);
+  if (req.session && req.session.company && currentCompany) {
+    req.session.company = {
+      ...req.session.company,
+      display_name: currentCompany.display_name
+    };
+  }
   res.locals.user = req.session.user || null;
-  res.locals.company = req.session.company || null;
+  res.locals.company = currentCompany;
+  res.locals.currentCompany = currentCompany;
+  res.locals.currentCompanyName = (req.session && req.session.company_name) || (currentCompany ? currentCompany.name : 'Mi empresa');
+  res.locals.currentCompanySlug = getSessionCompanySlug(req) || null;
+  res.locals.companyPath = (pathValue) => buildCompanyScopedPath(getSessionCompanySlug(req), pathValue);
   const hasMaster = Boolean(req.session && req.session.master);
   const hasCompanyUser = Boolean(req.session && req.session.user);
   res.locals.isMaster = hasMaster && !hasCompanyUser;
@@ -446,6 +687,64 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   res.locals.packagesNav = 'list';
   next();
+});
+
+app.use((req, res, next) => {
+  const originalRedirect = res.redirect.bind(res);
+  res.redirect = (...args) => {
+    if (!args.length) return originalRedirect(...args);
+    const companySlug = getSessionCompanySlug(req);
+    if (!companySlug || !(req.session && req.session.user)) {
+      return originalRedirect(...args);
+    }
+    const index = typeof args[0] === 'number' ? 1 : 0;
+    const target = args[index];
+    if (typeof target === 'string' && target.startsWith('/')) {
+      args[index] = buildCompanyScopedPath(companySlug, target);
+    }
+    return originalRedirect(...args);
+  };
+  next();
+});
+
+app.use((req, res, next) => {
+  const pathname = splitUrlParts(req.url || req.originalUrl || '/').pathname;
+  if (isCompanyScopeExcluded(pathname)) {
+    return next();
+  }
+
+  const sessionSlug = getSessionCompanySlug(req);
+  if (req.session && req.session.user && sessionSlug) {
+    const scopedPrefix = `/${sessionSlug}`;
+    const segments = pathname.split('/').filter(Boolean);
+    const firstSegment = segments[0] || '';
+    if (pathname === scopedPrefix || pathname === `${scopedPrefix}/`) {
+      return res.redirect(buildCompanyScopedPath(sessionSlug, '/dashboard'));
+    }
+    if (pathname.startsWith(`${scopedPrefix}/`)) {
+      req.url = stripCompanyScopeFromUrl(req.url, sessionSlug);
+      req.companySlug = sessionSlug;
+      req.params = { ...(req.params || {}), companySlug: sessionSlug };
+      return requireCompanySlug(req, res, next);
+    }
+    if (firstSegment && !COMPANY_KNOWN_ROOTS.has(firstSegment) && firstSegment !== sessionSlug) {
+      return res.status(403).send('No tienes acceso a esta empresa.');
+    }
+    if (pathname === '/') {
+      return next();
+    }
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      return res.redirect(buildCompanyScopedPath(sessionSlug, pathname));
+    }
+    return res.status(403).send('No tienes acceso a esta empresa.');
+  }
+
+  const normalizedCandidate = normalizePathForModuleDetection(pathname);
+  if (normalizedCandidate !== pathname && !isCompanyScopeExcluded(normalizedCandidate)) {
+    return res.redirect('/login');
+  }
+
+  return next();
 });
 
 function normalizeViewName(view) {
@@ -564,10 +863,11 @@ app.use((req, res, next) => {
       }
 
       const htmlWithDesignSystem = injectGlobalDesignAssets(view, html);
+      const htmlWithCompanyScope = rewriteCompanyScopedHtml(req, htmlWithDesignSystem);
 
-      if (!shouldInjectGlobalDock(req, view, htmlWithDesignSystem)) {
-        if (renderCallback) return renderCallback(null, htmlWithDesignSystem);
-        return res.send(htmlWithDesignSystem);
+      if (!shouldInjectGlobalDock(req, view, htmlWithCompanyScope)) {
+        if (renderCallback) return renderCallback(null, htmlWithCompanyScope);
+        return res.send(htmlWithCompanyScope);
       }
 
       return renderGlobalDockPartial(req, res, (dockErr, partialHtml) => {
@@ -575,7 +875,7 @@ app.use((req, res, next) => {
           if (renderCallback) return renderCallback(dockErr);
           return next(dockErr);
         }
-        const renderedHtml = injectGlobalDockMarkup(htmlWithDesignSystem, partialHtml);
+        const renderedHtml = injectGlobalDockMarkup(htmlWithCompanyScope, partialHtml);
         if (renderCallback) return renderCallback(null, renderedHtml);
         return res.send(renderedHtml);
       });
@@ -667,7 +967,7 @@ const companyLogoUpload = multer({
       cb(null, `${Date.now()}-${token}${ext}`);
     }
   }),
-  limits: { fileSize: 3 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype && file.mimetype.startsWith('image/')) {
       return cb(null, true);
@@ -3265,6 +3565,7 @@ db.serialize(() => {
  CREATE TABLE IF NOT EXISTS companies (
  id INTEGER PRIMARY KEY AUTOINCREMENT,
  name TEXT,
+ commercial_name TEXT,
  legal_name TEXT,
  address TEXT,
  tax_address TEXT,
@@ -3497,6 +3798,7 @@ db.serialize(() => {
   ensureColumn('companies', 'is_active', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn('companies', 'inactive_reason', 'TEXT');
   ensureColumnsOnTable('companies', [
+    { name: 'commercial_name', type: 'TEXT' },
     { name: 'legal_name', type: 'TEXT' },
     { name: 'tax_address', type: 'TEXT' },
     { name: 'activity_id', type: 'INTEGER' },
@@ -5185,6 +5487,18 @@ const launcher_MODULE_CONFIG = {
     icon: 'rrhh',
     order: 59
   },
+  chat: {
+    href: '/chat',
+    color: '#0f6d86',
+    icon: 'chat',
+    order: 59.5
+  },
+  notifications: {
+    href: '/notifications',
+    color: '#9a3412',
+    icon: 'notifications',
+    order: 59.75
+  },
   portal: {
     href: '/customer/login',
     color: '#2563eb',
@@ -5287,6 +5601,14 @@ const launcher_ICON_MAP = {
 <circle cx="16.5" cy="8.5" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
 <path d="M13.7 17.8c.2-2.2 1.8-4 4-4.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
 <path d="M12 5v14M9.5 12h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+</svg>`,
+  chat: `<svg viewBox="0 0 24 24" aria-hidden="true">
+<path d="M5 6.5h14a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 19 18.5H10l-4.8 3v-3H5A2.5 2.5 0 0 1 2.5 16V9A2.5 2.5 0 0 1 5 6.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+<path d="M7.5 11.5h9M7.5 14.5h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+</svg>`,
+  notifications: `<svg viewBox="0 0 24 24" aria-hidden="true">
+<path d="M12 4.5a4.5 4.5 0 0 1 4.5 4.5v2.6c0 1.3.4 2.6 1.2 3.7l1.1 1.6H5.2l1.1-1.6a6.1 6.1 0 0 0 1.2-3.7V9A4.5 4.5 0 0 1 12 4.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+<path d="M9.5 19a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
 </svg>`,
   manifest: `<svg viewBox="0 0 24 24" aria-hidden="true">
 <path d="M6 3h8l4 4v14H6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
@@ -5971,10 +6293,13 @@ function getWorkspaceModuleGroup(moduleKey) {
   if (['customers', 'consignatarios', 'portal', 'tracking'].includes(key)) {
     return 'people';
   }
+  if (['chat'].includes(key)) {
+    return 'people';
+  }
   if (['inventory', 'billing', 'accounting', 'reports'].includes(key)) {
     return 'business';
   }
-  if (['users', 'settings', 'rrhh', 'agenda_medica'].includes(key)) {
+  if (['users', 'settings', 'rrhh', 'agenda_medica', 'notifications'].includes(key)) {
     return 'admin';
   }
   return 'general';
@@ -6487,7 +6812,11 @@ function buildWorkspaceResponse(req, res, callback) {
     return;
   }
   buildlauncherModules(db, res.locals.t, req.session.permissionMap, Boolean(req.session.master), (modules) => {
-    const workspaceModules = filterWorkspaceModulesForPermissions(modules, req.session.permissionMap, Boolean(req.session.master));
+    const scopedModules = (modules || []).map((module) => ({
+      ...module,
+      href: buildCompanyScopedPath(getSessionCompanySlug(req), module.href)
+    }));
+    const workspaceModules = filterWorkspaceModulesForPermissions(scopedModules, req.session.permissionMap, Boolean(req.session.master));
     getCompanyBrandById(companyId, (companyBrand) => {
       getUserWorkspaceSettings(userId, companyId, (workspaceSettings) => {
         getUserWorkspaceItems(userId, companyId, (workspaceItems) => {
@@ -6522,10 +6851,10 @@ function renderWorkspacePage(req, res, options = {}) {
       icons: payload.icons,
       workspaceState: payload.workspaceState,
       endpoints: {
-        save: '/workspace/save',
-        reset: '/workspace/reset',
-        state: '/workspace/state',
-        settingsReset: '/workspace/settings/reset'
+        save: buildCompanyScopedPath(getSessionCompanySlug(req), '/workspace/save'),
+        reset: buildCompanyScopedPath(getSessionCompanySlug(req), '/workspace/reset'),
+        state: buildCompanyScopedPath(getSessionCompanySlug(req), '/workspace/state'),
+        settingsReset: buildCompanyScopedPath(getSessionCompanySlug(req), '/workspace/settings/reset')
       },
       csrfToken: res.locals.csrfToken,
       settingsPanelOpen: Boolean(options.settingsPanelOpen)
@@ -6850,8 +7179,9 @@ function savelauncherPlannerEntries(userId, companyId, rawEntries, callback) {
 
 function buildPackageUrl(req, packageId) {
   const host = req.get('host');
-  if (!host) return `/packages/${packageId}`;
-  return `${req.protocol}://${host}/packages/${packageId}`;
+  const pathUrl = buildCompanyScopedPath(getSessionCompanySlug(req), `/packages/${packageId}`);
+  if (!host) return pathUrl;
+  return `${req.protocol}://${host}${pathUrl}`;
 }
 
 function buildPackageInvoiceUploadUrl(req, packageId, companyId) {
@@ -7030,6 +7360,31 @@ function parseJsonList(raw) {
   }
 }
 
+const MODULE_DEPENDENCIES = {
+  chat: ['notifications']
+};
+
+const COMPANY_WIDE_PERMISSION_RULES = {
+  chat: ['view', 'create'],
+  notifications: ['view']
+};
+
+function applyModuleDependencies(modules, allowedSet) {
+  const list = Array.isArray(modules) ? [...modules] : [];
+  const seen = new Set(list);
+  list.forEach((code) => {
+    const dependencies = MODULE_DEPENDENCIES[code];
+    if (!Array.isArray(dependencies) || dependencies.length === 0) return;
+    dependencies.forEach((dependencyCode) => {
+      if (!dependencyCode || seen.has(dependencyCode)) return;
+      if (allowedSet && !allowedSet.has(dependencyCode)) return;
+      seen.add(dependencyCode);
+      list.push(dependencyCode);
+    });
+  });
+  return list;
+}
+
 function normalizeModuleSelection(input, allowedSet) {
   const raw = Array.isArray(input) ? input : (input ? [input] : []);
   const seen = new Set();
@@ -7041,7 +7396,7 @@ function normalizeModuleSelection(input, allowedSet) {
     seen.add(code);
     selected.push(code);
   });
-  return selected;
+  return applyModuleDependencies(selected, allowedSet);
 }
 
 const ALWAYS_ALLOWED_MODULES = new Set(['dashboard']);
@@ -7057,10 +7412,50 @@ function normalizeAllowedModules(rawList) {
     seen.add(code);
     normalized.push(code);
   });
+  const withDependencies = applyModuleDependencies(normalized);
   if (!seen.has('dashboard')) {
-    normalized.push('dashboard');
+    withDependencies.push('dashboard');
   }
-  return normalized;
+  return withDependencies;
+}
+
+function getCompanyWidePermissionSpecs(allowedModules) {
+  const allowedList =
+    Array.isArray(allowedModules) && allowedModules.length
+      ? normalizeAllowedModules(allowedModules)
+      : [];
+  if (!allowedList.length) return [];
+  const allowedSet = new Set(allowedList);
+  const seen = new Set();
+  const specs = [];
+  Object.entries(COMPANY_WIDE_PERMISSION_RULES).forEach(([moduleCode, actionCodes]) => {
+    if (!allowedSet.has(moduleCode)) return;
+    (Array.isArray(actionCodes) ? actionCodes : []).forEach((actionCode) => {
+      const safeActionCode = normalizeString(actionCode);
+      if (!safeActionCode) return;
+      const key = `${moduleCode}:${safeActionCode}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      specs.push({ moduleCode, actionCode: safeActionCode });
+    });
+  });
+  return specs;
+}
+
+function applyCompanyWidePermissions(permissionMap, allowedModules) {
+  if (!permissionMap || permissionMap.isAdmin) return permissionMap;
+  const specs = getCompanyWidePermissionSpecs(allowedModules);
+  if (!specs.length) return permissionMap;
+  if (!permissionMap.modules || typeof permissionMap.modules !== 'object') {
+    permissionMap.modules = {};
+  }
+  specs.forEach(({ moduleCode, actionCode }) => {
+    if (!permissionMap.modules[moduleCode]) {
+      permissionMap.modules[moduleCode] = {};
+    }
+    permissionMap.modules[moduleCode][actionCode] = true;
+  });
+  return permissionMap;
 }
 
 function loadBusinessActivities(callback) {
@@ -7521,7 +7916,7 @@ function getPermissionMap(userId, companyId, allowedModules, callback) {
           }
           map.modules[r.module_code][r.action_code] = true;
         });
-        return callback(null, map);
+        return callback(null, applyCompanyWidePermissions(map, allowedList));
       });
     }
   );
@@ -7529,13 +7924,40 @@ function getPermissionMap(userId, companyId, allowedModules, callback) {
 
 function isModuleAllowed(permissionMap, moduleCode) {
   if (!permissionMap) return false;
-  if (!permissionMap.allowedModules || permissionMap.allowedModules.length === 0) return true;
+  const allowedList =
+    Array.isArray(permissionMap.allowedModules) && permissionMap.allowedModules.length
+      ? normalizeAllowedModules(permissionMap.allowedModules)
+      : null;
+  if (!allowedList) return true;
   if (ALWAYS_ALLOWED_MODULES.has(moduleCode)) return true;
-  return permissionMap.allowedModules.includes(moduleCode);
+  return allowedList.includes(moduleCode);
+}
+
+function hasNotificationsViewPermission(permissionMap) {
+  if (!permissionMap) return false;
+  if (permissionMap.isAdmin) {
+    return isModuleAllowed(permissionMap, 'notifications') || isModuleAllowed(permissionMap, 'chat');
+  }
+  const directPermission = Boolean(
+    isModuleAllowed(permissionMap, 'notifications')
+    && permissionMap.modules
+    && permissionMap.modules.notifications
+    && permissionMap.modules.notifications.view
+  );
+  if (directPermission) return true;
+  return Boolean(
+    isModuleAllowed(permissionMap, 'chat')
+    && permissionMap.modules
+    && permissionMap.modules.chat
+    && permissionMap.modules.chat.view
+  );
 }
 
 function hasPermission(permissionMap, moduleCode, actionCode) {
   if (!permissionMap) return false;
+  if (moduleCode === 'notifications' && actionCode === 'view') {
+    return hasNotificationsViewPermission(permissionMap);
+  }
   if (!isModuleAllowed(permissionMap, moduleCode)) return false;
   if (permissionMap.isAdmin) return true;
   return Boolean(
@@ -7579,7 +8001,7 @@ const AI_MODULE_LABELS = {
 };
 
 function resolveModuleByPath(pathname) {
-  const pathValue = String(pathname || '');
+  const pathValue = normalizePathForModuleDetection(pathname);
   const rules = [
     { re: /^\/packages/, module: 'packages' },
     { re: /^\/users/, module: 'users' },
@@ -8528,6 +8950,18 @@ function renderUsers(req, res, error, createdUser) {
               });
             });
             const modulesWithActions = Array.from(moduleMap.values());
+            const companyWidePermissionLookup = new Set(
+              getCompanyWidePermissionSpecs(companySettings.allowed_modules)
+                .map((spec) => `${spec.moduleCode}:${spec.actionCode}`)
+            );
+            const companyWidePermissionKeys = new Set();
+            modulesWithActions.forEach((moduleRow) => {
+              moduleRow.actions.forEach((actionRow) => {
+                const lookupKey = `${moduleRow.code}:${actionRow.code}`;
+                if (!companyWidePermissionLookup.has(lookupKey)) return;
+                companyWidePermissionKeys.add(`${moduleRow.id}:${actionRow.id}`);
+              });
+            });
             db.all(
               'SELECT user_id, module_id, action_id FROM user_permissions WHERE company_id = ?',
               [companyId],
@@ -8543,6 +8977,7 @@ function renderUsers(req, res, error, createdUser) {
                   error: error || null,
                   modules: modulesWithActions,
                   userPermissionsMap: map,
+                  companyWidePermissionKeys,
                   createdUser: createdUser || null,
                   companyLabel: resolveCompanyLabel(req, res)
                 });
@@ -8877,7 +9312,9 @@ function getCompanyBrandById(companyId, callback) {
     const appearance = extractCompanyAppearance(company);
     return callback({
       id: company.id,
-      name: company.name,
+      name: resolveCompanyDisplayName(company),
+      commercial_name: company.commercial_name || null,
+      legal_name: company.legal_name || null,
       logo: buildFileUrl(appearance.logoPath || null),
       logo_path: appearance.logoPath || null,
       primary_color: appearance.primaryColor,
@@ -10084,6 +10521,8 @@ registerAuthRoutes(app, {
   MASTER_LOGIN_LIMIT_MAX,
   MASTER_USER,
   MASTER_PASS,
+  resolveCompanyDisplayName,
+  createCompanySlug,
   DEFAULT_LANG,
   SUPPORTED_LANGS,
   SESSION_COOKIE_NAME
@@ -10118,6 +10557,8 @@ registerCompanyRoutes(app, {
   normalizeString,
   parseCurrencyList,
   resolveCompanyActiveWindow,
+  resolveCompanyDisplayName,
+  createCompanySlug,
   seedAccountingCategories,
   seedNifCatalog,
   getIsStartingUp: () => isStartingUp
@@ -10128,6 +10569,7 @@ registerMasterCompanyRoutes(app, {
   bcrypt,
   requireMaster,
   loadBusinessActivities,
+  buildFileUrl,
   buildCompanyStatus,
   setFlash,
   parseJsonList,
@@ -10135,6 +10577,8 @@ registerMasterCompanyRoutes(app, {
   getPermissionMap,
   parseCurrencyList,
   resolveCompanyActiveWindow,
+  resolveCompanyDisplayName,
+  createCompanySlug,
   seedAccountingCategories,
   seedNifCatalog,
   getIsStartingUp: () => isStartingUp
@@ -10345,7 +10789,8 @@ registerInvoiceRoutes(app, {
   enqueueDbTransaction,
   commitTransaction,
   rollbackTransaction,
-  logAction
+  logAction,
+  buildFileUrl
 });
 
 registerAgendaMedicaRoutes(app, {
@@ -10369,6 +10814,15 @@ registerHrRoutes(app, {
   buildFileUrl
 });
 
+registerChatRoutes(app, {
+  db,
+  requireAuth,
+  requirePermission,
+  csrfMiddleware,
+  getCompanyId,
+  setFlash
+});
+
 registerUserRoutes(app, {
   db,
   bcrypt,
@@ -10382,6 +10836,7 @@ registerUserRoutes(app, {
   logAction,
   resolveCompanyLabel,
   assignDefaultDashboardPermission,
+  getCompanyWidePermissionSpecs,
   enqueueDbTransaction,
   commitTransaction,
   rollbackTransaction
@@ -10540,7 +10995,7 @@ function sendLegacyLauncherDisabled(req, res) {
   return res.status(410).json({
     ok: false,
     code: 'legacy_launcher_disabled',
-    redirect: '/settings/workspace'
+    redirect: buildCompanyScopedPath(getSessionCompanySlug(req), '/settings/workspace')
   });
 }
 

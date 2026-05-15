@@ -17,6 +17,8 @@ function registerAuthRoutes(app, deps) {
     MASTER_LOGIN_LIMIT_MAX,
     MASTER_USER,
     MASTER_PASS,
+    resolveCompanyDisplayName,
+    createCompanySlug,
     DEFAULT_LANG,
     SUPPORTED_LANGS,
     SESSION_COOKIE_NAME
@@ -83,6 +85,8 @@ function registerAuthRoutes(app, deps) {
               return res.render('login', { error: res.locals.t('errors.server_try_again') });
             }
             req.session.lang = SUPPORTED_LANGS[previousLang] ? previousLang : DEFAULT_LANG;
+            const companyName = typeof company.name === 'string' ? company.name.trim() : '';
+            const companySlug = createCompanySlug(companyName);
             const baseCurrency = String(company.base_currency || company.currency || 'GTQ').toUpperCase();
             const allowedCurrencies = company.allowed_currencies || baseCurrency;
             const rawAllowedModules = parseJsonList(company.allowed_modules);
@@ -92,12 +96,22 @@ function registerAuthRoutes(app, deps) {
               username: user.username,
               role: user.role,
               is_active: user.is_active,
-              launcher_type: user.launcher_type || null
+              launcher_type: user.launcher_type || null,
+              chat_display_name: user.chat_display_name || null,
+              chat_presence_status: user.chat_presence_status || 'online',
+              chat_profile_photo_path: user.chat_profile_photo_path || null,
+              chat_profile_completed_at: user.chat_profile_completed_at || null
             };
             req.session.company_id = company.id;
+            req.session.company_name = companyName;
+            req.session.company_slug = companySlug;
             req.session.company = {
               id: company.id,
-              name: company.name,
+              name: companyName,
+              slug: companySlug,
+              commercial_name: company.commercial_name || null,
+              legal_name: company.legal_name || null,
+              display_name: resolveCompanyDisplayName(company),
               username: company.username,
               currency: company.currency,
               base_currency: baseCurrency,

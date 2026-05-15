@@ -105,6 +105,7 @@
 </div>
 <% } %>
 <div class="users-tabs-content">
+<% const inheritedPermissionKeys = companyWidePermissionKeys || new Set(); %>
 <section class="panel app-panel card-elevated users-section" id="nuevo-usuario" data-users-view>
 <div class="panel-header app-panel-header">
 <div>
@@ -168,6 +169,11 @@
 <div class="muted">
 <%= t('users.permissions_note') %>
 </div>
+<% if (inheritedPermissionKeys.size) { %>
+<div class="muted">
+Los permisos marcados como fijos por actividad se asignan automaticamente a todos los usuarios de esta empresa.
+</div>
+<% } %>
 </div>
 <div class="permission-grid full-row">
 <% if (modules && modules.length) { %>
@@ -182,10 +188,14 @@
 </div>
 <% } %>
 <% m.actions.forEach(a => { %>
+<% const key = `${m.id}:${a.id}`; const isInherited = inheritedPermissionKeys.has(key); %>
 <label class="checkbox">
-<input type="checkbox" name="permissions[]" value="<%= m.id %>:<%= a.id %>" />
+<input type="checkbox" name="permissions[]" value="<%= key %>" <%= isInherited ? 'checked disabled' : '' %> />
 <span>
 <%= a.name %>
+<% if (isInherited) { %>
+ (Fijo por actividad)
+<% } %>
 </span>
 </label>
 <% }) %>
@@ -365,6 +375,11 @@
 <form method="POST" action="/users/<%= u.id %>/permissions">
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 <% const assignedSet = userPermissionsMap && userPermissionsMap[u.id] ? userPermissionsMap[u.id] : new Set(); %>
+<% if (inheritedPermissionKeys.size) { %>
+<div class="muted">
+Los permisos marcados como fijos por actividad se guardan automaticamente y no se pueden quitar mientras la actividad de la empresa los incluya.
+</div>
+<% } %>
 <div class="permission-grid">
 <% modules.forEach(m => { %>
 <div class="permission-card">
@@ -377,11 +392,14 @@
 </div>
 <% } %>
 <% m.actions.forEach(a => { %>
-<% const key = `${m.id}:${a.id}`; %>
+<% const key = `${m.id}:${a.id}`; const isInherited = inheritedPermissionKeys.has(key); const isChecked = assignedSet.has(key) || isInherited; %>
 <label class="checkbox">
-<input type="checkbox" name="permissions[]" value="<%= key %>" <%= assignedSet.has(key) ? 'checked' : '' %> />
+<input type="checkbox" name="permissions[]" value="<%= key %>" <%= isChecked ? 'checked' : '' %> <%= isInherited ? 'disabled' : '' %> />
 <span>
 <%= a.name %>
+<% if (isInherited) { %>
+ (Fijo por actividad)
+<% } %>
 </span>
 </label>
 <% }) %>
