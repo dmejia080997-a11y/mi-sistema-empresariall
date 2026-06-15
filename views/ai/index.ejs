@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="<%= typeof lang !== 'undefined' ? lang : 'es' %>">
+<head>
+<%- include('../partials/head', { title: 'Asistente', extraStyles: ['/css/ai-enterprise.css'] }) %>
+<meta name="csrf-token" content="<%= csrfToken %>" />
+</head>
+<body class="page ai-enterprise-page">
+<%- include('../partials/header', {
+  headerNavItems: [
+    { href: '/workspace', label: 'Escritorio' },
+    { href: '/logout', label: 'Salir' }
+  ]
+}) %>
+
+<main class="ai-internal-shell" data-ai-root data-company-id="<%= companyId || '' %>" data-user-id="<%= userId || '' %>">
+  <section class="ai-internal-header">
+    <div>
+      <span class="ai-kicker">Asistente</span>
+      <h1>Consultas empresariales</h1>
+      <p>Consulta datos internos de la empresa sin salir de esta pantalla.</p>
+    </div>
+  </section>
+
+  <section class="ai-dashboard-cards" aria-label="Dashboard del asistente">
+    <article><span>Consultas hoy</span><strong><%= cards.todayQueries %></strong></article>
+    <article><span>Exportaciones</span><strong><%= cards.exportsGenerated %></strong></article>
+    <article><span>Intenciones activas</span><strong><%= cards.activeIntents %></strong></article>
+    <article><span>Ultima consulta</span><strong><%= cards.lastQuestion %></strong></article>
+    <article class="ai-dashboard-card--optional"><span>Modulos del asistente</span><strong><%= cards.modules.length %></strong></article>
+  </section>
+
+  <section class="ai-internal-layout">
+    <aside class="ai-sidebar ai-internal-aside">
+      <div class="ai-sidebar__header">
+        <div>
+          <span class="ai-kicker">Historial</span>
+          <h2>Consultas</h2>
+        </div>
+        <button class="ai-history-toggle" type="button" data-history-toggle aria-label="Ocultar historial" title="Ocultar historial">-</button>
+      </div>
+      <nav class="ai-conversations" data-history>
+        <% if (!history.length) { %>
+          <div class="ai-empty">Sin consultas.</div>
+        <% } %>
+        <% history.forEach((item) => { %>
+          <button type="button" class="ai-conversation" data-history-question="<%= item.question %>">
+            <strong><%= item.question %></strong>
+            <span><%= item.intent_detected || 'Sin intencion' %> - <%= item.created_at %></span>
+          </button>
+        <% }) %>
+      </nav>
+    </aside>
+
+    <section class="ai-chat-panel">
+      <div class="ai-chat-panel__header">
+        <div>
+          <span class="ai-kicker">Chat</span>
+          <h2>Asistente de reportes internos</h2>
+          <p>Interpreta tus preguntas y consulta ventas, clientes, cobros, inventario, proyectos y produccion.</p>
+        </div>
+      </div>
+
+      <div class="ai-messages" data-messages>
+        <div class="ai-welcome">
+          <strong>Escribe lo que necesitas consultar de la empresa.</strong>
+          <div class="ai-prompt-grid" aria-label="Consultas sugeridas">
+            <button type="button" data-ai-prompt="Dame un Excel de clientes activos.">Clientes activos</button>
+            <button type="button" data-ai-prompt="Cuanto llevo vendido este mes?">Ventas del mes</button>
+            <button type="button" data-ai-prompt="Cuanto tengo por cobrar?">Cuentas por cobrar</button>
+            <button type="button" data-ai-prompt="Prospectos por vendedor">Prospectos por vendedor</button>
+            <button type="button" data-ai-prompt="Cotizaciones pendientes">Cotizaciones pendientes</button>
+            <button type="button" data-ai-prompt="Facturas vencidas">Facturas vencidas</button>
+            <button type="button" data-ai-prompt="Inventario disponible">Inventario disponible</button>
+            <button type="button" data-ai-prompt="Cuales son los productos mas vendidos este mes?">Productos mas vendidos</button>
+          </div>
+        </div>
+      </div>
+
+      <section class="ai-result-panel" data-result-panel hidden>
+        <div class="ai-result-summary">
+          <strong data-result-summary></strong>
+          <div class="ai-export-actions">
+            <button class="app-btn btn" type="button" data-export-format="xlsx">Excel</button>
+            <button class="app-btn btn secondary" type="button" data-export-format="csv">CSV</button>
+            <button class="app-btn btn secondary" type="button" data-export-format="pdf">PDF</button>
+          </div>
+        </div>
+        <div class="ai-table-wrap">
+          <table class="ai-result-table">
+            <thead data-result-head></thead>
+            <tbody data-result-body></tbody>
+          </table>
+        </div>
+      </section>
+
+      <form class="ai-composer" data-composer>
+        <textarea name="content" rows="2" placeholder="Ejemplo: que clientes me deben, ventas de esta semana, stock bajo..."></textarea>
+        <button class="app-btn btn" type="submit">Enviar</button>
+      </form>
+    </section>
+  </section>
+</main>
+
+<script src="/js/ai-enterprise.js"></script>
+</body>
+</html>

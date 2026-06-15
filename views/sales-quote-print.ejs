@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<%
+  const money = (value) => `GTQ ${Number(value || 0).toFixed(2)}`;
+  const date = (value) => value ? String(value).slice(0, 10) : '-';
+  const clientName = quote.customer_name || quote.prospect_name || 'Sin cliente';
+  const clientContact = quote.customer_email || quote.prospect_email || quote.customer_phone || quote.prospect_phone || '';
+%>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= quote.quote_number %></title>
+  <%- include('partials/head-assets') %>
+  <link rel="stylesheet" href="/css/sales.css" />
+</head>
+<body class="page sales-page quote-print-page">
+  <main class="container sales-shell quote-print-shell">
+    <section class="quote-print-toolbar">
+      <a class="btn app-btn" href="/sales?section=quotes">Volver</a>
+      <button class="btn app-btn primary" type="button" onclick="window.print()">Imprimir / PDF</button>
+    </section>
+
+    <section class="quote-document">
+      <header class="quote-document-header">
+        <div>
+          <span>Cotizacion</span>
+          <h1><%= quote.quote_number %></h1>
+        </div>
+        <dl>
+          <div><dt>Fecha</dt><dd><%= date(quote.created_at) %></dd></div>
+          <div><dt>Valida hasta</dt><dd><%= date(quote.valid_until) %></dd></div>
+          <div><dt>Estado</dt><dd><%= quote.status %></dd></div>
+        </dl>
+      </header>
+
+      <section class="quote-document-meta">
+        <article>
+          <span>Cliente</span>
+          <strong><%= clientName %></strong>
+          <% if (clientContact) { %><p><%= clientContact %></p><% } %>
+        </article>
+        <article>
+          <span>Vendedor</span>
+          <strong><%= quote.seller_name || '-' %></strong>
+          <% if (quote.opportunity_title) { %><p><%= quote.opportunity_title %></p><% } %>
+        </article>
+      </section>
+
+      <table class="sales-table quote-lines-table">
+        <thead><tr><th>Tipo</th><th>Descripcion</th><th>Cantidad</th><th>Precio</th><th>Total</th></tr></thead>
+        <tbody>
+          <% quote.lines.forEach((line) => { %>
+            <tr>
+              <td><%= line.line_type %></td>
+              <td><%= line.description %></td>
+              <td><%= line.qty %></td>
+              <td><%= money(line.unit_price) %></td>
+              <td><%= money(line.total) %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+        <tfoot>
+          <tr><th colspan="4">Subtotal</th><td><%= money(quote.subtotal) %></td></tr>
+          <tr><th colspan="4">Descuento</th><td><%= money(quote.discount) %></td></tr>
+          <tr><th colspan="4">Impuesto</th><td><%= money(quote.tax) %></td></tr>
+          <tr><th colspan="4">Total</th><td><strong><%= money(quote.total) %></strong></td></tr>
+        </tfoot>
+      </table>
+
+      <% if (quote.notes) { %>
+        <section class="quote-notes">
+          <h2>Notas</h2>
+          <p><%= quote.notes %></p>
+        </section>
+      <% } %>
+
+      <% if (quote.attachments.length) { %>
+      <section class="quote-supports">
+        <h2>Soportes adjuntos</h2>
+        <% quote.attachments.forEach((attachment, index) => { %>
+          <article class="quote-support">
+            <div>
+              <strong>Soporte <%= index + 1 %>: <%= attachment.original_name || 'Adjunto' %></strong>
+              <span><%= attachment.mime_type || 'archivo' %> - <%= date(attachment.created_at) %></span>
+              <% if (attachment.file_url) { %><a href="<%= attachment.file_url %>" target="_blank" rel="noopener">Abrir archivo</a><% } %>
+            </div>
+            <% if (attachment.is_image && attachment.file_url) { %>
+              <img src="<%= attachment.file_url %>" alt="<%= attachment.original_name || 'Soporte de cotizacion' %>" />
+            <% } %>
+          </article>
+        <% }) %>
+      </section>
+      <% } %>
+    </section>
+
+    <section class="panel app-panel quote-upload-panel">
+      <div class="panel-header app-panel-header"><h2>Agregar soportes</h2></div>
+      <form class="sales-form" method="post" action="/sales/quotes/<%= quote.id %>/attachments" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <label>Adjuntos<input name="quote_attachments" type="file" multiple required accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.png,.jpg,.jpeg,.webp" /></label>
+        <button class="btn app-btn primary" type="submit">Adjuntar</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

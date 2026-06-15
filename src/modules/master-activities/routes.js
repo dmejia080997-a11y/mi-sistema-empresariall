@@ -1,4 +1,17 @@
 function registerMasterActivitiesRoutes(app, deps) {
+  const { db, normalizeAllowedModules } = deps;
+
+  function syncCompaniesForActivity(activityId, modules, callback) {
+    const normalizedModules = typeof normalizeAllowedModules === 'function'
+      ? normalizeAllowedModules(modules)
+      : modules;
+    db.run(
+      'UPDATE companies SET allowed_modules = ? WHERE activity_id = ?',
+      [JSON.stringify(normalizedModules), activityId],
+      (err) => callback(err || null)
+    );
+  }
+
   const scope = { app, ...deps };
   with (scope) {
 app.get('/master/activities', requireMaster, (req, res) => {
@@ -96,8 +109,14 @@ app.post('/master/activities/:id/update', requireMaster, (req, res) => {
             }
             return res.redirect('/master/activities');
           }
-          setFlash(req, 'success', 'Actividad actualizada.');
-          return res.redirect('/master/activities');
+          syncCompaniesForActivity(id, selected, (syncErr) => {
+            if (syncErr) {
+              setFlash(req, 'error', 'La actividad se actualizo, pero no se pudieron sincronizar las empresas.');
+              return res.redirect('/master/activities');
+            }
+            setFlash(req, 'success', 'Actividad actualizada y empresas sincronizadas.');
+            return res.redirect('/master/activities');
+          });
         }
       );
     }

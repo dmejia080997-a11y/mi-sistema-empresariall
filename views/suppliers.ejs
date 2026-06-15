@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Proveedores</title>
+  <%- include('partials/head-assets') %>
+  <link rel="stylesheet" href="/css/suppliers.css" />
+</head>
+<body class="page suppliers-page">
+  <%- include('partials/header', {
+    moduleTabs: [
+      { key: 'list', label: 'Proveedores', href: '/suppliers' },
+      ...(can('suppliers', 'reports') ? [{ key: 'reports', label: 'Reportes', href: '/suppliers/reports' }] : []),
+      ...(can('suppliers', 'create') ? [{ key: 'new', label: 'Registrar proveedor', href: '/suppliers/new' }] : [])
+    ],
+    activeTab: 'list',
+    currentModule: 'suppliers'
+  }) %>
+  <main class="container suppliers-shell">
+    <%- include('partials/page-shell', { pageTitle: 'Proveedores', pageSubtitle: 'Directorio nacional e internacional por empresa.' }) %>
+    <%- include('partials/toasts', { flash }) %>
+
+    <section class="supplier-kpis">
+      <article><span>Total</span><strong><%= summary.total || 0 %></strong></article>
+      <article><span>Activos</span><strong><%= summary.active || 0 %></strong></article>
+      <article><span>Nacionales</span><strong><%= summary.national || 0 %></strong></article>
+      <article><span>Internacionales</span><strong><%= summary.international || 0 %></strong></article>
+      <article><span>Bloqueados</span><strong><%= summary.blocked || 0 %></strong></article>
+    </section>
+
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header">
+        <div><h2>Listado de proveedores</h2><p class="muted">Los resultados estan limitados a la empresa activa.</p></div>
+        <% if (can('suppliers', 'create')) { %><a class="btn primary" href="/suppliers/new">Nuevo proveedor</a><% } %>
+      </div>
+      <form class="supplier-filters" method="GET" action="/suppliers">
+        <input name="q" value="<%= filters.q || '' %>" placeholder="Codigo, nombre o identificacion fiscal" />
+        <select name="type">
+          <option value="">Todos los tipos</option>
+          <option value="national" <%= filters.type === 'national' ? 'selected' : '' %>>Nacional</option>
+          <option value="international" <%= filters.type === 'international' ? 'selected' : '' %>>Internacional</option>
+        </select>
+        <select name="status">
+          <option value="">Todos los estados</option>
+          <% statuses.forEach(([key, label]) => { %><option value="<%= key %>" <%= filters.status === key ? 'selected' : '' %>><%= label %></option><% }) %>
+        </select>
+        <select name="country">
+          <option value="">Todos los paises</option>
+          <% countries.forEach(row => { %><option value="<%= row.country %>" <%= filters.country === row.country ? 'selected' : '' %>><%= row.country %></option><% }) %>
+        </select>
+        <button class="btn" type="submit">Filtrar</button>
+        <a class="btn ghost" href="/suppliers">Limpiar</a>
+      </form>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Codigo</th><th>Proveedor</th><th>Tipo / pais</th><th>Categoria</th><th>Condiciones</th><th>Evaluacion</th><th>Estado</th><th></th></tr></thead>
+          <tbody>
+          <% suppliers.forEach(supplier => { %>
+            <tr>
+              <td><strong><%= supplier.code %></strong></td>
+              <td><strong><%= supplier.trade_name %></strong><small><%= supplier.legal_name || supplier.tax_id || '' %></small></td>
+              <td><%= supplier.supplier_type === 'international' ? 'Internacional' : 'Nacional' %><small><%= supplier.country || '-' %></small></td>
+              <td><%= supplier.category || '-' %></td>
+              <td><%= supplier.primary_currency || 'GTQ' %> · <%= supplier.credit_days || 0 %> dias</td>
+              <td><%= supplier.rating ? `${supplier.rating} / 5` : 'Sin evaluar' %></td>
+              <td><span class="supplier-status supplier-status-<%= supplier.status %>"><%= (statuses.find(([key]) => key === supplier.status) || [null, supplier.status])[1] %></span></td>
+              <td><a class="btn small" href="/suppliers/<%= supplier.id %>">Abrir ficha</a></td>
+            </tr>
+          <% }) %>
+          <% if (!suppliers.length) { %><tr><td colspan="8" class="muted">No hay proveedores para los filtros seleccionados.</td></tr><% } %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

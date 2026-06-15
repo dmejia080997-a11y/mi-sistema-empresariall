@@ -56,7 +56,8 @@ function registerHrRoutes(app, deps) {
     getCompanyId,
     normalizeString,
     setFlash,
-    buildFileUrl
+    buildFileUrl,
+    accountingAutomation
   } = deps;
 
   initializeHrModule(db);
@@ -398,7 +399,9 @@ function registerHrRoutes(app, deps) {
     const pagination = buildPagination(page, Number(countRow && countRow.total) || 0, DEFAULT_PAGE_SIZE);
     const rows = await dbAll(
       `SELECT s.*,
-              e.first_name || ' ' || e.last_name AS employee_name
+              e.first_name || ' ' || e.last_name AS employee_name,
+              (SELECT pp.period FROM hr_payroll_payments pp WHERE pp.salary_id = s.id AND pp.company_id = s.company_id ORDER BY pp.paid_at DESC, pp.id DESC LIMIT 1) AS last_paid_period,
+              (SELECT pp.net_amount FROM hr_payroll_payments pp WHERE pp.salary_id = s.id AND pp.company_id = s.company_id ORDER BY pp.paid_at DESC, pp.id DESC LIMIT 1) AS last_paid_net
        FROM hr_salaries s
        JOIN hr_employees e ON e.id = s.employee_id AND e.company_id = s.company_id
        ${whereSql}
@@ -1397,8 +1400,47 @@ function registerHrRoutes(app, deps) {
   app.post('/rrhh/salaries/:id/delete', requireAuth, requirePermission('rrhh', 'delete'), csrfMiddleware || passThrough, asyncHandler(async (req, res) => {
     const companyId = getCompanyId(req);
     const salaryId = parsePositiveInt(req.params.id, null);
+    const payrollPayment = await dbGet('SELECT id FROM hr_payroll_payments WHERE salary_id = ? AND company_id = ? LIMIT 1', [salaryId, companyId]);
+    if (payrollPayment) {
+      setFlash(req, 'error', 'No se puede eliminar un salario con pagos de planilla contabilizados.');
+      return res.redirect('/rrhh?tab=salaries');
+    }
     await dbRun('DELETE FROM hr_salaries WHERE id = ? AND company_id = ?', [salaryId, companyId]);
     setFlash(req, 'success', 'Registro salarial eliminado.');
+    return res.redirect('/rrhh?tab=salaries');
+  }));
+
+  app.post('/rrhh/salaries/:id/pay', requireAuth, requirePermission('rrhh', 'approve'), csrfMiddleware || passThrough, asyncHandler(async (req, res) => {
+    const companyId = getCompanyId(req);
+    const salaryId = parsePositiveInt(req.params.id, null);
+    const salary = await dbGet(
+      `SELECT s.*, e.first_name || ' ' || e.last_name AS employee_name
+       FROM hr_salaries s JOIN hr_employees e ON e.id = s.employee_id AND e.company_id = s.company_id
+       WHERE s.id = ? AND s.company_id = ?`,
+      [salaryId, companyId]
+    );
+    if (!salary) {
+      setFlash(req, 'error', 'Registro salarial no encontrado.');
+      return res.redirect('/rrhh?tab=salaries');
+    }
+    const period = normalizeString(req.body.period) || String(new Date().toISOString()).slice(0, 7);
+    const paidAt = normalizeString(req.body.paid_at) || String(new Date().toISOString()).slice(0, 10);
+    const gross = toMoney(toNumber(salary.salary_base, 0) + toNumber(salary.bonus_amount, 0) + toNumber(salary.extra_bonus, 0));
+    const deductions = Math.min(gross, toMoney(toNumber(salary.fixed_deductions, 0)));
+    const net = toMoney(gross - deductions);
+    try {
+      await dbRun(
+        `INSERT INTO hr_payroll_payments
+         (company_id, salary_id, employee_id, period, gross_amount, deductions, net_amount, payment_method, paid_at, notes, status, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [companyId, salaryId, salary.employee_id, period, gross, deductions, net, salary.payment_method, paidAt, normalizeString(req.body.notes), req.session && req.session.user ? req.session.user.id : null]
+      );
+      if (accountingAutomation) await accountingAutomation.syncCompany(companyId);
+      setFlash(req, 'success', `Planilla de ${salary.employee_name} pagada y contabilizada.`);
+    } catch (error) {
+      if (error && error.code === 'SQLITE_CONSTRAINT') setFlash(req, 'error', 'Este salario ya fue pagado para el periodo seleccionado.');
+      else throw error;
+    }
     return res.redirect('/rrhh?tab=salaries');
   }));
 

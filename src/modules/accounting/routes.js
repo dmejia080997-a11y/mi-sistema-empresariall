@@ -1117,7 +1117,10 @@ app.get('/accounting/payables', requireAuth, requirePermission('accounting', 'vi
   getCompanySettings(companyId, (company) => {
     const baseCurrency = company ? company.base_currency : 'GTQ';
     db.all(
-      `SELECT bills.id, bills.created_at, bills.total, bills.currency, bills.total_base,
+      `SELECT bills.id, bills.created_at, bills.total, bills.currency,
+              CASE WHEN COALESCE(bills.total_base, 0) > 0 THEN bills.total_base
+                   WHEN COALESCE(bills.total, 0) > 0 THEN bills.total * COALESCE(NULLIF(bills.exchange_rate, 0), 1)
+                   ELSE COALESCE(bills.subtotal_base, bills.subtotal, 0) + COALESCE(bills.tax_amount_base, bills.tax_amount, 0) END AS total_base,
               bills.vendor_name,
               COALESCE(SUM(bill_payments.amount_base), 0) AS paid_base
        FROM bills
@@ -1128,13 +1131,104 @@ app.get('/accounting/payables', requireAuth, requirePermission('accounting', 'vi
        ORDER BY bills.created_at DESC`,
       [companyId, companyId],
       (err, rows) => {
-        res.render('accounting-payables', {
-          rows: err ? [] : rows,
-          baseCurrency
+        db.all('SELECT id, code, trade_name FROM suppliers WHERE company_id = ? AND status NOT IN (?, ?) ORDER BY trade_name', [companyId, 'blocked', 'inactive'], (supplierError, suppliers) => {
+          res.render('accounting-payables', {
+            rows: err ? [] : rows,
+            suppliers: supplierError ? [] : suppliers,
+            baseCurrency
+          });
         });
       }
     );
   });
+});
+
+app.post('/accounting/payables/create', requireAuth, requirePermission('accounting', 'create'), (req, res) => {
+  const companyId = getCompanyId(req);
+  const supplierId = Number(req.body.supplier_id) || null;
+  const category = String(req.body.accounting_category || '').trim() || 'Gastos generales';
+  const subtotal = Math.max(0, Number(req.body.subtotal || 0));
+  const taxAmount = Math.max(0, Number(req.body.tax_amount || 0));
+  const total = Math.round((subtotal + taxAmount) * 100) / 100;
+  if (!subtotal && !taxAmount) {
+    setFlash(req, 'error', 'Ingresa un monto para el gasto.');
+    return res.redirect('/accounting/payables');
+  }
+  getCompanySettings(companyId, (company) => {
+    const baseCurrency = company ? company.base_currency : 'GTQ';
+    const allowedCurrencies = company ? company.allowed_currencies : [baseCurrency];
+    const requestedCurrency = String(req.body.currency || '').trim().toUpperCase();
+    const currency = allowedCurrencies.includes(requestedCurrency) ? requestedCurrency : baseCurrency;
+    const exchangeRate = currency === baseCurrency ? 1 : Math.max(0.000001, Number(req.body.exchange_rate || 1));
+    const finishInsert = (vendorName) => {
+      db.run(
+        `INSERT INTO bills
+         (vendor_name, supplier_id, accounting_category, subtotal, tax_rate, tax_amount, total, currency, exchange_rate,
+          subtotal_base, tax_amount_base, total_base, status, company_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, CURRENT_TIMESTAMP)`,
+        [vendorName, supplierId, category, subtotal, subtotal > 0 ? (taxAmount / subtotal) * 100 : 0, taxAmount, total, currency, exchangeRate, subtotal * exchangeRate, taxAmount * exchangeRate, total * exchangeRate, companyId],
+        (error) => {
+          if (error) {
+            setFlash(req, 'error', 'No se pudo registrar el gasto.');
+            return res.redirect('/accounting/payables');
+          }
+          if (accountingAutomation) accountingAutomation.syncCompany(companyId);
+          setFlash(req, 'success', 'Gasto registrado y contabilizado automaticamente.');
+          return res.redirect('/accounting/payables');
+        }
+      );
+    };
+    if (!supplierId) return finishInsert(String(req.body.vendor_name || '').trim() || category);
+    db.get('SELECT trade_name FROM suppliers WHERE id = ? AND company_id = ?', [supplierId, companyId], (error, supplier) => {
+      return finishInsert(!error && supplier ? supplier.trade_name : (String(req.body.vendor_name || '').trim() || category));
+    });
+  });
+});
+
+app.post('/accounting/payables/:id/pay', requireAuth, requirePermission('accounting', 'create'), (req, res) => {
+  const companyId = getCompanyId(req);
+  const billId = Number(req.params.id);
+  const requestedAmount = Number(req.body.amount || 0);
+  const paidAt = String(req.body.paid_at || '').trim() || new Date().toISOString().slice(0, 10);
+  db.get(
+    `SELECT b.*,
+            CASE WHEN COALESCE(b.total_base, 0) > 0 THEN b.total_base
+                 WHEN COALESCE(b.total, 0) > 0 THEN b.total * COALESCE(NULLIF(b.exchange_rate, 0), 1)
+                 ELSE COALESCE(b.subtotal_base, b.subtotal, 0) + COALESCE(b.tax_amount_base, b.tax_amount, 0) END AS resolved_total_base,
+            COALESCE((SELECT SUM(bp.amount_base) FROM bill_payments bp WHERE bp.bill_id = b.id AND bp.company_id = b.company_id), 0) AS paid_base
+     FROM bills b WHERE b.id = ? AND b.company_id = ?`,
+    [billId, companyId],
+    (error, bill) => {
+      if (error || !bill) {
+        setFlash(req, 'error', 'Cuenta por pagar no encontrada.');
+        return res.redirect('/accounting/payables');
+      }
+      const remaining = Math.max(0, Number(bill.resolved_total_base || 0) - Number(bill.paid_base || 0));
+      const amountBase = requestedAmount > 0 ? Math.min(requestedAmount, remaining) : remaining;
+      if (amountBase <= 0) {
+        setFlash(req, 'error', 'La cuenta por pagar no tiene saldo pendiente.');
+        return res.redirect('/accounting/payables');
+      }
+      const exchangeRate = Number(bill.exchange_rate || 1) || 1;
+      const transactionAmount = amountBase / exchangeRate;
+      db.run(
+        `INSERT INTO bill_payments (bill_id, company_id, amount, currency, exchange_rate, amount_base, method, notes, paid_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [billId, companyId, transactionAmount, bill.currency || 'GTQ', exchangeRate, amountBase, req.body.method || 'Transferencia', req.body.notes || null, paidAt],
+        function (paymentError) {
+          if (paymentError) {
+            setFlash(req, 'error', 'No se pudo registrar el pago.');
+            return res.redirect('/accounting/payables');
+          }
+          const newPaid = Number(bill.paid_base || 0) + amountBase;
+          db.run('UPDATE bills SET status = ? WHERE id = ? AND company_id = ?', [newPaid + 0.01 >= Number(bill.resolved_total_base || 0) ? 'paid' : 'partial', billId, companyId]);
+          if (accountingAutomation) accountingAutomation.syncCompany(companyId);
+          setFlash(req, 'success', 'Pago registrado y contabilizado automaticamente.');
+          return res.redirect('/accounting/payables');
+        }
+      );
+    }
+  );
 });
 
 app.get('/accounting/reports', requireAuth, requirePermission('accounting', 'view'), (req, res) => {

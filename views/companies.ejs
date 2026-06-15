@@ -393,6 +393,7 @@
   const prevButton = document.querySelector('[data-company-prev]');
   const nextButton = document.querySelector('[data-company-next]');
   const submitButton = document.querySelector('[data-company-submit]');
+  const form = document.getElementById('company-create-form');
 
   function formatDate(date) {
     const yyyy = date.getFullYear();
@@ -535,6 +536,24 @@
     }
   }
 
+  function findInvalidField(scope) {
+    if (!scope) return null;
+    const fields = Array.from(scope.querySelectorAll('input, select, textarea'));
+    return fields.find((field) => !field.disabled && !field.checkValidity()) || null;
+  }
+
+  function showInvalidField(field) {
+    if (!field) return;
+    const section = field.closest('.company-section');
+    if (section && section.id) {
+      setActiveSection(section.id, { updateHash: true });
+    }
+    window.setTimeout(() => {
+      field.focus();
+      field.reportValidity();
+    }, 0);
+  }
+
   if (sectionLinks.length && sections.length) {
     sectionLinks.forEach((link) => {
       link.addEventListener('click', (event) => {
@@ -558,7 +577,33 @@
   }
 
   if (nextButton) {
-    nextButton.addEventListener('click', () => goToRelativeStep(1));
+    nextButton.addEventListener('click', () => {
+      const activeSection = sections.find((section) => !section.classList.contains('is-hidden'));
+      const invalidField = findInvalidField(activeSection);
+      if (invalidField) {
+        showInvalidField(invalidField);
+        return;
+      }
+      goToRelativeStep(1);
+    });
+  }
+
+  if (form) {
+    form.addEventListener('invalid', (event) => {
+      const field = event.target;
+      if (!field || !field.closest) return;
+      const section = field.closest('.company-section');
+      if (!section || !section.classList.contains('is-hidden')) return;
+      event.preventDefault();
+      showInvalidField(field);
+    }, true);
+
+    form.addEventListener('submit', (event) => {
+      const invalidField = findInvalidField(form);
+      if (!invalidField) return;
+      event.preventDefault();
+      showInvalidField(invalidField);
+    });
   }
 })();
 </script>

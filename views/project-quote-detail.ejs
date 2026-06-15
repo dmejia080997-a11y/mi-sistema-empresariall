@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<%
+  const formatMoney = (value, currency = quote.currency || 'GTQ') => `${currency || 'GTQ'} ${Number(value || 0).toFixed(2)}`;
+  const formatDate = (value) => {
+    if (!value) return 'Sin fecha';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString('es-GT', { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+  const quoteLineMarginPercent = (line) => {
+    const saved = Number(line && line.margin_percent);
+    if (Number.isFinite(saved) && saved !== 0) return saved;
+    const cost = Number(line && line.unit_cost) || 0;
+    const price = Number(line && line.unit_price) || 0;
+    return cost > 0 ? ((price - cost) / cost) * 100 : saved || 0;
+  };
+  const statusClass = {
+    draft: 'project-status-draft',
+    sent: 'project-status-progress',
+    approved: 'project-status-completed',
+    rejected: 'project-status-cancelled',
+    converted_project: 'project-status-planning',
+    converted: 'project-status-planning',
+    archived: 'project-status-paused'
+  };
+  const moduleTabs = [
+    { key: 'dashboard', label: 'Dashboard de proyectos', href: '/projects' }
+  ];
+  const pageActions = `
+    <a class="btn app-btn" href="/projects?section=quotes&quote_view=list">Volver al listado</a>
+    ${quote.project_id ? `<a class="btn app-btn" href="/projects/${quote.project_id}?tab=quotes">Abrir proyecto</a>` : ''}
+    <a class="btn app-btn" href="/projects/quotes/${quote.id}/pdf?download=1">Imprimir PDF</a>
+    ${quote.converted_invoice_id ? `<a class="btn primary app-btn app-btn-primary" href="/invoices/${quote.converted_invoice_id}">Ver factura</a>` : ''}
+  `;
+%>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= quote.title %> | Cotizaciones</title>
+  <%- include('partials/head-assets') %>
+  <link rel="stylesheet" href="/css/projects.css" />
+</head>
+<body class="page projects-page">
+  <%- include('partials/header', {
+    moduleTabs,
+    activeTab: 'dashboard',
+    currentModule: 'projects'
+  }) %>
+
+  <main class="container projects-shell">
+    <%- include('partials/page-shell', {
+      pageTitle: quote.title,
+      pageSubtitle: `${quote.project_display} - ${quote.customer_display}`,
+      pageActions
+    }) %>
+
+    <%- include('partials/toasts', { flash }) %>
+
+    <% if (!quote.project_id && !quote.isArchived && can('projects', 'quotes')) { %>
+      <section class="panel app-panel">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Transformar a proyecto</h2>
+            <p class="muted">Se creara un proyecto y cada linea de esta cotizacion se convertira en una tarea pendiente.</p>
+          </div>
+          <form method="POST" action="/projects/quotes/<%= quote.id %>/project" class="inline-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <button type="submit" class="btn primary app-btn app-btn-primary">Transformar a proyecto</button>
+          </form>
+        </div>
+      </section>
+    <% } %>
+
+    <section class="projects-quote-detail-grid">
+      <article class="panel app-panel projects-quote-card">
+        <div class="projects-quote-card__header">
+          <div>
+            <div class="projects-detail-hero__head">
+              <span class="status-badge <%= statusClass[quote.status] || 'project-status-draft' %>"><%= quote.status_label %></span>
+              <% if (quote.isArchived) { %>
+                <span class="status-badge <%= statusClass.archived %>">Archivada</span>
+              <% } %>
+              <span class="<%= quote.isExpired ? 'projects-overdue' : 'muted' %>"><%= quote.isExpired ? 'Vencida' : 'Vigente' %></span>
+            </div>
+            <h2>Detalle de cotizacion</h2>
+            <p class="muted">Valida <%= formatDate(quote.valid_until) %> - Creada <%= formatDate(quote.created_at) %></p>
+          </div>
+          <strong><%= formatMoney(quote.total) %></strong>
+        </div>
+
+        <div class="projects-quote-card__totals">
+          <span>Lineas <strong><%= quote.line_count %></strong></span>
+          <span>Costo estimado <strong><%= formatMoney(quote.cost_estimated) %></strong></span>
+          <span>Margen <strong><%= Number(quote.margin_percent || 0).toFixed(2) %>%</strong></span>
+          <span>Subtotal <strong><%= formatMoney(quote.subtotal) %></strong></span>
+          <span>Impuestos <strong><%= formatMoney(quote.tax_amount) %></strong></span>
+          <span>Descuento <strong><%= formatMoney(quote.discount_amount) %></strong></span>
+        </div>
+
+        <% if (quote.description) { %>
+          <div class="projects-quote-detail-note">
+            <strong>Alcance</strong>
+            <p><%= quote.description %></p>
+          </div>
+        <% } %>
+        <% if (quote.notes) { %>
+          <div class="projects-quote-detail-note">
+            <strong>Notas</strong>
+            <p><%= quote.notes %></p>
+          </div>
+        <% } %>
+      </article>
+
+      <aside class="panel app-panel">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Factura de servicios</h2>
+            <p class="muted">Estado de la factura asociada a esta cotizacion.</p>
+          </div>
+        </div>
+        <% if (invoice) { %>
+          <div class="projects-quote-detail-meta">
+            <div><span>Numero</span><strong><%= invoice.invoice_number || `Factura ${invoice.id}` %></strong></div>
+            <div><span>Estado</span><strong><%= invoice.status || 'Sin estado' %></strong></div>
+            <div><span>Emision</span><strong><%= formatDate(invoice.issue_date) %></strong></div>
+            <div><span>Total</span><strong><%= formatMoney(invoice.total, invoice.currency || quote.currency) %></strong></div>
+            <div><span>Saldo</span><strong><%= formatMoney(invoice.balance_due, invoice.currency || quote.currency) %></strong></div>
+          </div>
+          <div class="actions">
+            <a class="btn app-btn" href="/invoices/<%= invoice.id %>">Ver factura</a>
+          </div>
+        <% } else { %>
+          <p class="app-empty-state-text">Esta cotizacion aun no tiene factura de servicios asociada.</p>
+        <% } %>
+      </aside>
+    </section>
+
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header">
+        <div>
+          <h2>Costeo y servicios</h2>
+          <p class="muted">Lineas cotizadas con costo, ganancia, venta, descuento, impuestos y total.</p>
+        </div>
+      </div>
+      <div class="projects-quote-detail-lines">
+        <div class="projects-quote-detail-line projects-quote-detail-line--head">
+          <span>Servicio</span>
+          <span>Cantidad</span>
+          <span>Costo</span>
+          <span>Ganancia</span>
+          <span>Venta</span>
+          <span>Descuento</span>
+          <span>Impuesto</span>
+          <span>Total</span>
+        </div>
+        <% quote.lines.forEach((line) => { %>
+          <div class="projects-quote-detail-line">
+            <div>
+              <strong><%= line.service_display || line.description || 'Servicio' %></strong>
+              <% if (line.service_meta || line.description) { %>
+                <p class="muted"><%= line.service_meta || line.description %></p>
+              <% } %>
+            </div>
+            <span><%= Number(line.qty || 0).toFixed(2) %></span>
+            <span><%= formatMoney(line.unit_cost) %></span>
+            <span><%= Number(line.margin_percent || quoteLineMarginPercent(line) || 0).toFixed(2) %>% / <%= formatMoney(line.profit_amount) %></span>
+            <span><%= formatMoney(line.unit_price) %></span>
+            <span><%= formatMoney(line.discount_amount) %></span>
+            <span><%= formatMoney(line.tax_amount) %></span>
+            <strong><%= formatMoney(line.total) %></strong>
+          </div>
+        <% }) %>
+      </div>
+    </section>
+
+    <section class="projects-quote-detail-grid">
+      <article class="panel app-panel">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Documentos adjuntos</h2>
+            <p class="muted">Archivos del proyecto y comprobantes vinculados.</p>
+          </div>
+        </div>
+        <% if (can('projects', 'quotes')) { %>
+          <form method="POST" action="/projects/quotes/<%= quote.id %>/attachments" enctype="multipart/form-data" class="projects-form-grid">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <label class="app-field projects-form-full">
+              <span>Agregar soportes a la cotizacion</span>
+              <input class="app-input" type="file" name="quote_attachments" multiple required accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.png,.jpg,.jpeg,.webp,.gif" />
+            </label>
+            <div class="actions projects-form-full">
+              <button type="submit" class="btn app-btn">Subir adjuntos</button>
+            </div>
+          </form>
+        <% } %>
+        <% if (documents.length) { %>
+          <div class="projects-quote-documents">
+            <% documents.forEach((doc) => { %>
+              <a class="projects-mini-item" href="<%= doc.url %>" target="_blank" rel="noopener">
+                <div>
+                  <strong><%= doc.name %></strong>
+                  <p class="muted"><%= doc.type %> - <%= formatDate(doc.uploaded_at) %><%= doc.uploaded_by_name ? ` - ${doc.uploaded_by_name}` : '' %></p>
+                  <% if (doc.notes) { %>
+                    <p class="muted"><%= doc.notes %></p>
+                  <% } %>
+                </div>
+                <span>Abrir</span>
+              </a>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <p class="app-empty-state-text">No hay documentos adjuntos para esta cotizacion.</p>
+        <% } %>
+      </article>
+
+      <article class="panel app-panel">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Lineas facturadas</h2>
+            <p class="muted">Servicios trasladados a la factura, si ya fue convertida.</p>
+          </div>
+        </div>
+        <% if (invoiceItems.length) { %>
+          <div class="projects-quote-lines-summary">
+            <% invoiceItems.forEach((item) => { %>
+              <div class="projects-quote-lines-summary__row">
+                <div>
+                  <strong><%= item.description || 'Servicio facturado' %></strong>
+                  <p class="muted"><%= Number(item.qty || 0).toFixed(2) %> x <%= formatMoney(item.unit_price, invoice.currency || quote.currency) %></p>
+                </div>
+                <strong><%= formatMoney(item.total, invoice.currency || quote.currency) %></strong>
+              </div>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <p class="app-empty-state-text">No hay lineas facturadas registradas para esta cotizacion.</p>
+        <% } %>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<div class="table app-table-wrap production-table">
+  <div class="table-row header production-order-row">
+    <div>Orden</div>
+    <div>Producto</div>
+    <div>Plan</div>
+    <div>Finalizado</div>
+    <div>Estado</div>
+    <div style="<%= showCosts ? '' : 'display:none' %>">Costo</div>
+    <div>Usuario</div>
+    <div>Acciones</div>
+  </div>
+  <% if (!orders || orders.length === 0) { %>
+    <div class="table-row empty app-empty-state">Sin ordenes de produccion.</div>
+  <% } %>
+  <% (orders || []).forEach((order) => { %>
+    <div class="table-row production-order-row">
+      <div><strong><%= order.order_number %></strong><p class="muted"><%= order.created_at || '' %></p></div>
+      <div><%= order.product_name || 'Producto' %><p class="muted"><%= order.sku || '' %></p></div>
+      <div><%= qty(order.quantity_planned) %></div>
+      <div><%= qty(order.quantity_finished) %></div>
+      <div><span class="status-pill status-<%= order.status %>"><%= statusText(order.status) %></span></div>
+      <div style="<%= showCosts ? '' : 'display:none' %>"><%= money(order.real_cost || order.estimated_cost) %></div>
+      <div><%= order.created_by_name || 'Sistema' %></div>
+      <div><a class="btn app-btn" href="/production/orders/<%= order.id %>">Ver</a></div>
+    </div>
+  <% }) %>
+</div>

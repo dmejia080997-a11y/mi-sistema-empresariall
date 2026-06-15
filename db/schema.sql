@@ -23,6 +23,10 @@ CREATE TABLE IF NOT EXISTS items (
   warehouse_location TEXT NULL,
   barcode TEXT NULL,
   price REAL NOT NULL DEFAULT 0,
+  production_type TEXT NOT NULL DEFAULT 'supply',
+  average_cost REAL NOT NULL DEFAULT 0,
+  last_cost REAL NOT NULL DEFAULT 0,
+  is_production_active INTEGER NOT NULL DEFAULT 1,
   category_id INTEGER NULL,
   brand_id INTEGER NULL,
   company_id INTEGER NULL,
@@ -63,7 +67,9 @@ CREATE TABLE IF NOT EXISTS customers (
   customer_code TEXT NULL,
   document_type TEXT,
   document_number TEXT,
+  customer_type TEXT NOT NULL DEFAULT 'person',
   name TEXT NOT NULL,
+  legal_name TEXT NULL,
   first_name TEXT NULL,
   last_name TEXT NULL,
   full_address TEXT NULL,
@@ -115,6 +121,91 @@ CREATE TABLE IF NOT EXISTS consignatarios (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (customer_id) REFERENCES customers(id)
 );
+
+CREATE TABLE IF NOT EXISTS floating_investments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  provider TEXT NOT NULL,
+  description TEXT NULL,
+  investment_value REAL NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'GTQ',
+  customer_id INTEGER NULL,
+  expected_profit REAL NOT NULL DEFAULT 0,
+  recovery_date TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  notes TEXT NULL,
+  created_by INTEGER NULL,
+  updated_by INTEGER NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (customer_id) REFERENCES customers(id),
+  FOREIGN KEY (created_by) REFERENCES users(id),
+  FOREIGN KEY (updated_by) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_floating_investments_company ON floating_investments (company_id);
+CREATE INDEX IF NOT EXISTS idx_floating_investments_recovery ON floating_investments (company_id, recovery_date);
+
+CREATE TABLE IF NOT EXISTS floating_investment_lines (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  investment_id INTEGER NOT NULL,
+  supplier_id INTEGER NULL,
+  supplier_name TEXT NULL,
+  cost_center TEXT NULL,
+  description TEXT NULL,
+  investment_value REAL NOT NULL DEFAULT 0,
+  expected_profit REAL NOT NULL DEFAULT 0,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (investment_id) REFERENCES floating_investments(id),
+  FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_floating_investment_lines_parent ON floating_investment_lines (company_id, investment_id);
+
+CREATE TABLE IF NOT EXISTS countries (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  iso2 TEXT,
+  iso3 TEXT,
+  phonecode TEXT,
+  currency TEXT,
+  region TEXT,
+  subregion TEXT
+);
+
+CREATE TABLE IF NOT EXISTS states (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  country_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  state_code TEXT,
+  type TEXT,
+  FOREIGN KEY (country_id) REFERENCES countries(id)
+);
+
+CREATE TABLE IF NOT EXISTS cities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  state_id INTEGER,
+  country_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  latitude TEXT,
+  longitude TEXT,
+  FOREIGN KEY (state_id) REFERENCES states(id),
+  FOREIGN KEY (country_id) REFERENCES countries(id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_countries_iso2 ON countries (iso2);
+CREATE INDEX IF NOT EXISTS idx_countries_name ON countries (name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_states_country_code_name ON states (country_id, state_code, name);
+CREATE INDEX IF NOT EXISTS idx_states_country_id ON states (country_id);
+CREATE INDEX IF NOT EXISTS idx_states_name ON states (name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cities_country_state_name ON cities (country_id, state_id, name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cities_country_name_no_state ON cities (country_id, name) WHERE state_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_cities_state_id ON cities (state_id);
+CREATE INDEX IF NOT EXISTS idx_cities_country_id ON cities (country_id);
+CREATE INDEX IF NOT EXISTS idx_cities_name ON cities (name);
 
 CREATE TABLE IF NOT EXISTS invoices (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -585,6 +676,41 @@ CREATE TABLE IF NOT EXISTS ai_help_modules (
 CREATE INDEX IF NOT EXISTS idx_ai_help_modules_company ON ai_help_modules (company_id);
 CREATE INDEX IF NOT EXISTS idx_ai_help_modules_code ON ai_help_modules (module_code);
 
+CREATE TABLE IF NOT EXISTS ai_conversations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  title TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ai_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  conversation_id INTEGER NOT NULL,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_tool_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  conversation_id INTEGER NOT NULL,
+  tool_name TEXT NOT NULL,
+  parameters TEXT,
+  result TEXT,
+  executed_by INTEGER,
+  execution_ms INTEGER NOT NULL DEFAULT 0,
+  company_id INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_conversations_company_user ON ai_conversations (company_id, user_id, updated_at);
+CREATE INDEX IF NOT EXISTS idx_ai_messages_conversation ON ai_messages (conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_ai_tool_logs_conversation ON ai_tool_logs (conversation_id, created_at);
+
 CREATE TABLE IF NOT EXISTS hr_job_descriptions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   company_id INTEGER NOT NULL,
@@ -799,3 +925,143 @@ CREATE INDEX IF NOT EXISTS idx_hr_warnings_company_employee ON hr_warnings (comp
 CREATE INDEX IF NOT EXISTS idx_hr_permissions_company_employee ON hr_permissions (company_id, employee_id, start_date);
 CREATE INDEX IF NOT EXISTS idx_hr_vacations_company_employee ON hr_vacations (company_id, employee_id, vacation_start);
 CREATE INDEX IF NOT EXISTS idx_hr_descriptions_company_dept ON hr_job_descriptions (company_id, department);
+
+CREATE TABLE IF NOT EXISTS production_boms (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  finished_product_id INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  name TEXT NOT NULL,
+  version TEXT,
+  base_quantity REAL NOT NULL DEFAULT 1,
+  unit TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  notes TEXT,
+  created_by INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS production_bom_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  bom_id INTEGER NOT NULL,
+  material_product_id INTEGER NOT NULL,
+  quantity REAL NOT NULL,
+  unit TEXT,
+  waste_percentage REAL NOT NULL DEFAULT 0,
+  unit_cost REAL NOT NULL DEFAULT 0,
+  total_cost REAL NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS production_orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  order_number TEXT NOT NULL,
+  product_id INTEGER NOT NULL,
+  bom_id INTEGER,
+  quantity_planned REAL NOT NULL,
+  quantity_finished REAL NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'draft',
+  estimated_start_date TEXT,
+  estimated_end_date TEXT,
+  real_start_date TEXT,
+  real_end_date TEXT,
+  estimated_cost REAL NOT NULL DEFAULT 0,
+  real_cost REAL NOT NULL DEFAULT 0,
+  unit_cost REAL NOT NULL DEFAULT 0,
+  notes TEXT,
+  cancellation_reason TEXT,
+  created_by INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS production_order_materials (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  production_order_id INTEGER NOT NULL,
+  product_id INTEGER NOT NULL,
+  quantity_required REAL NOT NULL DEFAULT 0,
+  quantity_reserved REAL NOT NULL DEFAULT 0,
+  quantity_consumed REAL NOT NULL DEFAULT 0,
+  unit_cost REAL NOT NULL DEFAULT 0,
+  total_cost REAL NOT NULL DEFAULT 0,
+  waste_percentage REAL NOT NULL DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS production_labor (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  production_order_id INTEGER NOT NULL,
+  employee_id INTEGER,
+  worker_name TEXT,
+  hours REAL NOT NULL DEFAULT 0,
+  hourly_cost REAL NOT NULL DEFAULT 0,
+  total_cost REAL NOT NULL DEFAULT 0,
+  notes TEXT,
+  created_by INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS production_overhead (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  production_order_id INTEGER NOT NULL,
+  cost_type TEXT,
+  description TEXT,
+  amount REAL NOT NULL DEFAULT 0,
+  distribution_method TEXT NOT NULL DEFAULT 'order',
+  created_by INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS production_waste (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  production_order_id INTEGER,
+  product_id INTEGER NOT NULL,
+  quantity REAL NOT NULL DEFAULT 0,
+  reason TEXT,
+  cost REAL NOT NULL DEFAULT 0,
+  notes TEXT,
+  created_by INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS inventory_movements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  product_id INTEGER NOT NULL,
+  movement_type TEXT NOT NULL,
+  quantity REAL NOT NULL DEFAULT 0,
+  stock_before REAL NOT NULL DEFAULT 0,
+  stock_after REAL NOT NULL DEFAULT 0,
+  unit_cost REAL NOT NULL DEFAULT 0,
+  total_cost REAL NOT NULL DEFAULT 0,
+  reference_type TEXT,
+  reference_id INTEGER,
+  notes TEXT,
+  created_by INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS production_audit_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL,
+  user_id INTEGER,
+  action TEXT NOT NULL,
+  table_name TEXT,
+  record_id INTEGER,
+  old_value TEXT,
+  new_value TEXT,
+  ip TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_production_boms_company_code ON production_boms (company_id, code);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_production_orders_company_number ON production_orders (company_id, order_number);
+CREATE INDEX IF NOT EXISTS idx_production_orders_company_status ON production_orders (company_id, status);
+CREATE INDEX IF NOT EXISTS idx_production_materials_order ON production_order_materials (company_id, production_order_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_production ON inventory_movements (company_id, movement_type, reference_id);

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<%
+  const money = (value) => `GTQ ${Number(value || 0).toFixed(2)}`;
+%>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= sale.sale_number %></title>
+  <%- include('partials/head-assets') %>
+  <link rel="stylesheet" href="/css/sales.css" />
+</head>
+<body class="page sales-page">
+  <%- include('partials/header', { moduleTabs, activeTab: 'sales', currentModule: 'sales' }) %>
+  <main class="container sales-shell">
+    <%- include('partials/page-shell', {
+      pageTitle: sale.sale_number,
+      pageSubtitle: `${sale.sale_type} - ${sale.status} - Factura ${sale.invoice_number || 'sin numero'}`
+    }) %>
+
+    <section class="sales-kpis">
+      <article><span>Cliente</span><strong><%= sale.customer_name || sale.prospect_name || 'Sin cliente' %></strong></article>
+      <article><span>Vendedor</span><strong><%= sale.seller_name || '' %></strong></article>
+      <article><span>Total</span><strong><%= money(sale.total) %></strong></article>
+      <article><span>Comision</span><strong><%= money(sale.commission) %></strong></article>
+    </section>
+
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header"><h2>Lineas vendidas</h2></div>
+      <table class="sales-table">
+        <thead><tr><th>Tipo</th><th>Descripcion</th><th>Cantidad</th><th>Precio</th><th>Total</th></tr></thead>
+        <tbody>
+          <% sale.lines.forEach((line) => { %>
+            <tr><td><%= line.line_type %></td><td><%= line.description %></td><td><%= line.qty %></td><td><%= money(line.unit_price) %></td><td><%= money(line.total) %></td></tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header"><h2>Movimientos de inventario</h2></div>
+      <table class="sales-table">
+        <thead><tr><th>Producto</th><th>SKU</th><th>Cantidad</th><th>Antes</th><th>Despues</th></tr></thead>
+        <tbody>
+          <% sale.movements.forEach((movement) => { %>
+            <tr><td><%= movement.item_name || movement.item_id %></td><td><%= movement.sku || '' %></td><td><%= movement.qty %></td><td><%= movement.stock_before %></td><td><%= movement.stock_after %></td></tr>
+          <% }) %>
+          <% if (!sale.movements.length) { %><tr><td colspan="5">Venta de servicio sin afectacion de inventario.</td></tr><% } %>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

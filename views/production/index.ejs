@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Produccion y Manufactura</title>
+  <%- include('../partials/head-assets') %>
+  <link rel="stylesheet" href="/css/production.css" />
+</head>
+<body class="page production-page">
+<%- include('../partials/header', {
+  moduleTabs,
+  activeTab,
+  currentModule: 'production'
+}) %>
+
+<main class="container app-module production-module">
+  <%- include('../partials/page-shell', {
+    pageTitle: 'Produccion y Manufactura',
+    pageSubtitle: 'Ordenes, formulas, consumo de materiales, mano de obra, CIF y producto terminado.',
+    pageActions: can('production', 'create_order') ? '<a class="btn primary app-btn app-btn-primary" href="/production/orders/new">Nueva orden</a><a class="btn app-btn" href="/production/bom/new">Nueva BOM</a>' : ''
+  }) %>
+
+  <% if (error) { %>
+    <div class="alert app-message app-message-error"><%= error %></div>
+  <% } %>
+
+  <% const money = (value) => 'Q' + Number(value || 0).toFixed(2); %>
+  <% const qty = (value) => Number(value || 0).toFixed(2).replace(/\.00$/, ''); %>
+  <% const statusText = (value) => statusLabels[value] || value || 'Sin estado'; %>
+  <% const typeText = (value) => productTypeLabels[value] || value || 'Insumo'; %>
+  <% const costStyle = showCosts ? '' : 'display:none'; %>
+
+  <% if (activeTab === 'dashboard') { %>
+    <section class="production-kpis">
+      <article class="metric-card"><span>Ordenes activas</span><strong><%= dashboard.active %></strong></article>
+      <article class="metric-card"><span>Pendientes</span><strong><%= dashboard.pending %></strong></article>
+      <article class="metric-card"><span>Finalizadas</span><strong><%= dashboard.finished %></strong></article>
+      <article class="metric-card"><span>Canceladas</span><strong><%= dashboard.cancelled %></strong></article>
+      <article class="metric-card" style="<%= costStyle %>"><span>Materia reservada</span><strong><%= money(dashboard.reserved) %></strong></article>
+      <article class="metric-card"><span>Terminados fabricados</span><strong><%= qty(dashboard.finishedQty) %></strong></article>
+      <article class="metric-card" style="<%= costStyle %>"><span>Costo producido del mes</span><strong><%= money(dashboard.monthCost) %></strong></article>
+      <article class="metric-card" style="<%= costStyle %>"><span>Rentabilidad estimada</span><strong><%= money(dashboard.estimatedProfit) %></strong></article>
+    </section>
+    <%- include('partials/orders-table', { orders, statusText, money, qty, showCosts }) %>
+  <% } %>
+
+  <% if (activeTab === 'orders') { %>
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header"><h2>Ordenes de produccion</h2></div>
+      <form method="GET" action="/production/orders" class="form app-filter-bar production-filter-grid">
+        <input type="date" name="date_from" value="<%= filters.date_from || '' %>" />
+        <input type="date" name="date_to" value="<%= filters.date_to || '' %>" />
+        <select name="product_id"><option value="">Producto</option><% products.forEach((p) => { %><option value="<%= p.id %>" <%= String(filters.product_id || '') === String(p.id) ? 'selected' : '' %>><%= p.name %></option><% }) %></select>
+        <select name="status"><option value="">Estado</option><% Object.keys(statusLabels).forEach((key) => { %><option value="<%= key %>" <%= filters.status === key ? 'selected' : '' %>><%= statusLabels[key] %></option><% }) %></select>
+        <select name="user_id"><option value="">Usuario</option><% users.forEach((u) => { %><option value="<%= u.id %>" <%= String(filters.user_id || '') === String(u.id) ? 'selected' : '' %>><%= u.username %></option><% }) %></select>
+        <input type="text" name="order" placeholder="Orden" value="<%= filters.order || '' %>" />
+        <input type="number" step="0.01" name="cost_min" placeholder="Costo min" value="<%= filters.cost_min || '' %>" style="<%= costStyle %>" />
+        <input type="number" step="0.01" name="cost_max" placeholder="Costo max" value="<%= filters.cost_max || '' %>" style="<%= costStyle %>" />
+        <div class="actions"><button class="btn app-btn" type="submit">Filtrar</button><a class="btn app-btn" href="/production/orders">Limpiar</a></div>
+      </form>
+      <%- include('partials/orders-table', { orders, statusText, money, qty, showCosts }) %>
+    </section>
+  <% } %>
+
+  <% if (activeTab === 'order_new' || activeTab === 'order_edit') { %>
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header"><h2><%= order ? 'Editar orden' : 'Crear orden' %></h2></div>
+      <form method="POST" action="<%= order ? `/production/orders/${order.id}/update` : '/production/orders/create' %>" class="form grid-2 app-form-grid">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <% if (!order) { %>
+          <label>Producto a fabricar
+            <select name="product_id" required>
+              <option value="">Seleccionar</option>
+              <% products.forEach((p) => { %><option value="<%= p.id %>"><%= p.name %> - <%= p.sku %></option><% }) %>
+            </select>
+          </label>
+          <label>BOM utilizada
+            <select name="bom_id" required>
+              <option value="">Seleccionar</option>
+              <% boms.forEach((b) => { %><option value="<%= b.id %>"><%= b.code %> - <%= b.name %> (<%= b.product_name %>)</option><% }) %>
+            </select>
+          </label>
+          <label>Cantidad a fabricar <input type="number" step="0.0001" min="0.0001" name="quantity_planned" required /></label>
+        <% } else { %>
+          <div><strong><%= order.order_number %></strong><p class="muted"><%= order.status %></p></div>
+        <% } %>
+        <label>Inicio estimado <input type="date" name="estimated_start_date" value="<%= order ? order.estimated_start_date || '' : '' %>" /></label>
+        <label>Finalizacion estimada <input type="date" name="estimated_end_date" value="<%= order ? order.estimated_end_date || '' : '' %>" /></label>
+        <label class="full-row">Observaciones <textarea name="notes" rows="4"><%= order ? order.notes || '' : '' %></textarea></label>
+        <div class="actions full-row"><button class="btn primary app-btn app-btn-primary" type="submit">Guardar</button><a class="btn app-btn" href="/production/orders">Cancelar</a></div>
+      </form>
+    </section>
+  <% } %>
+
+  <% if (activeTab === 'order_detail' || activeTab === 'order_start' || activeTab === 'order_finish') { %>
+    <section class="panel app-panel">
+      <div class="production-detail-head">
+        <div>
+          <p class="app-page-eyebrow"><%= order.order_number %></p>
+          <h2><%= order.product_name %></h2>
+          <span class="status-pill status-<%= order.status %>"><%= statusText(order.status) %></span>
+        </div>
+        <div class="actions">
+          <% if (can('production', 'edit_order') && ['draft','pending','paused'].includes(order.status)) { %><a class="btn app-btn" href="/production/orders/<%= order.id %>/edit">Editar</a><% } %>
+          <% if (can('production', 'start_production') && ['draft','pending','paused'].includes(order.status)) { %><a class="btn primary app-btn app-btn-primary" href="/production/orders/<%= order.id %>/start">Iniciar</a><% } %>
+          <% if (can('production', 'finish_production') && ['in_production','paused','pending'].includes(order.status)) { %><a class="btn primary app-btn app-btn-primary" href="/production/orders/<%= order.id %>/finish">Finalizar</a><% } %>
+        </div>
+      </div>
+      <div class="production-summary-grid">
+        <div><span>Planificado</span><strong><%= qty(order.quantity_planned) %></strong></div>
+        <div><span>Finalizado</span><strong><%= qty(order.quantity_finished) %></strong></div>
+        <div style="<%= costStyle %>"><span>Costo estimado</span><strong><%= money(order.estimated_cost) %></strong></div>
+        <div style="<%= costStyle %>"><span>Costo real</span><strong><%= money(totals.total || order.real_cost) %></strong></div>
+        <div style="<%= costStyle %>"><span>Costo unitario</span><strong><%= money(order.unit_cost) %></strong></div>
+        <div><span>Avance</span><strong><%= Math.min(100, Math.round((Number(order.quantity_finished || 0) / Math.max(Number(order.quantity_planned || 1), 1)) * 100)) %>%</strong></div>
+      </div>
+
+      <% if (activeTab === 'order_start') { %>
+        <form method="POST" action="/production/orders/<%= order.id %>/start" class="production-action-box">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <strong>Confirmar inicio de produccion</strong>
+          <p class="muted">Se descontara la materia prima requerida y se crearan movimientos de inventario tipo Consumo produccion.</p>
+          <button class="btn primary app-btn app-btn-primary" type="submit">Iniciar produccion</button>
+        </form>
+      <% } %>
+      <% if (activeTab === 'order_finish') { %>
+        <form method="POST" action="/production/orders/<%= order.id %>/finish" class="production-action-box">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label>Cantidad producida ahora <input type="number" step="0.0001" min="0.0001" name="quantity_finished" required /></label>
+          <p class="muted">Permite finalizacion parcial. El sistema ingresa producto terminado al inventario con costo real unitario.</p>
+          <button class="btn primary app-btn app-btn-primary" type="submit">Registrar entrada de produccion</button>
+        </form>
+      <% } %>
+
+      <div class="actions production-order-actions">
+        <% if (can('production', 'edit_order') && ['draft','pending'].includes(order.status)) { %>
+          <form method="POST" action="/production/orders/<%= order.id %>/reserve"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn app-btn" type="submit">Reservar materiales</button></form>
+          <form method="POST" action="/production/orders/<%= order.id %>/submit"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn app-btn" type="submit">Marcar pendiente</button></form>
+        <% } %>
+        <% if (can('production', 'cancel_production') && !['finished','cancelled'].includes(order.status)) { %>
+          <form method="POST" action="/production/orders/<%= order.id %>/cancel" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><input type="text" name="reason" placeholder="Motivo de cancelacion" required /><button class="btn danger app-btn app-btn-danger" type="submit">Cancelar</button></form>
+        <% } %>
+      </div>
+    </section>
+
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header"><h2>Materiales requeridos</h2></div>
+      <div class="table app-table-wrap production-table">
+        <div class="table-row header production-material-row"><div>Producto</div><div>Requerido</div><div>Reservado</div><div>Consumido</div><div>Disponible real</div><div style="<%= costStyle %>">Costo</div></div>
+        <% materials.forEach((m) => { const available = Number(m.stock_qty || 0) - Math.max(0, Number(m.reserved_total || 0) - Number(m.quantity_reserved || 0)); %>
+          <div class="table-row production-material-row"><div><strong><%= m.product_name %></strong><p class="muted"><%= m.sku %></p></div><div><%= qty(m.quantity_required) %></div><div><%= qty(m.quantity_reserved) %></div><div><%= qty(m.quantity_consumed) %></div><div><%= qty(available) %></div><div style="<%= costStyle %>"><%= money(Number(m.quantity_consumed || m.quantity_required || 0) * Number(m.unit_cost || 0)) %></div></div>
+        <% }) %>
+      </div>
+    </section>
+
+    <section class="production-two-col">
+      <div class="panel app-panel">
+        <div class="panel-header app-panel-header"><h2>Mano de obra</h2></div>
+        <% if (can('production', 'record_labor')) { %>
+          <form method="POST" action="/production/orders/<%= order.id %>/labor" class="form grid-2 app-form-grid">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <label>Empleado RRHH <select name="employee_id"><option value="">Manual</option><% employees.forEach((e) => { %><option value="<%= e.id %>"><%= e.full_name %></option><% }) %></select></label>
+            <label>Trabajador manual <input type="text" name="worker_name" /></label>
+            <label>Horas <input type="number" step="0.01" name="hours" required /></label>
+            <label>Costo hora <input type="number" step="0.01" name="hourly_cost" /></label>
+            <label class="full-row">Notas <input type="text" name="notes" /></label>
+            <button class="btn app-btn full-row" type="submit">Agregar mano de obra</button>
+          </form>
+        <% } %>
+        <% labor.forEach((l) => { %><div class="production-line"><span><%= l.worker_name %> - <%= qty(l.hours) %> h</span><strong style="<%= costStyle %>"><%= money(l.total_cost) %></strong></div><% }) %>
+      </div>
+      <div class="panel app-panel">
+        <div class="panel-header app-panel-header"><h2>Costos indirectos</h2></div>
+        <% if (can('production', 'edit_costs')) { %>
+          <form method="POST" action="/production/orders/<%= order.id %>/overhead" class="form grid-2 app-form-grid">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <label>Tipo <input type="text" name="cost_type" placeholder="Energia, alquiler, depreciacion" required /></label>
+            <label>Monto <input type="number" step="0.01" name="amount" required /></label>
+            <label>Distribucion <select name="distribution_method"><option value="order">Por orden</option><option value="unit">Por unidad producida</option><option value="percentage">Por porcentaje</option><option value="manual">Manual</option></select></label>
+            <label>Descripcion <input type="text" name="description" /></label>
+            <button class="btn app-btn full-row" type="submit">Agregar CIF</button>
+          </form>
+        <% } %>
+        <% overhead.forEach((o) => { %><div class="production-line"><span><%= o.cost_type %> - <%= o.distribution_method %></span><strong style="<%= costStyle %>"><%= money(o.amount) %></strong></div><% }) %>
+      </div>
+    </section>
+
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header"><h2>Desperdicio / merma</h2></div>
+      <% if (can('production', 'record_waste')) { %>
+        <form method="POST" action="/production/orders/<%= order.id %>/waste" class="form production-filter-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <select name="product_id" required><option value="">Producto</option><% products.forEach((p) => { %><option value="<%= p.id %>"><%= p.name %></option><% }) %></select>
+          <input type="number" step="0.0001" name="quantity" placeholder="Cantidad" required />
+          <select name="reason"><% wasteReasons.forEach((r) => { %><option value="<%= r %>"><%= r %></option><% }) %></select>
+          <input type="text" name="notes" placeholder="Notas" />
+          <button class="btn app-btn" type="submit">Registrar merma</button>
+        </form>
+      <% } %>
+      <% waste.forEach((w) => { %><div class="production-line"><span><%= w.product_name %> - <%= qty(w.quantity) %> - <%= w.reason %></span><strong style="<%= costStyle %>"><%= money(w.cost) %></strong></div><% }) %>
+    </section>
+  <% } %>
+
+  <% if (activeTab === 'bom') { %>
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header"><h2>Formulas o BOM</h2></div>
+      <div class="table app-table-wrap production-table">
+        <div class="table-row header production-bom-row"><div>Codigo</div><div>Formula</div><div>Producto terminado</div><div>Version</div><div>Estado</div><div>Base</div><div>Acciones</div></div>
+        <% boms.forEach((b) => { %><div class="table-row production-bom-row"><div><%= b.code %></div><div><strong><%= b.name %></strong></div><div><%= b.product_name %></div><div><%= b.version %></div><div><%= b.status %></div><div><%= qty(b.base_quantity) %> <%= b.unit || '' %></div><div><a class="btn app-btn" href="/production/bom/<%= b.id %>/edit">Editar</a></div></div><% }) %>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (activeTab === 'bom_new' || activeTab === 'bom_edit') { %>
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header"><h2><%= bom ? 'Editar formula' : 'Crear formula BOM' %></h2></div>
+      <form method="POST" action="<%= bom ? `/production/bom/${bom.id}/save` : '/production/bom/save' %>" class="form app-form-grid">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <div class="grid-2">
+          <label>Producto terminado <select name="finished_product_id" required><option value="">Seleccionar</option><% products.forEach((p) => { %><option value="<%= p.id %>" <%= bom && String(bom.finished_product_id) === String(p.id) ? 'selected' : '' %>><%= p.name %></option><% }) %></select></label>
+          <label>Codigo de formula <input type="text" name="code" value="<%= bom ? bom.code : '' %>" required /></label>
+          <label>Nombre <input type="text" name="name" value="<%= bom ? bom.name : '' %>" required /></label>
+          <label>Version <input type="text" name="version" value="<%= bom ? bom.version || '1' : '1' %>" /></label>
+          <label>Cantidad base <input type="number" step="0.0001" name="base_quantity" value="<%= bom ? bom.base_quantity : 1 %>" /></label>
+          <label>Unidad <input type="text" name="unit" value="<%= bom ? bom.unit || 'unidad' : 'unidad' %>" /></label>
+          <label>Estado <select name="status"><option value="active" <%= !bom || bom.status === 'active' ? 'selected' : '' %>>Activa</option><option value="inactive" <%= bom && bom.status === 'inactive' ? 'selected' : '' %>>Inactiva</option></select></label>
+          <label>Observaciones <input type="text" name="notes" value="<%= bom ? bom.notes || '' : '' %>" /></label>
+        </div>
+        <h3>Detalle de materiales</h3>
+        <div class="production-bom-lines">
+          <% const lineCount = Math.max((bomItems || []).length + 3, 6); %>
+          <% for (let i = 0; i < lineCount; i += 1) { const line = (bomItems || [])[i] || {}; %>
+            <div class="production-bom-line">
+              <select name="material_product_id"><option value="">Materia prima</option><% products.forEach((p) => { %><option value="<%= p.id %>" <%= String(line.material_product_id || '') === String(p.id) ? 'selected' : '' %>><%= p.name %></option><% }) %></select>
+              <input type="number" step="0.0001" name="quantity" placeholder="Cantidad" value="<%= line.quantity || '' %>" />
+              <input type="text" name="unit_item" placeholder="Unidad" value="<%= line.unit || '' %>" />
+              <input type="number" step="0.01" name="waste_percentage" placeholder="% merma" value="<%= line.waste_percentage || '' %>" />
+            </div>
+          <% } %>
+        </div>
+        <div class="actions"><button class="btn primary app-btn app-btn-primary" type="submit">Guardar BOM</button><a class="btn app-btn" href="/production/bom">Cancelar</a></div>
+      </form>
+    </section>
+  <% } %>
+
+  <% if (activeTab === 'materials') { %>
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header"><h2>Catalogo de materia prima</h2></div>
+      <form method="GET" action="/production/materials" class="form app-filter-bar production-filter-grid">
+        <input type="text" name="q" placeholder="Buscar producto" value="<%= filters.q || '' %>" />
+        <select name="category"><option value="">Todas las categorias</option><% productTypes.forEach((key) => { %><option value="<%= key %>" <%= filters.category === key ? 'selected' : '' %>><%= typeText(key) %></option><% }) %></select>
+        <button class="btn app-btn" type="submit">Filtrar</button>
+        <a class="btn app-btn" href="/production/materials">Limpiar</a>
+      </form>
+      <div class="table app-table-wrap production-table">
+        <div class="table-row header production-materials-row"><div>Codigo</div><div>Nombre</div><div>Categoria</div><div>Existencia</div><div>Reservado</div><div style="<%= costStyle %>">Costo prom.</div><div>Stock min.</div><div>Estado</div><div>Clasificacion</div></div>
+        <% materials.forEach((m) => { %>
+          <form method="POST" action="/production/materials/<%= m.id %>/classify" class="table-row production-materials-row">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <div><%= m.sku || m.item_code || m.id %></div><div><strong><%= m.name %></strong><p class="muted"><%= m.category_name || 'Sin categoria' %></p></div><div><%= typeText(m.production_type) %></div><div><%= qty(m.qty) %></div><div><%= qty(m.reserved_qty) %></div><div style="<%= costStyle %>"><%= money(m.average_cost || m.last_cost || m.price) %></div><div><%= qty(m.min_stock) %></div><label class="inline-check"><input type="checkbox" name="is_active" value="1" <%= Number(m.is_production_active) === 1 ? 'checked' : '' %> /> Activo</label><div class="actions"><select name="production_type"><% productTypes.forEach((key) => { %><option value="<%= key %>" <%= (m.production_type || 'supply') === key ? 'selected' : '' %>><%= typeText(key) %></option><% }) %></select><button class="btn app-btn" type="submit">Guardar</button></div>
+          </form>
+        <% }) %>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (activeTab === 'wip') { %>
+    <section class="panel app-panel"><div class="panel-header app-panel-header"><h2>Producto en proceso</h2></div><%- include('partials/orders-table', { orders, statusText, money, qty, showCosts }) %></section>
+  <% } %>
+
+  <% if (activeTab === 'finished_goods') { %>
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header"><h2>Producto terminado</h2></div>
+      <div class="table app-table-wrap production-table">
+        <div class="table-row header production-finished-row"><div>Producto</div><div>SKU</div><div>Existencia</div><div>Fabricado</div><div style="<%= costStyle %>">Costo produccion</div><div style="<%= costStyle %>">Precio venta</div></div>
+        <% goods.forEach((g) => { %><div class="table-row production-finished-row"><div><strong><%= g.name %></strong></div><div><%= g.sku %></div><div><%= qty(g.qty) %></div><div><%= qty(g.produced_qty) %></div><div style="<%= costStyle %>"><%= money(g.production_cost) %></div><div style="<%= costStyle %>"><%= money(g.price) %></div></div><% }) %>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (activeTab === 'waste') { %>
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header"><h2>Desperdicio / merma</h2></div>
+      <% waste.forEach((w) => { %><div class="production-line"><span><%= w.created_at %> - <%= w.order_number || 'Sin orden' %> - <%= w.product_name %> - <%= qty(w.quantity) %> - <%= w.reason %></span><strong style="<%= costStyle %>"><%= money(w.cost) %></strong></div><% }) %>
+    </section>
+  <% } %>
+
+  <% if (activeTab === 'reports') { %>
+    <section class="production-two-col">
+      <div class="panel app-panel"><div class="panel-header app-panel-header"><h2>Costo por producto</h2></div><% reports.byProduct.forEach((r) => { %><div class="production-line"><span><%= r.product_name %> (<%= qty(r.qty) %>)</span><strong style="<%= costStyle %>"><%= money(r.cost) %></strong></div><% }) %></div>
+      <div class="panel app-panel"><div class="panel-header app-panel-header"><h2>Costo por material</h2></div><% reports.byMaterial.forEach((r) => { %><div class="production-line"><span><%= r.material_name %> (<%= qty(r.qty) %>)</span><strong style="<%= costStyle %>"><%= money(r.cost) %></strong></div><% }) %></div>
+      <div class="panel app-panel"><div class="panel-header app-panel-header"><h2>Mano de obra por orden</h2></div><% reports.labor.forEach((r) => { %><div class="production-line"><span><%= r.order_number %> - <%= qty(r.hours) %> h</span><strong style="<%= costStyle %>"><%= money(r.cost) %></strong></div><% }) %></div>
+      <div class="panel app-panel"><div class="panel-header app-panel-header"><h2>CIF por orden</h2></div><% reports.overhead.forEach((r) => { %><div class="production-line"><span><%= r.order_number %></span><strong style="<%= costStyle %>"><%= money(r.cost) %></strong></div><% }) %></div>
+    </section>
+  <% } %>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

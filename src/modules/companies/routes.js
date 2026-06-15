@@ -522,7 +522,7 @@ function registerCompanyRoutes(app, deps) {
         return res.redirect(redirectTarget);
       }
 
-      const baseCurrency = base_currency || currency || 'GTQ';
+      const baseCurrency = String(base_currency || currency || 'GTQ').trim().toUpperCase() || 'GTQ';
       const allowedCurrencies = parseCurrencyList(allowed_currencies, baseCurrency).join(',');
       const taxRateValue = Number.isFinite(Number(tax_rate)) ? Number(tax_rate) : null;
       const taxNameValue = tax_name || null;
@@ -581,6 +581,13 @@ function registerCompanyRoutes(app, deps) {
                 slug: companySlug,
                 legal_name: legal_name || null,
                 activity_id: activityId,
+                currency: currencyLegacy,
+                base_currency: baseCurrency,
+                allowed_currencies: allowedCurrencies,
+                tax_rate: taxRateValue,
+                tax_name: taxNameValue,
+                costing_method: costingMethodValue,
+                multi_currency_enabled: multiCurrencyValue,
                 allowed_modules: allowedModules,
                 display_name: resolveCompanyDisplayName({
                   ...req.session.company,

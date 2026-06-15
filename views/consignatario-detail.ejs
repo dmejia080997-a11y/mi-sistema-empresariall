@@ -168,7 +168,7 @@
 </label>
 <label>
 <%= t('consignatarios.country') %>
-<select name="country" data-country data-selected="<%= consignatario.country || '' %>">
+<select name="country" data-country data-selected="<%= consignatario.country_name || consignatario.country || '' %>" data-country-id="<%= consignatario.country_id || '' %>" required>
 <% countries.forEach(country => { %>
 <option value="<%= country %>" <%= consignatario.country === country ? 'selected' : '' %>>
 <%= country %>
@@ -178,13 +178,13 @@
 </label>
 <label>
 <%= t('consignatarios.department') %>
-<select name="department" data-department data-selected="<%= consignatario.department || '' %>" data-placeholder="<%= t('consignatarios.select_department') %>">
+<select name="department" data-department data-selected="<%= consignatario.state_name || consignatario.department || '' %>" data-state-id="<%= consignatario.state_id || '' %>" data-placeholder="<%= t('consignatarios.select_department') %>">
 <option value=""><%= t('consignatarios.select_department') %></option>
 </select>
 </label>
 <label>
 <%= t('consignatarios.municipality') %>
-<select name="municipality" data-municipality data-selected="<%= consignatario.municipality || '' %>" data-placeholder="<%= t('consignatarios.select_municipality') %>">
+<select name="municipality" data-municipality data-selected="<%= consignatario.city_name || consignatario.municipality || '' %>" data-city-id="<%= consignatario.city_id || '' %>" data-placeholder="<%= t('consignatarios.select_municipality') %>">
 <option value=""><%= t('consignatarios.select_municipality') %></option>
 </select>
 </label>
@@ -194,9 +194,17 @@
 </label>
 <label>
 <%= t('consignatarios.full_address') %>
-<textarea name="full_address" rows="2" placeholder="<%= t('consignatarios.full_address') %>">
-<%= consignatario.full_address || '' %>
+<textarea name="full_address" rows="2" placeholder="<%= t('consignatarios.full_address') %>" required>
+<%= consignatario.address_line || consignatario.full_address || '' %>
 </textarea>
+</label>
+<label>
+Codigo postal
+<input type="text" name="postal_code" value="<%= consignatario.postal_code || '' %>" />
+</label>
+<label>
+Referencia
+<input type="text" name="reference" value="<%= consignatario.reference || '' %>" />
 </label>
 <label>
 <%= t('consignatarios.notes') %>

@@ -19,7 +19,49 @@
     cuscar: 'CUSCAR'
   };
 
+  const KNOWN_ROOTS = new Set([
+    'dashboard',
+    'launcher',
+    'workspace',
+    'inventory',
+    'categories',
+    'brands',
+    'customers',
+    'consignatarios',
+    'packages',
+    'carrier-reception',
+    'invoices',
+    'accounting',
+    'settings',
+    'users',
+    'manifests',
+    'airway-bills',
+    'cuscar',
+    'projects',
+    'sales',
+    'suppliers',
+    'rrhh',
+    'ai',
+    'chat',
+    'notifications',
+    'whatsapp',
+    'meta-inbox',
+    'mensajeria-meta'
+  ]);
+
+  const getCompanyBasePath = () => {
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    if (parts.length < 2) return '';
+    return KNOWN_ROOTS.has(parts[0]) ? '' : `/${parts[0]}`;
+  };
+
+  const appUrl = (path) => `${getCompanyBasePath()}${path}`;
+
   const resolveModuleFromPath = (path) => {
+    const parts = String(path || '/').split('/').filter(Boolean);
+    const normalizedPath = parts.length >= 2 && !KNOWN_ROOTS.has(parts[0])
+      ? `/${parts.slice(1).join('/')}`
+      : path;
     const rules = [
       { re: /^\/dashboard/, module: 'dashboard' },
       { re: /^\/launcher/, module: 'dashboard' },
@@ -38,7 +80,7 @@
       { re: /^\/airway-bills/, module: 'airway_bills' },
       { re: /^\/cuscar/, module: 'cuscar' }
     ];
-    const found = rules.find((rule) => rule.re.test(path));
+    const found = rules.find((rule) => rule.re.test(normalizedPath));
     return found ? found.module : null;
   };
 
@@ -133,6 +175,7 @@
   const tokenEl = document.querySelector('meta[name="csrf-token"]');
   let csrfToken = tokenEl ? tokenEl.getAttribute('content') : null;
   let permissionMap = null;
+  let conversationId = null;
   let quickOpenPanel = null;
   let quickBusy = false;
 
@@ -208,7 +251,7 @@
   const ensureCsrfToken = async () => {
     if (csrfToken) return csrfToken;
     try {
-      const response = await fetch('/ai/token', { credentials: 'same-origin' });
+      const response = await fetch(appUrl('/ai/token'), { credentials: 'same-origin' });
       const data = await response.json();
       if (response.ok && data && data.token) {
         csrfToken = data.token;
@@ -223,7 +266,7 @@
   const loadPermissions = async () => {
     if (permissionMap) return permissionMap;
     try {
-      const response = await fetch('/ai/context', { credentials: 'same-origin' });
+      const response = await fetch(appUrl('/ai/context'), { credentials: 'same-origin' });
       const data = await response.json();
       if (response.ok && data) {
         permissionMap = data.permissions || null;
@@ -260,6 +303,7 @@
       const perms = await loadPermissions();
       const payload = {
         question: trimmed,
+        conversation_id: conversationId,
         module: moduleCode,
         route: window.location.pathname,
         page_title: document.title,
@@ -267,7 +311,7 @@
         _csrf: token
       };
 
-      const response = await fetch('/ai/chat', {
+      const response = await fetch(appUrl('/ai/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
@@ -281,6 +325,7 @@
         const msg = data && data.error ? data.error : 'No pude responder en este momento.';
         appendMessage('bot', msg);
       } else {
+        if (data.conversation_id) conversationId = data.conversation_id;
         appendMessage('bot', data.answer);
       }
     } catch (err) {

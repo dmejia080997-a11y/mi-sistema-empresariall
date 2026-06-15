@@ -15,27 +15,55 @@
 }) %>
 <main class="container">
 <h1>Cuentas por pagar</h1>
+<% if (can('accounting', 'create')) { %>
+<section class="panel">
+<h2>Registrar gasto o cuenta por pagar</h2>
+<p class="muted">La categoria crea o selecciona automaticamente la cuenta contable de gasto.</p>
+<form method="POST" action="/accounting/payables/create" class="form grid-2">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>Proveedor<select name="supplier_id"><option value="">Proveedor libre</option><% suppliers.forEach(row => { %><option value="<%= row.id %>"><%= row.code %> · <%= row.trade_name %></option><% }) %></select></label>
+<label>Nombre proveedor libre<input name="vendor_name" /></label>
+<label>Categoria del gasto<input name="accounting_category" required placeholder="Servicios, alquiler, combustible, publicidad..." /></label>
+<label>Subtotal<input type="number" name="subtotal" min="0" step="0.01" required /></label>
+<label>Impuesto acreditable<input type="number" name="tax_amount" min="0" step="0.01" value="0" /></label>
+<label>Moneda<input name="currency" value="<%= baseCurrency %>" /></label>
+<label>Tipo de cambio<input type="number" name="exchange_rate" min="0.000001" step="0.000001" value="1" /></label>
+<div class="actions full-row"><button class="btn primary" type="submit">Registrar y contabilizar</button></div>
+</form>
+</section>
+<% } %>
 <section class="panel">
 <div class="table">
-<div class="table-row header accounting-receivables">
+<div class="table-row header accounting-payables">
 <div>Documento</div>
 <div>Proveedor</div>
 <div>Fecha</div>
 <div>Total</div>
 <div>Pagado</div>
 <div>Saldo</div>
+<div>Acciones</div>
 </div>
 <% if (!rows.length) { %>
 <div class="table-row empty">Sin cuentas por pagar.</div>
 <% } %>
 <% rows.forEach(row => { %>
-<div class="table-row accounting-receivables">
+<div class="table-row accounting-payables">
 <div>#<%= row.id %></div>
 <div><%= row.vendor_name || '-' %></div>
 <div><%= new Date(row.created_at).toLocaleDateString() %></div>
 <div><%= row.currency || baseCurrency %> <%= Number(row.total || 0).toFixed(2) %></div>
 <div><%= baseCurrency %> <%= Number(row.paid_base || 0).toFixed(2) %></div>
 <div><%= baseCurrency %> <%= Number((row.total_base || 0) - (row.paid_base || 0)).toFixed(2) %></div>
+<div>
+<% if (can('accounting', 'create')) { %>
+<form method="POST" action="/accounting/payables/<%= row.id %>/pay" class="inline-form" onsubmit="return confirm('Registrar pago y contabilizarlo?');">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<input type="number" name="amount" min="0.01" step="0.01" max="<%= Number((row.total_base || 0) - (row.paid_base || 0)).toFixed(2) %>" value="<%= Number((row.total_base || 0) - (row.paid_base || 0)).toFixed(2) %>" required />
+<select name="method"><option>Transferencia</option><option>Cheque</option><option>Efectivo</option><option>Tarjeta</option></select>
+<button class="btn primary" type="submit">Pagar</button>
+</form>
+<% } %>
+</div>
 </div>
 <% }) %>
 </div>

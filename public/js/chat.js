@@ -1,4 +1,31 @@
 (function () {
+  const userSearch = document.querySelector('[data-chat-user-search]');
+  const userCards = Array.from(document.querySelectorAll('[data-chat-user-card]'));
+  const userSearchEmpty = document.querySelector('[data-chat-user-search-empty]');
+
+  if (userSearch && userCards.length) {
+    const normalizeSearchText = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+
+    userSearch.addEventListener('input', () => {
+      const term = normalizeSearchText(userSearch.value);
+      let visibleCount = 0;
+
+      userCards.forEach((card) => {
+        const matches = !term || normalizeSearchText(card.dataset.searchText).includes(term);
+        card.hidden = !matches;
+        if (matches) visibleCount += 1;
+      });
+
+      if (userSearchEmpty) {
+        userSearchEmpty.hidden = visibleCount > 0;
+      }
+    });
+  }
+
   const root = document.querySelector('[data-chat-thread-root]');
   const list = document.getElementById('chat-message-list');
 

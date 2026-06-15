@@ -20,6 +20,7 @@ const csrf = require('csurf');
 const { parse } = require('csv-parse/sync');
 const { stringify } = require('csv-stringify/sync');
 const XLSX = require('xlsx');
+const { Country, State, City } = require('country-state-city');
 const https = require('https');
 const http = require('http');
 const { applySecurityHeaders } = require('./src/core/security-headers');
@@ -31,18 +32,28 @@ const { registerPackageRoutes } = require('./src/modules/packages/routes');
 const { registerCustomerRoutes } = require('./src/modules/customers/routes');
 const { registerCarrierReceptionRoutes } = require('./src/modules/carrier-reception/routes');
 const { registerInventoryRoutes } = require('./src/modules/inventory/routes');
+const { registerProductionRoutes } = require('./src/modules/production/routes');
+const { registerSalesRoutes } = require('./src/modules/sales/routes');
+const { registerSupplierRoutes } = require('./src/modules/suppliers/routes');
+const { registerFloatingInvestmentRoutes } = require('./src/modules/floating-investments/routes');
 const { registerAccountingRoutes } = require('./src/modules/accounting/routes');
+const { registerProjectRoutes } = require('./src/modules/projects/routes');
 const { registerLogisticsRoutes } = require('./src/modules/logistics/routes');
 const { registerInvoiceRoutes } = require('./src/modules/invoices/routes');
 const { registerAgendaMedicaRoutes } = require('./src/modules/agenda-medica/routes');
 const { registerHrRoutes } = require('./src/modules/hr/routes');
 const { registerChatRoutes } = require('./src/modules/chat/routes');
+const { registerWhatsappRoutes } = require('./src/modules/whatsapp/routes');
+const { registerMetaInboxRoutes } = require('./src/modules/meta-inbox/routes');
+const { registerMensajeriaMetaRoutes } = require('./src/modules/mensajeria-meta/routes');
 const { registerUserRoutes } = require('./src/modules/users/routes');
 const { registerAuditRoutes } = require('./src/modules/audit/routes');
+const { registerInternalAiRoutes } = require('./src/controllers/internalAiController');
 const { registerMasterActivitiesRoutes } = require('./src/modules/master-activities/routes');
 const { registerMasterRoutes } = require('./src/modules/master/routes');
 const { registerMasterAuthRoutes } = require('./src/modules/master-auth/routes');
 const { registerMasterCompanyRoutes } = require('./src/modules/master-companies/routes');
+const { createAccountingAutomation } = require('./src/services/accounting-automation');
 const QRCode = require('qrcode');
 const PDFDocument = require('pdfkit');
 const bwipjs = require('bwip-js');
@@ -51,9 +62,8 @@ const FILE_TOKEN_SECRET = FILE_TOKEN_SECRET_ENV || ACTIVE_SESSION_SECRET;
 const SESSION_COOKIE_NAME = getSessionCookieName(IS_PROD);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const SHOULD_AUTO_SELECT_PORT = !process.env.PORT && !IS_PROD;
-const MAX_PORT_RETRIES = 10;
+const PORT = Number(process.env.PORT || 3000);
+const MAX_PORT_RETRIES = 20;
 const DB_PATH = path.join(__dirname, 'data', 'app.db');
 const GLOBAL_DOCK_PARTIAL_PATH = path.join(__dirname, 'views', 'partials', 'global-dock.ejs');
 const DESIGN_SYSTEM_ASSETS = [
@@ -353,8 +363,87 @@ const CUSTOMER_DOCUMENT_TYPES = ['NIT', 'CF', 'DPI'];
 const PAYMENT_METHODS = ['Efectivo', 'Transferencia', 'Tarjeta'];
 const COMMUNICATION_TYPES = ['Whatsapp', 'Correo', 'Llamada'];
 const DEFAULT_CURRENCIES = ['GTQ', 'USD'];
-const COMPANY_COUNTRIES = ['Guatemala', 'United States'];
 const COSTING_METHODS = ['average', 'fifo'];
+
+const SPANISH_REGION_NAMES = typeof Intl !== 'undefined' && Intl.DisplayNames
+  ? new Intl.DisplayNames(['es'], { type: 'region' })
+  : null;
+const WORLD_COUNTRIES = Country.getAllCountries()
+  .map((country) => ({
+    name: (SPANISH_REGION_NAMES && SPANISH_REGION_NAMES.of(country.isoCode)) || country.name,
+    sourceName: country.name,
+    isoCode: country.isoCode
+  }))
+  .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+const COMPANY_COUNTRIES = WORLD_COUNTRIES.map((country) => country.name);
+const WORLD_COUNTRY_BY_CODE = new Map(WORLD_COUNTRIES.map((country) => [country.isoCode.toUpperCase(), country]));
+const WORLD_COUNTRY_BY_NAME = new Map();
+WORLD_COUNTRIES.forEach((country) => {
+  WORLD_COUNTRY_BY_NAME.set(normalizeLocationKey(country.name), country);
+  WORLD_COUNTRY_BY_NAME.set(normalizeLocationKey(country.sourceName), country);
+});
+
+function normalizeLocationKey(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function resolveWorldCountry(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  return WORLD_COUNTRY_BY_CODE.get(raw.toUpperCase()) || WORLD_COUNTRY_BY_NAME.get(normalizeLocationKey(raw)) || null;
+}
+
+function resolveWorldState(countryCode, value) {
+  const raw = String(value || '').trim();
+  if (!countryCode || !raw) return null;
+  const states = State.getStatesOfCountry(countryCode);
+  const upper = raw.toUpperCase();
+  return states.find((state) => String(state.isoCode || '').toUpperCase() === upper)
+    || states.find((state) => normalizeLocationKey(state.name) === normalizeLocationKey(raw))
+    || null;
+}
+
+function parseLocationId(value) {
+  const id = Number(value || 0);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function mapLocationCountry(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    iso2: row.iso2,
+    iso3: row.iso3,
+    phonecode: row.phonecode,
+    currency: row.currency,
+    region: row.region,
+    subregion: row.subregion
+  };
+}
+
+function mapLocationState(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    country_id: row.country_id,
+    name: row.name,
+    state_code: row.state_code,
+    type: row.type
+  };
+}
+
+function mapLocationCity(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    state_id: row.state_id,
+    country_id: row.country_id,
+    name: row.name,
+    latitude: row.latitude,
+    longitude: row.longitude
+  };
+}
 
 
 app.set('view engine', 'ejs');
@@ -364,8 +453,14 @@ app.disable('x-powered-by');
 
 app.use(applySecurityHeaders({ isProd: IS_PROD }));
 
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+const captureRawBody = (req, res, buf) => {
+  if ((req.originalUrl || req.url || '').startsWith('/webhooks/meta')) {
+    req.rawBody = Buffer.from(buf || '');
+  }
+};
+
+app.use(express.urlencoded({ extended: true, verify: captureRawBody }));
+app.use(express.json({ verify: captureRawBody }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(
@@ -411,6 +506,7 @@ const COMPANY_ROUTE_ALIASES = [
 const COMPANY_SCOPE_EXCLUDED_PREFIXES = [
   '/login',
   '/master',
+  '/companies',
   '/customer',
   '/tracking',
   '/files/',
@@ -430,15 +526,22 @@ const COMPANY_KNOWN_ROOTS = new Set([
   'workspace',
   'settings',
   'chat',
+  'mensajeria-meta',
+  'whatsapp',
+  'meta-inbox',
+  'webhooks',
   'notifications',
   'packages',
   'inventory',
+  'sales',
+  'suppliers',
   'categories',
   'brands',
   'invoices',
   'facturacion',
   'customers',
   'clients',
+  'projects',
   'consignatarios',
   'users',
   'accounting',
@@ -616,6 +719,8 @@ function requireCompanySlug(req, res, next) {
 }
 
 app.use((req, res, next) => {
+  if ((req.path || '').startsWith('/webhooks/whatsapp')) return next();
+  if ((req.path || '').startsWith('/webhooks/meta')) return next();
   if (req.is('multipart/form-data')) return next();
   return csrfMiddleware(req, res, next);
 });
@@ -977,6 +1082,7 @@ const companyLogoUpload = multer({
 });
 
 const db = new sqlite3.Database(DB_PATH);
+const accountingAutomation = createAccountingAutomation(db);
 if (sqlite3.Statement && sqlite3.Statement.prototype && sqlite3.Statement.prototype.emit) {
   const originalStmtEmit = sqlite3.Statement.prototype.emit;
   sqlite3.Statement.prototype.emit = function (event, ...args) {
@@ -2745,6 +2851,8 @@ function findPackagesTable(callback) {
 function ensureCustomerPortalColumns() {
   findCustomerTable((table) => {
     if (!table) return;
+    ensureColumn(table, 'customer_type', "TEXT DEFAULT 'person'");
+    ensureColumn(table, 'legal_name', 'TEXT');
     ensureColumn(table, 'portal_code', 'TEXT');
     ensureColumn(table, 'portal_password_hash', 'TEXT');
     ensureColumn(table, 'portal_password_reset_required', 'INTEGER DEFAULT 0');
@@ -3913,6 +4021,50 @@ db.serialize(() => {
     ]
   );
   db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_brands_company_name ON brands (company_id, name)');
+  db.run(
+    `CREATE TABLE IF NOT EXISTS countries (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      iso2 TEXT,
+      iso3 TEXT,
+      phonecode TEXT,
+      currency TEXT,
+      region TEXT,
+      subregion TEXT
+    )`
+  );
+  db.run(
+    `CREATE TABLE IF NOT EXISTS states (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      country_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      state_code TEXT,
+      type TEXT,
+      FOREIGN KEY (country_id) REFERENCES countries(id)
+    )`
+  );
+  db.run(
+    `CREATE TABLE IF NOT EXISTS cities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      state_id INTEGER,
+      country_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      latitude TEXT,
+      longitude TEXT,
+      FOREIGN KEY (state_id) REFERENCES states(id),
+      FOREIGN KEY (country_id) REFERENCES countries(id)
+    )`
+  );
+  db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_countries_iso2 ON countries (iso2)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_countries_name ON countries (name)');
+  db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_states_country_code_name ON states (country_id, state_code, name)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_states_country_id ON states (country_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_states_name ON states (name)');
+  db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_cities_country_state_name ON cities (country_id, state_id, name)');
+  db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_cities_country_name_no_state ON cities (country_id, name) WHERE state_id IS NULL');
+  db.run('CREATE INDEX IF NOT EXISTS idx_cities_state_id ON cities (state_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_cities_country_id ON cities (country_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_cities_name ON cities (name)');
   ensureColumn('customers', 'company_id', 'INTEGER');
   ensureCustomerPortalColumns();
   ensureColumnsOnTable(
@@ -3940,8 +4092,25 @@ db.serialize(() => {
       { name: 'voided_by', type: 'INTEGER' },
       { name: 'sat_verified', type: 'INTEGER DEFAULT 0' },
       { name: 'sat_name', type: 'TEXT' },
-      { name: 'sat_checked_at', type: 'DATETIME' }
+      { name: 'sat_checked_at', type: 'DATETIME' },
+      { name: 'country_id', type: 'INTEGER' },
+      { name: 'state_id', type: 'INTEGER' },
+      { name: 'city_id', type: 'INTEGER' },
+      { name: 'country_name', type: 'TEXT' },
+      { name: 'state_name', type: 'TEXT' },
+      { name: 'city_name', type: 'TEXT' },
+      { name: 'address_line', type: 'TEXT' },
+      { name: 'postal_code', type: 'TEXT' },
+      { name: 'reference', type: 'TEXT' }
     ]
+  );
+  db.run(
+    `UPDATE customers
+     SET country_name = COALESCE(NULLIF(country_name, ''), NULLIF(country, ''), 'Guatemala'),
+         state_name = COALESCE(NULLIF(state_name, ''), NULLIF(department, '')),
+         city_name = COALESCE(NULLIF(city_name, ''), NULLIF(municipality, '')),
+         address_line = COALESCE(NULLIF(address_line, ''), NULLIF(full_address, ''), NULLIF(address, ''))
+     WHERE country_name IS NULL OR state_name IS NULL OR city_name IS NULL OR address_line IS NULL`
   );
   db.run(
     `CREATE TABLE IF NOT EXISTS consignatarios (
@@ -3986,8 +4155,25 @@ db.serialize(() => {
       { name: 'sat_name', type: 'TEXT' },
       { name: 'sat_checked_at', type: 'DATETIME' },
       { name: 'notes', type: 'TEXT' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'country_id', type: 'INTEGER' },
+      { name: 'state_id', type: 'INTEGER' },
+      { name: 'city_id', type: 'INTEGER' },
+      { name: 'country_name', type: 'TEXT' },
+      { name: 'state_name', type: 'TEXT' },
+      { name: 'city_name', type: 'TEXT' },
+      { name: 'address_line', type: 'TEXT' },
+      { name: 'postal_code', type: 'TEXT' },
+      { name: 'reference', type: 'TEXT' }
     ]
+  );
+  db.run(
+    `UPDATE consignatarios
+     SET country_name = COALESCE(NULLIF(country_name, ''), NULLIF(country, ''), 'Guatemala'),
+         state_name = COALESCE(NULLIF(state_name, ''), NULLIF(department, '')),
+         city_name = COALESCE(NULLIF(city_name, ''), NULLIF(municipality, '')),
+         address_line = COALESCE(NULLIF(address_line, ''), NULLIF(full_address, ''))
+     WHERE country_name IS NULL OR state_name IS NULL OR city_name IS NULL OR address_line IS NULL`
   );
   ensureColumn('invoice_items', 'company_id', 'INTEGER');
   ensureColumn('invoice_items', 'created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP');
@@ -4972,9 +5158,19 @@ db.serialize(() => {
       ('agenda_medica','Agenda Medica','Citas y calendario medico'),
       ('portal','Portal clientes','Accesos al portal de clientes'),
       ('inventory','Inventario','GestiÃ³n de inventario'),
+      ('production','Produccion y Manufactura','Ordenes de produccion, formulas BOM, costos y producto terminado'),
+      ('sales','Ventas / CRM','CRM comercial, oportunidades, cotizaciones, pedidos, ventas, comisiones y metas'),
+      ('suppliers','Proveedores','Gestion de proveedores, documentos, compras y saldos'),
+      ('floating_investments','Inversion flotante','Control de inversiones flotantes, clientes y recuperacion'),
+      ('projects','Proyectos','Gestion de proyectos, tareas, costos y cotizaciones'),
+      ('rrhh','RRHH','Recursos humanos, empleados, asistencia y vacaciones'),
+      ('ai_internal','Asistente','Asistente de reportes internos sin conexion externa'),
       ('airway_bills','GuÃ­a AÃ©rea','GestiÃ³n de guÃ­as aÃ©reas'),
       ('manifests','Manifiestos','GestiÃ³n de manifiestos'),
       ('cuscar','CUSCAR SAT','Manifiestos CUSCAR SAT'),
+      ('mensajeria_meta','Mensajeria meta','Menu unificado para WhatsApp Business, Messenger, comentarios y Lead Ads de Meta'),
+      ('whatsapp','WhatsApp / Mensajeria','Bandeja CRM para WhatsApp Business Cloud API'),
+      ('meta_inbox','Centro de Mensajes / Meta Inbox','Bandeja oficial para Messenger, comentarios y Lead Ads de Meta'),
       ('reports','Reportes','Reportes del sistema'),
       ('users','Usuarios','AdministraciÃ³n de usuarios'),
       ('settings','ConfiguraciÃ³n','ConfiguraciÃ³n general')`
@@ -4997,7 +5193,29 @@ db.serialize(() => {
       ('manage_catalogs','Administrar catÃ¡logos','AdministraciÃ³n de catÃ¡logos CUSCAR'),
       ('transmit_cuscar','Transmitir CUSCAR','Transmitir manifiesto CUSCAR'),
       ('void','Anular','Anular registros'),
-      ('view_voided','Ver anulados','Ver registros anulados')`
+      ('view_voided','Ver anulados','Ver registros anulados'),
+      ('reply','Responder','Responder mensajes y comentarios'),
+      ('assign','Asignar','Asignar conversaciones'),
+      ('close','Cerrar','Cerrar conversaciones'),
+      ('settings','Configurar Meta','Administrar conexion de Meta'),
+      ('leads','Leads','Gestionar leads de Meta'),
+      ('create_order','Crear orden','Crear ordenes de produccion'),
+      ('edit_order','Editar orden','Editar ordenes y formulas'),
+      ('start_production','Iniciar produccion','Consumir materia prima'),
+      ('finish_production','Finalizar produccion','Ingresar producto terminado'),
+      ('cancel_production','Cancelar produccion','Cancelar ordenes'),
+      ('view_costs','Ver costos','Ver costos de produccion'),
+      ('edit_costs','Editar costos','Editar costos de produccion'),
+      ('record_labor','Registrar mano de obra','Agregar mano de obra'),
+      ('record_waste','Registrar desperdicio','Registrar merma'),
+      ('approve_production','Aprobar produccion','Aprobar produccion'),
+      ('view_reports','Ver reportes','Ver reportes de produccion')`
+    );
+
+    db.run(
+      `UPDATE permission_modules
+       SET name = 'Asistente'
+       WHERE code = 'ai_internal'`
     );
 
     db.run(
@@ -5039,6 +5257,13 @@ db.serialize(() => {
       `INSERT OR IGNORE INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
+       WHERE pm.code = 'production' AND pa.code IN ('view','create_order','edit_order','start_production','finish_production','cancel_production','view_costs','edit_costs','record_labor','record_waste','approve_production','view_reports')`
+    );
+
+    db.run(
+      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+       SELECT pm.id, pa.id
+       FROM permission_modules pm, permission_actions pa
        WHERE pm.code = 'agenda_medica' AND pa.code IN ('view','create','edit','delete')`
     );
 
@@ -5049,6 +5274,48 @@ db.serialize(() => {
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
        WHERE pm.code = 'inventory' AND pa.code IN ('view','create','edit','delete','export')`
+    );
+
+    db.run(
+      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+       SELECT pm.id, pa.id
+       FROM permission_modules pm, permission_actions pa
+       WHERE pm.code = 'sales' AND pa.code IN ('view','create','edit','delete','export','manage')`
+    );
+
+    db.run(
+      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+       SELECT pm.id, pa.id
+       FROM permission_modules pm, permission_actions pa
+       WHERE pm.code = 'suppliers' AND pa.code IN ('view','create','edit','delete','export','approve','manage')`
+    );
+
+    db.run(
+      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+       SELECT pm.id, pa.id
+       FROM permission_modules pm, permission_actions pa
+       WHERE pm.code = 'floating_investments' AND pa.code IN ('view','create','edit','delete','export')`
+    );
+
+    db.run(
+      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+       SELECT pm.id, pa.id
+       FROM permission_modules pm, permission_actions pa
+       WHERE pm.code = 'projects' AND pa.code IN ('view','create','edit','delete','export','manage')`
+    );
+
+    db.run(
+      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+       SELECT pm.id, pa.id
+       FROM permission_modules pm, permission_actions pa
+       WHERE pm.code = 'rrhh' AND pa.code IN ('view','create','edit','delete','export','manage')`
+    );
+
+    db.run(
+      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+       SELECT pm.id, pa.id
+       FROM permission_modules pm, permission_actions pa
+       WHERE pm.code = 'ai_internal' AND pa.code IN ('ai_view','ai_ask','ai_export','ai_view_sales','ai_view_accounts_receivable','ai_view_inventory','ai_view_clients','ai_view_quotes','ai_view_projects','ai_view_production','ai_admin_intents')`
     );
 
     db.run(
@@ -5077,6 +5344,27 @@ db.serialize(() => {
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
        WHERE pm.code = 'customers' AND pa.code IN ('view','create','edit','delete','void','view_voided')`
+    );
+
+    db.run(
+      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+       SELECT pm.id, pa.id
+       FROM permission_modules pm, permission_actions pa
+       WHERE pm.code = 'mensajeria_meta' AND pa.code IN ('view','create','edit','manage','reply','assign','close','settings','leads')`
+    );
+
+    db.run(
+      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+       SELECT pm.id, pa.id
+       FROM permission_modules pm, permission_actions pa
+       WHERE pm.code = 'whatsapp' AND pa.code IN ('view','create','edit','manage')`
+    );
+
+    db.run(
+      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+       SELECT pm.id, pa.id
+       FROM permission_modules pm, permission_actions pa
+       WHERE pm.code = 'meta_inbox' AND pa.code IN ('view','reply','assign','close','settings','leads')`
     );
 
     db.run(
@@ -5113,7 +5401,68 @@ db.serialize(() => {
        FROM permission_modules pm, permission_actions pa
        WHERE pm.code = 'settings' AND pa.code IN ('view','manage')`
     );
+
+    db.run("UPDATE permission_modules SET name = 'Mensajeria meta', description = 'Menu unificado para WhatsApp Business, Messenger, comentarios y Lead Ads de Meta', is_active = 1 WHERE code = 'mensajeria_meta'");
+    db.run("UPDATE permission_modules SET is_active = 0 WHERE code IN ('whatsapp', 'meta_inbox')");
+    db.run(
+      `INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id)
+       SELECT up.user_id, up.company_id, unified.id, up.action_id
+       FROM user_permissions up
+       JOIN permission_modules old_module ON old_module.id = up.module_id
+       JOIN permission_modules unified ON unified.code = 'mensajeria_meta'
+       JOIN permission_actions action ON action.id = up.action_id
+       WHERE old_module.code = 'whatsapp'
+         AND action.code IN ('view','create','edit','manage')`
+    );
+    db.run(
+      `INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id)
+       SELECT up.user_id, up.company_id, unified.id, up.action_id
+       FROM user_permissions up
+       JOIN permission_modules old_module ON old_module.id = up.module_id
+       JOIN permission_modules unified ON unified.code = 'mensajeria_meta'
+       JOIN permission_actions action ON action.id = up.action_id
+       WHERE old_module.code = 'meta_inbox'
+         AND action.code IN ('view','reply','assign','close','settings','leads')`
+    );
+    db.run(
+      `INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id)
+       SELECT up.user_id, up.company_id, ai_internal.id, ai_view.id
+       FROM user_permissions up
+       JOIN permission_modules old_module ON old_module.id = up.module_id
+       JOIN permission_modules ai_internal ON ai_internal.code = 'ai_internal'
+       JOIN permission_actions old_action ON old_action.id = up.action_id
+       JOIN permission_actions ai_view ON ai_view.code = 'ai_view'
+       WHERE old_module.code = 'ai_empresarial'
+         AND old_action.code IN ('view','create','manage')`
+    );
+    db.run(
+      `INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id)
+       SELECT up.user_id, up.company_id, ai_internal.id, ai_ask.id
+       FROM user_permissions up
+       JOIN permission_modules old_module ON old_module.id = up.module_id
+       JOIN permission_modules ai_internal ON ai_internal.code = 'ai_internal'
+       JOIN permission_actions old_action ON old_action.id = up.action_id
+       JOIN permission_actions ai_ask ON ai_ask.code = 'ai_ask'
+       WHERE old_module.code = 'ai_empresarial'
+         AND old_action.code IN ('view','create','manage')`
+    );
+    db.run("UPDATE permission_modules SET is_active = 0 WHERE code = 'ai_empresarial'");
   });
+
+  appendModuleToJsonColumnIfRestricted('companies', 'allowed_modules', 'sales');
+  appendModuleToJsonColumnIfRestricted('business_activities', 'modules_json', 'sales');
+  appendModuleToJsonColumnIfRestricted('companies', 'allowed_modules', 'suppliers');
+  appendModuleToJsonColumnIfRestricted('business_activities', 'modules_json', 'suppliers');
+  appendModuleToJsonColumnIfRestricted('companies', 'allowed_modules', 'projects');
+  appendModuleToJsonColumnIfRestricted('business_activities', 'modules_json', 'projects');
+  appendModuleToJsonColumnIfRestricted('companies', 'allowed_modules', 'production');
+  appendModuleToJsonColumnIfRestricted('business_activities', 'modules_json', 'production');
+  appendModuleToJsonColumnIfRestricted('companies', 'allowed_modules', 'rrhh');
+  appendModuleToJsonColumnIfRestricted('business_activities', 'modules_json', 'rrhh');
+  appendModuleToJsonColumnIfRestricted('companies', 'allowed_modules', 'ai_internal');
+  appendModuleToJsonColumnIfRestricted('business_activities', 'modules_json', 'ai_internal');
+  appendModuleToJsonColumnIfRestricted('companies', 'allowed_modules', 'mensajeria_meta');
+  appendModuleToJsonColumnIfRestricted('business_activities', 'modules_json', 'mensajeria_meta');
 });
 
 function getCompanyId(req) {
@@ -5409,6 +5758,12 @@ function saveCompanyAppearanceSettings(companyId, appearance, callback) {
 const DEFAULT_launcher_COLOR = '#1f2937';
 const launcher_SETTINGS_KEY = 'launcher_settings';
 const launcher_MODULE_CONFIG = {
+  dashboard: {
+    href: '/dashboard',
+    color: '#26445f',
+    icon: 'default',
+    order: 1
+  },
   packages: {
     href: '/packages',
     color: '#d97757',
@@ -5449,6 +5804,30 @@ const launcher_MODULE_CONFIG = {
     descKey: 'launcher.inventory.desc',
     order: 30
   },
+  production: {
+    href: '/production',
+    color: '#7c2d12',
+    icon: 'inventory',
+    order: 34
+  },
+  sales: {
+    href: '/sales',
+    color: '#0f766e',
+    icon: 'invoices',
+    order: 35
+  },
+  suppliers: {
+    href: '/suppliers',
+    color: '#7c3aed',
+    icon: 'suppliers',
+    order: 36
+  },
+  floating_investments: {
+    href: '/floating-investments',
+    color: '#0f766e',
+    icon: 'floating_investments',
+    order: 37
+  },
   users: {
     href: '/users',
     color: '#6b4f9a',
@@ -5473,6 +5852,12 @@ const launcher_MODULE_CONFIG = {
     descKey: 'launcher.accounting.desc',
     order: 55
   },
+  projects: {
+    href: '/projects',
+    color: '#1d4ed8',
+    icon: 'projects',
+    order: 56
+  },
   agenda_medica: {
     href: '/agenda-medica',
     color: '#0f766e',
@@ -5492,6 +5877,30 @@ const launcher_MODULE_CONFIG = {
     color: '#0f6d86',
     icon: 'chat',
     order: 59.5
+  },
+  ai_internal: {
+    href: '/ai',
+    color: '#2563eb',
+    icon: 'chat',
+    order: 59.56
+  },
+  mensajeria_meta: {
+    href: '/mensajeria-meta',
+    color: '#0f766e',
+    icon: 'meta_inbox',
+    order: 59.6
+  },
+  whatsapp: {
+    href: '/whatsapp',
+    color: '#16a34a',
+    icon: 'whatsapp',
+    order: 59.6
+  },
+  meta_inbox: {
+    href: '/meta-inbox',
+    color: '#2563eb',
+    icon: 'meta_inbox',
+    order: 59.65
   },
   notifications: {
     href: '/notifications',
@@ -5576,6 +5985,19 @@ const launcher_ICON_MAP = {
 <rect x="3" y="13" width="7" height="7" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
 <rect x="14" y="13" width="7" height="7" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
 </svg>`,
+  suppliers: `<svg viewBox="0 0 24 24" aria-hidden="true">
+<path d="M4 20V8l8-4 8 4v12H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+<path d="M8 20v-5h8v5M8 10h2M14 10h2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+</svg>`,
+  floating_investments: `<svg viewBox="0 0 24 24" aria-hidden="true">
+<path d="M5 18h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+<path d="M7 15V9m5 6V5m5 10v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+<path d="M6 10l4-4 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`,
+  projects: `<svg viewBox="0 0 24 24" aria-hidden="true">
+<path d="M4 6h16v12H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+<path d="M8 4v4M16 4v4M8 12h3M8 16h8M14 12h2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+</svg>`,
   users: `<svg viewBox="0 0 24 24" aria-hidden="true">
 <circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
 <circle cx="16" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
@@ -5605,6 +6027,15 @@ const launcher_ICON_MAP = {
   chat: `<svg viewBox="0 0 24 24" aria-hidden="true">
 <path d="M5 6.5h14a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 19 18.5H10l-4.8 3v-3H5A2.5 2.5 0 0 1 2.5 16V9A2.5 2.5 0 0 1 5 6.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
 <path d="M7.5 11.5h9M7.5 14.5h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+</svg>`,
+  whatsapp: `<svg viewBox="0 0 24 24" aria-hidden="true">
+<path d="M12 4a8 8 0 0 1 6.8 12.2l.9 3.2-3.3-.9A8 8 0 0 1 4 12a8 8 0 0 1 8-8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+<path d="M9 8.7c.2-.5.4-.6.8-.6h.5c.2 0 .4.1.5.4l.6 1.4c.1.3 0 .5-.2.7l-.4.4c.6 1.1 1.5 2 2.6 2.6l.5-.5c.2-.2.4-.2.7-.1l1.4.6c.3.1.4.3.4.6v.5c0 .4-.2.7-.6.8-.5.2-1.2.2-2.1-.1-2.6-.8-4.6-2.8-5.4-5.4-.3-.8-.3-1.5-.1-2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+</svg>`,
+  meta_inbox: `<svg viewBox="0 0 24 24" aria-hidden="true">
+<path d="M4 5.5h16a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2h-7l-4.5 3v-3H4a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+<path d="M7 10h10M7 13.5h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+<path d="M17.5 4v4M15.5 6h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
 </svg>`,
   notifications: `<svg viewBox="0 0 24 24" aria-hidden="true">
 <path d="M12 4.5a4.5 4.5 0 0 1 4.5 4.5v2.6c0 1.3.4 2.6 1.2 3.7l1.1 1.6H5.2l1.1-1.6a6.1 6.1 0 0 0 1.2-3.7V9A4.5 4.5 0 0 1 12 4.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
@@ -5704,6 +6135,7 @@ function buildlauncherModules(dbConn, t, permissionMap, isMaster, callback) {
 
       safeRows.forEach((row) => {
         const code = row.code;
+        if (code === 'whatsapp' || code === 'meta_inbox') return;
         const config = launcher_MODULE_CONFIG[code] || {};
         const shouldShow = config.alwaysShow || hasAnyPermission(code);
         if (!shouldShow) return;
@@ -5738,6 +6170,7 @@ function buildlauncherModules(dbConn, t, permissionMap, isMaster, callback) {
 
         Object.keys(launcher_MODULE_CONFIG).forEach((code) => {
           if (seen.has(code)) return;
+          if (code === 'whatsapp' || code === 'meta_inbox') return;
           const config = launcher_MODULE_CONFIG[code] || {};
           const shouldShow = config.alwaysShow || hasAnyPermission(code);
           if (!shouldShow) return;
@@ -6765,6 +7198,11 @@ function buildWorkspaceLabels(lang) {
     outline: isEn ? 'Outline' : 'Contorno',
     modulesTitle: isEn ? 'Allowed modules' : 'Modulos permitidos',
     modulesDesc: isEn ? 'Only modules enabled for this user and company are shown.' : 'Solo se muestran módulos habilitados para este usuario y empresa.',
+    searchLabel: isEn ? 'Search apps' : 'Buscar aplicaciones',
+    searchPlaceholder: isEn ? 'Type an app name...' : 'Escribe el nombre de la aplicacion...',
+    clearSearch: isEn ? 'Clear search' : 'Limpiar busqueda',
+    searchResults: isEn ? '{count} results' : '{count} resultados',
+    noSearchResults: isEn ? 'No app matches your search.' : 'No hay aplicaciones con ese nombre.',
     dockAppsTitle: isEn ? 'Apps in dock' : 'Apps en el dock',
     dockAppsDesc: isEn ? 'Choose which permitted apps appear in the dock.' : 'Elige qué aplicaciones permitidas aparecen en el dock.',
     dockAppsEmpty: isEn ? 'No apps are available for this dock.' : 'No hay aplicaciones disponibles para este dock.',
@@ -6795,12 +7233,19 @@ function filterWorkspaceModulesForPermissions(modules, permissionMap, isMaster) 
   return safeModules.filter((module) => {
     if (!module || !module.key) return false;
     const key = normalizeString(module.key);
-    if (!key || key === launcher_SETTINGS_KEY || key === 'dashboard') return false;
+    if (!key || key === launcher_SETTINGS_KEY) return false;
     if (key === 'master') return Boolean(isMaster);
     if (key.startsWith('packages_status_')) {
-      return hasPermission(permissionMap, 'packages', 'view');
+      return isModuleAllowed(permissionMap, 'packages');
     }
-    return hasPermission(permissionMap, key, 'view');
+    if (!isModuleAllowed(permissionMap, key)) return false;
+    if (permissionMap && permissionMap.isAdmin) return true;
+    return Boolean(
+      permissionMap
+      && permissionMap.modules
+      && permissionMap.modules[key]
+      && Object.keys(permissionMap.modules[key]).length > 0
+    );
   });
 }
 
@@ -7360,12 +7805,26 @@ function parseJsonList(raw) {
   }
 }
 
+function appendModuleToJsonColumnIfRestricted(tableName, columnName, moduleCode) {
+  db.all(`SELECT rowid AS row_id, ${columnName} AS modules_json FROM ${tableName}`, [], (err, rows) => {
+    if (err || !rows) return;
+    rows.forEach((row) => {
+      const modules = parseJsonList(row.modules_json);
+      if (!modules.length || modules.includes(moduleCode)) return;
+      modules.push(moduleCode);
+      db.run(`UPDATE ${tableName} SET ${columnName} = ? WHERE rowid = ?`, [JSON.stringify(modules), row.row_id]);
+    });
+  });
+}
+
 const MODULE_DEPENDENCIES = {
-  chat: ['notifications']
+  chat: ['notifications'],
+  mensajeria_meta: ['whatsapp', 'meta_inbox']
 };
 
 const COMPANY_WIDE_PERMISSION_RULES = {
   chat: ['view', 'create'],
+  mensajeria_meta: ['view'],
   notifications: ['view']
 };
 
@@ -7958,6 +8417,9 @@ function hasPermission(permissionMap, moduleCode, actionCode) {
   if (moduleCode === 'notifications' && actionCode === 'view') {
     return hasNotificationsViewPermission(permissionMap);
   }
+  if ((moduleCode === 'whatsapp' || moduleCode === 'meta_inbox') && hasPermission(permissionMap, 'mensajeria_meta', actionCode)) {
+    return true;
+  }
   if (!isModuleAllowed(permissionMap, moduleCode)) return false;
   if (permissionMap.isAdmin) return true;
   return Boolean(
@@ -7995,6 +8457,8 @@ const AI_MODULE_LABELS = {
   users: 'Usuarios',
   companies: 'Empresas',
   inventory: 'Inventario',
+  projects: 'Proyectos',
+  mensajeria_meta: 'Mensajeria meta',
   manifests: 'Manifiestos',
   airway_bills: 'Guias aereas',
   rrhh: 'RRHH'
@@ -8008,6 +8472,10 @@ function resolveModuleByPath(pathname) {
     { re: /^\/inventory/, module: 'inventory' },
     { re: /^\/categories/, module: 'inventory' },
     { re: /^\/brands/, module: 'inventory' },
+    { re: /^\/projects/, module: 'projects' },
+    { re: /^\/mensajeria-meta/, module: 'mensajeria_meta' },
+    { re: /^\/whatsapp/, module: 'mensajeria_meta' },
+    { re: /^\/meta-inbox/, module: 'mensajeria_meta' },
     { re: /^\/rrhh/, module: 'rrhh' },
     { re: /^\/manifests/, module: 'manifests' },
     { re: /^\/airway-bills/, module: 'airway_bills' },
@@ -8253,14 +8721,14 @@ function seedAiHelpModules() {
   stmt.finalize();
 }
 
-app.get('/ai/token', (req, res) => {
+app.get('/ai-help/token', (req, res) => {
   if (!req.session || !req.session.user) {
     return res.status(401).json({ error: 'No autorizado.' });
   }
   return res.json({ token: req.csrfToken() });
 });
 
-app.get('/ai/context', (req, res) => {
+app.get('/ai-help/context', (req, res) => {
   if (!req.session || !req.session.user) {
     return res.status(401).json({ error: 'No autorizado.' });
   }
@@ -8269,7 +8737,7 @@ app.get('/ai/context', (req, res) => {
   });
 });
 
-app.post('/ai/chat', (req, res) => {
+app.post('/ai-help/chat', (req, res) => {
   if (!req.session || !req.session.user) {
     return res.status(401).json({ error: 'No autorizado.' });
   }
@@ -8315,6 +8783,14 @@ app.post('/ai/chat', (req, res) => {
       route
     });
   });
+});
+
+registerInternalAiRoutes(app, {
+  db,
+  requireAuth,
+  requirePermission,
+  hasPermission,
+  getCompanyId
 });
 
 function inventoryRedirectPath(req) {
@@ -9033,7 +9509,7 @@ function buildCustomerListQuery(companyId, filters, options = {}) {
   }
 
   const query = `
-    SELECT c.id, c.customer_code, c.portal_code, c.document_type, c.document_number,
+    SELECT c.id, c.customer_code, c.portal_code, c.portal_password_hash, c.document_type, c.document_number,
            ${displayNameExpr} AS name,
            c.first_name, c.last_name, c.phone, c.email, c.mobile, c.advisor,
            c.payment_method, c.communication_type, c.country, c.department, c.municipality,
@@ -9085,7 +9561,7 @@ function renderCustomers(req, res, error, options = {}) {
     action: pkgAction,
     code: pkgCode
   };
-  const allowedTabs = new Set(['list', 'import', 'create', 'packages', 'voided']);
+  const allowedTabs = new Set(['list', 'import', 'create', 'users', 'packages', 'voided']);
   const requestedTab = normalizeString(options.activeTab);
   const { query, params } = buildCustomerListQuery(companyId, filters, { voided: 0 });
   const { query: voidedQuery, params: voidedParams } = buildCustomerListQuery(companyId, filters, { voided: 1 });
@@ -9141,6 +9617,7 @@ function renderCustomers(req, res, error, options = {}) {
                     paymentMethods: PAYMENT_METHODS,
                     communicationTypes: COMMUNICATION_TYPES,
                     documentTypes: CUSTOMER_DOCUMENT_TYPES,
+                    countries: COMPANY_COUNTRIES,
                     packages: pkgErr ? [] : packages || [],
                     packageFilters,
                     packageStatuses: PACKAGE_STATUSES,
@@ -10503,6 +10980,27 @@ function fetchCarrierReceptionList(companyId, filters, callback) {
   const sql = `SELECT * FROM carrier_receptions ${whereClause} ORDER BY received_at DESC`;
   db.all(sql, params, (err, rows) => callback(err ? [] : rows || []));
 }
+
+app.use((req, res, next) => {
+  const companyId = getCompanyId(req);
+  if (companyId && (req.method === 'GET' || req.method === 'HEAD') && /^\/accounting(?:\/|$)/.test(req.path || '')) {
+    return accountingAutomation.syncCompany(companyId).then(() => next()).catch(next);
+  }
+  if (companyId && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    res.on('finish', () => {
+      if (res.statusCode < 500) accountingAutomation.syncCompany(companyId);
+    });
+  }
+  next();
+});
+
+accountingAutomation.ready.then(() => {
+  db.all('SELECT id FROM companies', [], (error, rows) => {
+    if (error) return console.error('[accounting-automation] company scan failed', error);
+    (rows || []).forEach((row) => accountingAutomation.syncCompany(row.id));
+  });
+});
+
 registerAuthRoutes(app, {
   db,
   bcrypt,
@@ -10540,6 +11038,109 @@ registerMasterAuthRoutes(app, {
   DEFAULT_LANG,
   SUPPORTED_LANGS,
   SESSION_COOKIE_NAME
+});
+
+app.get('/api/locations/countries', requireAuth, (req, res) => {
+  db.all(
+    `SELECT id, name, iso2, iso3, phonecode, currency, region, subregion
+     FROM countries
+     ORDER BY name COLLATE NOCASE`,
+    [],
+    (err, rows) => {
+      if (!err && rows && rows.length) {
+        return res.json({ countries: rows.map(mapLocationCountry) });
+      }
+      return res.json({
+        countries: WORLD_COUNTRIES.map((country, index) => ({
+          id: index + 1,
+          name: country.name,
+          iso2: country.isoCode,
+          isoCode: country.isoCode
+        }))
+      });
+    }
+  );
+});
+
+app.get('/api/locations/states', requireAuth, (req, res) => {
+  const countryId = parseLocationId(req.query.country_id);
+  const sendFallback = () => {
+    const country = resolveWorldCountry(req.query.country || req.query.countryCode);
+    if (!country) return res.json({ states: [] });
+    const states = State.getStatesOfCountry(country.isoCode)
+      .map((state, index) => ({
+        id: index + 1,
+        country_id: countryId,
+        name: state.name,
+        state_code: state.isoCode,
+        isoCode: state.isoCode,
+        countryCode: state.countryCode
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+    return res.json({ states });
+  };
+  if (!countryId) return sendFallback();
+  db.all(
+    `SELECT id, country_id, name, state_code, type
+     FROM states
+     WHERE country_id = ?
+     ORDER BY name COLLATE NOCASE`,
+    [countryId],
+    (err, rows) => {
+      if (!err) return res.json({ states: (rows || []).map(mapLocationState) });
+      return sendFallback();
+    }
+  );
+});
+
+app.get('/api/locations/cities', requireAuth, (req, res) => {
+  const stateId = parseLocationId(req.query.state_id);
+  const sendFallback = () => {
+    const country = resolveWorldCountry(req.query.country || req.query.countryCode);
+    if (!country) return res.json({ cities: [] });
+    const state = resolveWorldState(country.isoCode, req.query.state || req.query.stateCode);
+    if (!state) return res.json({ cities: [] });
+    const seen = new Set();
+    const cities = City.getCitiesOfState(country.isoCode, state.isoCode)
+      .map((city, index) => ({ id: index + 1, name: city.name, latitude: city.latitude, longitude: city.longitude }))
+      .filter((city) => {
+        const key = normalizeLocationKey(city.name);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+    return res.json({ cities });
+  };
+  if (!stateId) return sendFallback();
+  db.all(
+    `SELECT id, state_id, country_id, name, latitude, longitude
+     FROM cities
+     WHERE state_id = ?
+     ORDER BY name COLLATE NOCASE`,
+    [stateId],
+    (err, rows) => {
+      if (!err) return res.json({ cities: (rows || []).map(mapLocationCity) });
+      return sendFallback();
+    }
+  );
+});
+
+app.get('/api/locations/cities-by-country', requireAuth, (req, res) => {
+  const countryId = parseLocationId(req.query.country_id);
+  if (!countryId) return res.json({ cities: [] });
+  db.all(
+    `SELECT id, state_id, country_id, name, latitude, longitude
+     FROM cities
+     WHERE country_id = ?
+     ORDER BY name COLLATE NOCASE
+     LIMIT 5000`,
+    [countryId],
+    (err, rows) => {
+      if (err) return res.json({ cities: [] });
+      return res.json({ cities: (rows || []).map(mapLocationCity) });
+    }
+  );
 });
 
 registerCompanyRoutes(app, {
@@ -10712,6 +11313,50 @@ registerInventoryRoutes(app, {
   codeFromName
 });
 
+registerProductionRoutes(app, {
+  db,
+  requireAuth,
+  requirePermission,
+  getCompanyId,
+  normalizeString,
+  logAction
+});
+
+registerSalesRoutes(app, {
+  db,
+  requireAuth,
+  requirePermission,
+  getCompanyId,
+  normalizeString,
+  csrfMiddleware,
+  buildFileUrl,
+  enqueueDbTransaction,
+  commitTransaction,
+  rollbackTransaction,
+  logAction
+});
+
+registerSupplierRoutes(app, {
+  db,
+  requireAuth,
+  requirePermission,
+  hasPermission,
+  getCompanyId,
+  csrfMiddleware,
+  setFlash,
+  logAction,
+  buildFileUrl
+});
+
+registerFloatingInvestmentRoutes(app, {
+  db,
+  requireAuth,
+  requirePermission,
+  getCompanyId,
+  setFlash,
+  logAction
+});
+
 registerAccountingRoutes(app, {
   db,
   XLSX,
@@ -10743,8 +11388,24 @@ registerAccountingRoutes(app, {
   enqueueDbTransaction,
   commitTransaction,
   rollbackTransaction,
+  accountingAutomation,
   setFlash,
   logAction
+});
+
+registerProjectRoutes(app, {
+  db,
+  requireAuth,
+  requirePermission,
+  getCompanyId,
+  csrfMiddleware,
+  setFlash,
+  logAction,
+  buildFileUrl,
+  parseCurrencyList,
+  enqueueDbTransaction,
+  commitTransaction,
+  rollbackTransaction
 });
 
 registerLogisticsRoutes(app, {
@@ -10811,7 +11472,8 @@ registerHrRoutes(app, {
   getCompanyId,
   normalizeString,
   setFlash,
-  buildFileUrl
+  buildFileUrl,
+  accountingAutomation
 });
 
 registerChatRoutes(app, {
@@ -10821,6 +11483,31 @@ registerChatRoutes(app, {
   csrfMiddleware,
   getCompanyId,
   setFlash
+});
+
+registerMensajeriaMetaRoutes(app, {
+  requireAuth,
+  requirePermission
+});
+
+registerWhatsappRoutes(app, {
+  db,
+  requireAuth,
+  requirePermission,
+  csrfMiddleware,
+  getCompanyId,
+  setFlash,
+  logAction
+});
+
+registerMetaInboxRoutes(app, {
+  db,
+  requireAuth,
+  requirePermission,
+  csrfMiddleware,
+  getCompanyId,
+  setFlash,
+  logAction
 });
 
 registerUserRoutes(app, {
@@ -10857,6 +11544,7 @@ registerMasterActivitiesRoutes(app, {
   parseJsonList,
   normalizeString,
   normalizeModuleSelection,
+  normalizeAllowedModules,
   setFlash
 });
 
@@ -11113,7 +11801,7 @@ app.post('/settings/package-sender', requireAuth, requirePermission('settings', 
   });
 });
 
-function startServer(port, attempts = 0) {
+function startServer(port, attempt = 0) {
   const server = app.listen(port, () => {
     console.log(`Server running on http://localhost:${port}`);
     isStartingUp = false;
@@ -11121,15 +11809,17 @@ function startServer(port, attempts = 0) {
 
   server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
-      const nextPort = Number(port) + 1;
-      if (SHOULD_AUTO_SELECT_PORT && attempts < MAX_PORT_RETRIES && Number.isFinite(nextPort)) {
-        console.warn(`Port ${port} is already in use. Trying http://localhost:${nextPort}...`);
-        startServer(nextPort, attempts + 1);
-        return;
+      const explicitPort = Boolean(process.env.PORT);
+      if (!explicitPort && attempt < MAX_PORT_RETRIES) {
+        const nextPort = port + 1;
+        console.warn(`Port ${port} is already in use. Trying http://localhost:${nextPort} instead.`);
+        return startServer(nextPort, attempt + 1);
       }
 
       console.error(`Port ${port} is already in use.`);
-      console.error('Close the process using that port or set another port with PORT=3001.');
+      console.error(explicitPort
+        ? 'Set PORT to another available port and start the app again.'
+        : 'Close the existing server using that port and start the app again.');
       process.exit(1);
     }
 

@@ -764,15 +764,19 @@ function registerChatRoutes(app, deps) {
     const currentUserId = getCurrentUserId(req);
     const currentProfile = await ensureChatProfileReady(req, res, companyId, currentUserId, '/chat');
     if (!currentProfile) return;
+    const chatView = trimText(req.query && req.query.view).toLowerCase() === 'new'
+      ? 'new'
+      : 'conversations';
 
     const [threads, users] = await Promise.all([
       getRecentThreads(companyId, currentUserId),
-      getCompanyUsers(companyId, currentUserId)
+      chatView === 'new' ? getCompanyUsers(companyId, currentUserId) : Promise.resolve([])
     ]);
 
     res.render('chat/index', {
       chatThreads: threads,
       chatUsers: users,
+      chatView,
       selectedThread: null,
       chatMessages: [],
       chatCurrentUserId: currentUserId,
@@ -801,15 +805,15 @@ function registerChatRoutes(app, deps) {
 
     await markThreadRead(companyId, threadId, currentUserId);
 
-    const [threads, users, messages] = await Promise.all([
+    const [threads, messages] = await Promise.all([
       getRecentThreads(companyId, currentUserId),
-      getCompanyUsers(companyId, currentUserId),
       getThreadMessages(companyId, threadId)
     ]);
 
     res.render('chat/thread', {
       chatThreads: threads,
-      chatUsers: users,
+      chatUsers: [],
+      chatView: 'conversations',
       selectedThread: thread,
       chatMessages: messages,
       chatCurrentUserId: currentUserId,

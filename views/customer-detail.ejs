@@ -4,8 +4,10 @@
     { key: 'list', label: t('customers.menu_list'), href: '/customers/list' },
     { key: 'import', label: t('customers.menu_import'), href: '/customers/import' },
     { key: 'create', label: t('customers.menu_create'), href: '/customers/create' },
+    { key: 'users', label: t('customers.menu_users'), href: '/customers/users' },
     { key: 'packages', label: t('customers.menu_packages'), href: '/customers/packages' }
   ];
+  var customerCountries = typeof countries !== 'undefined' && countries ? countries : ['Guatemala'];
   if (can('customers', 'view_voided')) {
     customerDetailTabs.push({ key: 'voided', label: t('customers.menu_voided'), href: '/customers/voided' });
   }
@@ -75,6 +77,18 @@
 </div>
 <div>
 <strong>
+<%= t('customers.customer_type') %>:</strong>
+<%= customer.customer_type === 'company' ? t('customers.customer_type_company') : t('customers.customer_type_person') %>
+</div>
+<% if (customer.customer_type === 'company' || customer.legal_name) { %>
+<div>
+<strong>
+<%= t('customers.legal_name') %>:</strong>
+<%= customer.legal_name || customer.name || '-' %>
+</div>
+<% } %>
+<div>
+<strong>
 <%= t('customers.first_name') %>:</strong>
 <%= customer.first_name || '-' %>
 </div>
@@ -126,7 +140,15 @@
 <div>
 <strong>
 <%= t('customers.full_address') %>:</strong>
-<%= customer.full_address || '-' %>
+<%= customer.address_line || customer.full_address || '-' %>
+</div>
+<div>
+<strong>Codigo postal:</strong>
+<%= customer.postal_code || '-' %>
+</div>
+<div>
+<strong>Referencia:</strong>
+<%= customer.reference || '-' %>
 </div>
 <div>
 <strong>
@@ -187,6 +209,17 @@
 <form method="POST" action="/customers/<%= customer.id %>/update" class="form grid-2" data-sat-form data-gt-address-form>
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 <label>
+<%= t('customers.customer_type') %>
+<select name="customer_type" data-customer-type>
+<option value="person" <%= customer.customer_type === 'company' ? '' : 'selected' %>><%= t('customers.customer_type_person') %></option>
+<option value="company" <%= customer.customer_type === 'company' ? 'selected' : '' %>><%= t('customers.customer_type_company') %></option>
+</select>
+</label>
+<label data-company-field hidden>
+<%= t('customers.legal_name') %>
+<input type="text" name="legal_name" value="<%= customer.legal_name || customer.name || '' %>" data-company-required data-sat-company-name-target />
+</label>
+<label>
 <%= t('customers.document_type') %>
 <select name="document_type" data-sat-type>
 <% documentTypes.forEach(type => { %>
@@ -216,36 +249,17 @@
 <input type="hidden" name="sat_name" value="<%= customer.sat_name || '' %>" data-sat-name />
 <input type="hidden" name="sat_checked_at" value="<%= customer.sat_checked_at || '' %>" data-sat-checked-at />
 </div>
-<label>
+<label data-person-field>
 <%= t('customers.first_name') %>
-<input type="text" name="first_name" required value="<%= customer.first_name || '' %>" data-sat-name-target />
+<input type="text" name="first_name" required value="<%= customer.customer_type === 'company' ? '' : customer.first_name || '' %>" data-person-required data-sat-name-target />
 </label>
-<label>
+<label data-person-field>
 <%= t('customers.last_name') %>
-<input type="text" name="last_name" required value="<%= customer.last_name || '' %>" />
+<input type="text" name="last_name" required value="<%= customer.customer_type === 'company' ? '' : customer.last_name || '' %>" data-person-required />
 </label>
 <label>
 <%= t('customers.email') %>
 <input type="email" name="email" value="<%= customer.email || '' %>" />
-</label>
-<label>
-<%= t('customers.portal_code') %>
-<input type="text" name="portal_code" value="<%= customer.portal_code || '' %>" />
-<span class="helper">
-<%= t('customers.portal_code_hint') %>
-</span>
-</label>
-<label>
-<%= t('customers.portal_password') %>
-<div class="password-wrapper">
-<input type="password" name="portal_password" data-password-input placeholder="<%= t('customers.portal_password_auto_hint') %>" />
-<button type="button" class="password-toggle" data-password-toggle>
-<%= t('common.show') %>
-</button>
-</div>
-<span class="helper">
-<%= t('customers.portal_password_auto_hint') %>
-</span>
 </label>
 <label>
 <%= t('customers.phone') %>
@@ -257,19 +271,19 @@
 </label>
 <label>
 <%= t('customers.country') %>
-<select name="country" data-country data-selected="<%= customer.country || '' %>" class="address-country">
-<option value="Guatemala" <%= customer.country === 'Guatemala' ? 'selected' : '' %>>Guatemala</option>
+<select name="country" data-country data-selected="<%= customer.country_name || customer.country || '' %>" data-country-id="<%= customer.country_id || '' %>" class="address-country" required>
+<option value=""><%= t('common.choose') %></option>
 </select>
 </label>
 <label>
 <%= t('customers.department') %>
-<select name="department" data-department data-selected="<%= customer.department || '' %>" data-placeholder="<%= t('customers.select_department') %>">
+<select name="department" data-department data-selected="<%= customer.state_name || customer.department || '' %>" data-state-id="<%= customer.state_id || '' %>" data-placeholder="<%= t('customers.select_department') %>">
 <option value=""><%= t('customers.select_department') %></option>
 </select>
 </label>
 <label>
 <%= t('customers.municipality') %>
-<select name="municipality" data-municipality data-selected="<%= customer.municipality || '' %>" data-placeholder="<%= t('customers.select_municipality') %>">
+<select name="municipality" data-municipality data-selected="<%= customer.city_name || customer.municipality || '' %>" data-city-id="<%= customer.city_id || '' %>" data-placeholder="<%= t('customers.select_municipality') %>">
 <option value=""><%= t('customers.select_municipality') %></option>
 </select>
 </label>
@@ -287,9 +301,17 @@
 </label>
 <label>
 <%= t('customers.full_address') %>
-<textarea name="full_address" rows="2" placeholder="<%= t('customers.full_address') %>">
-<%= customer.full_address || '' %>
+<textarea name="full_address" rows="2" placeholder="<%= t('customers.full_address') %>" required>
+<%= customer.address_line || customer.full_address || '' %>
 </textarea>
+</label>
+<label>
+Codigo postal
+<input type="text" name="postal_code" value="<%= customer.postal_code || '' %>" />
+</label>
+<label>
+Referencia
+<input type="text" name="reference" value="<%= customer.reference || '' %>" />
 </label>
 <label>
 <%= t('customers.payment_method') %>
@@ -416,7 +438,8 @@
     function initSatForm(form) {
       const typeSelect = form.querySelector('[data-sat-type]');
       const numberInput = form.querySelector('[data-sat-number]');
-      const nameInput = form.querySelector('[data-sat-name-target]');
+      const personNameInput = form.querySelector('[data-sat-name-target]');
+      const companyNameInput = form.querySelector('[data-sat-company-name-target]');
       const verifyBtn = form.querySelector('[data-sat-verify]');
       const manualBtn = form.querySelector('[data-sat-manual]');
       const statusEl = form.querySelector('[data-sat-status]');
@@ -469,6 +492,8 @@
           const data = await response.json();
           if (data && data.ok) {
             statusEl.textContent = '<%= t('customers.sat_verified') %>';
+            const typeSelect = form.querySelector('[data-customer-type]');
+            const nameInput = typeSelect && typeSelect.value === 'company' ? companyNameInput : personNameInput;
             if (nameInput && data.name) {
               nameInput.value = data.name;
             }
@@ -502,7 +527,29 @@
       });
     }
 
+    function initCustomerTypeForm(form) {
+      const typeSelect = form.querySelector('[data-customer-type]');
+      if (!typeSelect) return;
+      const personFields = form.querySelectorAll('[data-person-field]');
+      const companyFields = form.querySelectorAll('[data-company-field]');
+      const personRequired = form.querySelectorAll('[data-person-required]');
+      const companyRequired = form.querySelectorAll('[data-company-required]');
+      function sync() {
+        const isCompany = typeSelect.value === 'company';
+        personFields.forEach((field) => { field.hidden = isCompany; });
+        companyFields.forEach((field) => { field.hidden = !isCompany; });
+        personRequired.forEach((input) => { input.required = !isCompany; });
+        companyRequired.forEach((input) => { input.required = isCompany; });
+      }
+      typeSelect.addEventListener('change', sync);
+      sync();
+    }
+
     document.querySelectorAll('[data-sat-form]').forEach(initSatForm);
+    document.querySelectorAll('[data-customer-type]').forEach((select) => {
+      const form = select.closest('form');
+      if (form) initCustomerTypeForm(form);
+    });
     initPasswordToggles(document);
   })();
 </script>

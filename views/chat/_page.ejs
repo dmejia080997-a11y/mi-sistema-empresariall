@@ -70,6 +70,7 @@
   };
   const messageCount = Array.isArray(chatMessages) ? chatMessages.length : 0;
   const threadCount = Array.isArray(chatThreads) ? chatThreads.length : 0;
+  const activeChatView = chatView === 'new' ? 'new' : 'conversations';
   const currentProfileName = chatCurrentUserProfile ? (chatCurrentUserProfile.display_name || chatCurrentUserProfile.username) : 'Tu perfil';
   const currentPresence = chatCurrentUserProfile ? chatCurrentUserProfile.presence_status : 'online';
   const selectedOtherName = selectedThread ? (selectedThread.other_display_name || selectedThread.other_username) : '';
@@ -105,6 +106,12 @@
       </div>
     </div>
 
+    <nav class="chat-sidebar-tabs" aria-label="Secciones del chat">
+      <a href="/chat" class="chat-sidebar-tab <%= activeChatView === 'conversations' ? 'is-active' : '' %>" <%= activeChatView === 'conversations' ? 'aria-current="page"' : '' %>>Conversaciones</a>
+      <a href="/chat?view=new" class="chat-sidebar-tab <%= activeChatView === 'new' ? 'is-active' : '' %>" <%= activeChatView === 'new' ? 'aria-current="page"' : '' %>>Nueva conversacion</a>
+    </nav>
+
+    <% if (activeChatView === 'conversations') { %>
     <div class="chat-sidebar__section">
       <div class="chat-sidebar__header">
         <div>
@@ -141,12 +148,12 @@
         </div>
       <% } %>
     </div>
-
+    <% } else { %>
     <div class="chat-sidebar__section">
       <div class="chat-sidebar__header">
         <div>
-          <h2>Iniciar nuevo chat</h2>
-          <p class="muted">Solo usuarios activos de tu empresa.</p>
+          <h2>Nueva conversacion</h2>
+          <p class="muted">Busca un usuario activo de tu empresa.</p>
         </div>
       </div>
 
@@ -155,9 +162,13 @@
           <p class="app-empty-state-text">No hay otros usuarios activos disponibles.</p>
         </div>
       <% } else { %>
-        <div class="chat-user-list">
+        <label class="app-field chat-user-search">
+          <span>Buscar usuario</span>
+          <input type="search" class="app-input" placeholder="Nombre, usuario o rol..." autocomplete="off" data-chat-user-search />
+        </label>
+        <div class="chat-user-list" data-chat-user-list>
           <% chatUsers.forEach((entry) => { %>
-            <form method="POST" action="/chat/start" class="chat-user-card">
+            <form method="POST" action="/chat/start" class="chat-user-card" data-chat-user-card data-search-text="<%= escapeAttr(`${entry.display_name || entry.username} ${entry.username || ''} ${entry.role || ''}`.toLowerCase()) %>">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <input type="hidden" name="user_id" value="<%= entry.id %>" />
               <div class="chat-person">
@@ -171,8 +182,12 @@
             </form>
           <% }) %>
         </div>
+        <div class="app-empty-state chat-empty-compact" data-chat-user-search-empty hidden>
+          <p class="app-empty-state-text">No se encontraron usuarios con ese criterio.</p>
+        </div>
       <% } %>
     </div>
+    <% } %>
   </aside>
 
   <section
@@ -187,8 +202,13 @@
   >
     <% if (!selectedThread) { %>
       <div class="app-empty-state chat-empty-main">
-        <h2 class="app-empty-state-title">Selecciona una conversacion</h2>
-        <p class="app-empty-state-text">Abre un hilo reciente o inicia uno nuevo desde la lista de usuarios para comenzar a mensajear dentro de la empresa.</p>
+        <% if (activeChatView === 'new') { %>
+          <h2 class="app-empty-state-title">Nueva conversacion</h2>
+          <p class="app-empty-state-text">Busca y selecciona un usuario para abrir una conversacion privada.</p>
+        <% } else { %>
+          <h2 class="app-empty-state-title">Selecciona una conversacion</h2>
+          <p class="app-empty-state-text">Abre uno de tus hilos existentes o usa la pestaña Nueva conversacion para buscar con quien hablar.</p>
+        <% } %>
       </div>
     <% } else { %>
       <div class="chat-main__header">

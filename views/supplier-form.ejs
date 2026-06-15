@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= formTitle %></title>
+  <%- include('partials/head-assets') %>
+  <link rel="stylesheet" href="/css/suppliers.css" />
+</head>
+<body class="page suppliers-page">
+  <%- include('partials/header', {
+    moduleTabs: [{ key: 'list', label: 'Proveedores', href: '/suppliers' }, ...(can('suppliers','reports') ? [{ key:'reports',label:'Reportes',href:'/suppliers/reports' }] : []), { key: 'new', label: 'Registrar proveedor', href: '/suppliers/new' }],
+    activeTab: 'new',
+    currentModule: 'suppliers'
+  }) %>
+  <main class="container suppliers-shell">
+    <%- include('partials/page-shell', { pageTitle: formTitle, pageSubtitle: 'Complete los datos generales, fiscales y comerciales iniciales.' }) %>
+    <%- include('partials/toasts', { flash }) %>
+    <form class="panel supplier-form" method="POST" action="<%= formAction %>">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <div class="supplier-form-section"><h2>Identificacion</h2><div class="supplier-grid">
+        <label>Tipo de proveedor<select name="supplier_type" required><option value="national">Nacional</option><option value="international">Internacional</option></select></label>
+        <label>Estado inicial<select name="status"><% statuses.slice(0, 2).forEach(([key, label]) => { %><option value="<%= key %>"><%= label %></option><% }) %></select></label>
+        <label>Nombre comercial<input name="trade_name" required /></label>
+        <label>Razon social<input name="legal_name" /></label>
+        <% if (can('suppliers','view_fiscal')) { %><label>NIT / Tax ID / EIN / VAT<input name="tax_id" /></label><% } %>
+        <label>Categoria<input name="category" placeholder="Materia prima, servicios, transporte..." /></label>
+        <label>Pais<input name="country" value="Guatemala" /></label>
+        <label>Pais de origen<input name="origin_country" /></label>
+        <label>Telefono<input name="phone" /></label>
+        <label>Correo<input name="email" type="email" /></label>
+        <label>Pagina web<input name="website" type="url" /></label>
+        <% if (can('suppliers','view_fiscal')) { %><label>Nombre para factura<input name="invoice_name" /></label>
+        <label class="full-row">Direccion fiscal<textarea name="tax_address"></textarea></label><% } %>
+        <label class="full-row">Direccion de bodega o despacho<textarea name="warehouse_address"></textarea></label>
+      </div></div>
+      <div class="supplier-form-section"><h2>Fiscal e importacion</h2><div class="supplier-grid">
+        <% if (can('suppliers','view_fiscal')) { %><label>Regimen fiscal<input name="tax_regime" /></label><% } %>
+        <label>Incoterm frecuente<select name="frequent_incoterm"><option value="">No aplica</option><% ['EXW','FOB','CIF','DAP','DDP'].forEach(v => { %><option><%= v %></option><% }) %></select></label>
+        <% if (can('suppliers','view_fiscal')) { %><label class="supplier-check"><input type="checkbox" name="withholding_isr" /> Retencion ISR</label>
+        <label class="supplier-check"><input type="checkbox" name="withholding_iva" /> Retencion IVA</label>
+        <label class="supplier-check"><input type="checkbox" name="electronic_invoice" /> Factura electronica</label><% } %>
+        <label class="supplier-check"><input type="checkbox" name="requires_import" /> Requiere importacion</label>
+        <label class="full-row">Documentos frecuentes<textarea name="frequent_documents" placeholder="Commercial Invoice, Packing List, Certificate of Origin, MSDS, BL, AWB..."></textarea></label>
+      </div></div>
+      <div class="supplier-form-section"><h2>Condiciones comerciales</h2><div class="supplier-grid">
+        <label>Moneda principal<input name="primary_currency" value="GTQ" /></label>
+        <label>Dias de credito<input name="credit_days" type="number" min="0" value="0" /></label>
+        <label>Limite de credito<input name="credit_limit" type="number" min="0" step="0.01" value="0" /></label>
+        <label>Forma de pago<input name="payment_method" /></label>
+        <label>Tiempo promedio de entrega (dias)<input name="average_delivery_days" type="number" min="0" value="0" /></label>
+        <label>Pedido minimo<input name="minimum_order" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="full-row">Observaciones<textarea name="notes"></textarea></label>
+      </div></div>
+      <div class="actions"><button class="btn primary" type="submit">Registrar proveedor</button><a class="btn" href="/suppliers">Cancelar</a></div>
+    </form>
+  </main>
+</body>
+</html>

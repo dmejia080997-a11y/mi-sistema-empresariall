@@ -16,6 +16,8 @@
     stage: document.getElementById('workspace-stage'),
     dock: document.getElementById('workspace-dock'),
     strip: document.getElementById('workspace-app-strip'),
+    search: document.getElementById('workspace-search-input'),
+    searchClear: document.getElementById('workspace-search-clear'),
     count: document.getElementById('workspace-module-count'),
     status: document.getElementById('workspace-status'),
     panel: document.getElementById('workspace-panel'),
@@ -80,6 +82,14 @@
   function normalizeColor(value, fallback) {
     const text = String(value || '').trim();
     return /^#[0-9a-f]{6}$/i.test(text) ? text : fallback;
+  }
+
+  function normalizeSearchText(value) {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
   }
 
   function normalizeDockModuleList(raw) {
@@ -184,7 +194,8 @@
 
   let state = {
     modules: normalizeModules(bootstrap.workspaceState && bootstrap.workspaceState.modules),
-    settings: defaultSettings
+    settings: defaultSettings,
+    searchQuery: ''
   };
   state.settings = normalizeSettings(bootstrap.workspaceState && bootstrap.workspaceState.settings, state.modules);
   let savedSettings = clone(state.settings);
@@ -207,6 +218,20 @@
   function getDockModules() {
     const selected = new Set(Array.isArray(state.settings.dockModules) ? state.settings.dockModules : []);
     return state.modules.filter((module) => selected.has(module.moduleKey));
+  }
+
+  function getFilteredModules() {
+    const term = normalizeSearchText(state.searchQuery);
+    if (!term) return state.modules;
+    return state.modules.filter((module) => {
+      const haystack = normalizeSearchText([
+        module.name,
+        module.desc,
+        module.moduleKey,
+        module.group
+      ].join(' '));
+      return haystack.includes(term);
+    });
   }
 
   function applyTheme() {
@@ -368,7 +393,20 @@
 
   function renderStrip() {
     refs.strip.innerHTML = '';
-    state.modules.slice(0, 12).forEach((module) => {
+    const modules = getFilteredModules();
+    const visibleModules = modules;
+
+    if (!visibleModules.length) {
+      const empty = document.createElement('div');
+      empty.className = 'workspace-empty workspace-empty--strip';
+      empty.textContent = state.searchQuery
+        ? (labels.noSearchResults || 'No se encontro ninguna aplicacion.')
+        : (labels.noModules || 'No hay modulos disponibles para este usuario.');
+      refs.strip.appendChild(empty);
+      return;
+    }
+
+    visibleModules.forEach((module) => {
       const link = document.createElement('a');
       link.className = 'workspace-strip-app';
       link.href = module.href;
@@ -383,8 +421,13 @@
     updateControls();
     renderDock();
     renderStrip();
-    refs.count.textContent = String(state.modules.length);
-    refs.status.textContent = labels.ready || 'Listo para usar';
+    const filteredCount = getFilteredModules().length;
+    refs.count.textContent = String(state.searchQuery ? filteredCount : state.modules.length);
+    refs.status.textContent = state.searchQuery
+      ? String(labels.searchResults || '{count} resultados').replace('{count}', filteredCount)
+      : (labels.ready || 'Listo para usar');
+    if (refs.search && refs.search.value !== state.searchQuery) refs.search.value = state.searchQuery;
+    if (refs.searchClear) refs.searchClear.hidden = !state.searchQuery;
     ensureDockHotspot();
     setDockRevealed(refs.stage.classList.contains('is-dock-revealed'));
   }
@@ -502,6 +545,26 @@
         .filter(Boolean);
       updateSetting('dockModules', checked);
     });
+    if (refs.search) {
+      refs.search.addEventListener('input', () => {
+        state.searchQuery = refs.search.value || '';
+        render();
+      });
+      refs.search.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' || !state.searchQuery) return;
+        event.preventDefault();
+        state.searchQuery = '';
+        render();
+        refs.search.focus();
+      });
+    }
+    if (refs.searchClear) {
+      refs.searchClear.addEventListener('click', () => {
+        state.searchQuery = '';
+        render();
+        if (refs.search) refs.search.focus();
+      });
+    }
     refs.save.addEventListener('click', saveSettings);
     refs.visualReset.addEventListener('click', resetVisualSettings);
     document.addEventListener('keydown', (event) => {

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inversion flotante</title>
+  <%- include('partials/head-assets') %>
+  <link rel="stylesheet" href="/css/floating-investments.css" />
+</head>
+<body class="page floating-investments-page">
+  <%- include('partials/header', {
+    moduleTabs: [
+      { key: 'list', label: 'Inversion flotante', href: '/floating-investments' },
+      { key: 'new', label: 'Nueva inversion', href: '/floating-investments/new' }
+    ],
+    activeTab: 'list',
+    currentModule: 'floating_investments'
+  }) %>
+
+  <main class="container floating-investments-shell">
+    <%- include('partials/page-shell', {
+      pageTitle: 'Inversion flotante',
+      pageSubtitle: 'Control por lineas para saber proveedor, centro de costo, inversion y ganancia de cada desembolso.'
+    }) %>
+    <%- include('partials/toasts', { flash }) %>
+
+    <% const moneySummaries = Array.isArray(currencySummaries) ? currencySummaries : []; %>
+    <section class="floating-kpis">
+      <article><span>Total</span><strong><%= summary.total || 0 %></strong></article>
+      <article><span>Recuperadas</span><strong><%= summary.recovered || 0 %></strong></article>
+      <article><span>Vencidas</span><strong><%= summary.overdue || 0 %></strong></article>
+    </section>
+    <section class="floating-currency-kpis" aria-label="Totales por moneda">
+      <% if (moneySummaries.length) { %>
+        <% moneySummaries.forEach((entry) => { %>
+          <article>
+            <span><%= entry.currency || 'GTQ' %></span>
+            <div>
+              <small>Invertido</small>
+              <strong><%= Number(entry.invested || 0).toFixed(2) %></strong>
+            </div>
+            <div>
+              <small>Utilidad esperada</small>
+              <strong><%= Number(entry.expected_profit || 0).toFixed(2) %></strong>
+            </div>
+          </article>
+        <% }) %>
+      <% } else { %>
+        <article>
+          <span>GTQ</span>
+          <div>
+            <small>Invertido</small>
+            <strong>0.00</strong>
+          </div>
+          <div>
+            <small>Utilidad esperada</small>
+            <strong>0.00</strong>
+          </div>
+        </article>
+      <% } %>
+    </section>
+
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header">
+        <div>
+          <h2>Movimientos</h2>
+          <p class="muted">Los registros se guardan por empresa activa.</p>
+        </div>
+        <a class="btn primary" href="/floating-investments/new">Nueva inversion</a>
+      </div>
+
+      <form class="floating-filters" method="GET" action="/floating-investments">
+        <input name="q" value="<%= filters.q || '' %>" placeholder="Proveedor, cliente, centro de costo o descripcion" />
+        <select name="status">
+          <option value="">Todos los estados</option>
+          <% statuses.forEach((status) => { %>
+            <option value="<%= status.key %>" <%= filters.status === status.key ? 'selected' : '' %>><%= status.label %></option>
+          <% }) %>
+        </select>
+        <button class="btn" type="submit">Filtrar</button>
+        <a class="btn ghost" href="/floating-investments">Limpiar</a>
+      </form>
+
+      <div class="table-wrap floating-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Proveedor</th>
+              <th>Cliente</th>
+              <th>Centros de costo</th>
+              <th>Inversion</th>
+              <th>Utilidad</th>
+              <th>Recuperacion</th>
+              <th>Estado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+          <% investments.forEach((investment) => { %>
+            <tr>
+              <td>
+                <strong><%= investment.line_suppliers || investment.provider %></strong>
+                <% if (investment.description) { %><small><%= investment.description %></small><% } %>
+                <small><%= investment.line_count || 0 %> linea(s)</small>
+              </td>
+              <td>
+                <%= investment.customer_name || '-' %>
+                <% if (investment.customer_code) { %><small><%= investment.customer_code %></small><% } %>
+              </td>
+              <td><%= investment.cost_centers || '-' %></td>
+              <td><%= investment.currency || 'GTQ' %> <%= Number(investment.line_investment_value || investment.investment_value || 0).toFixed(2) %></td>
+              <td><%= investment.currency || 'GTQ' %> <%= Number(investment.line_expected_profit || investment.expected_profit || 0).toFixed(2) %></td>
+              <td><%= investment.recovery_date || '-' %></td>
+              <td>
+                <% const status = statuses.find((entry) => entry.key === investment.status) || { label: investment.status }; %>
+                <span class="floating-status floating-status-<%= investment.status %>"><%= status.label %></span>
+              </td>
+              <td><a class="btn small" href="/floating-investments/<%= investment.id %>/edit">Editar</a></td>
+            </tr>
+          <% }) %>
+          <% if (!investments.length) { %>
+            <tr><td colspan="8" class="muted">No hay inversiones flotantes registradas.</td></tr>
+          <% } %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

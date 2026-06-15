@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<%
+  const moduleTabs = [
+    { key: 'dashboard', label: 'Dashboard de proyectos', href: '/projects' }
+  ];
+  const formatMoney = (value, currency = 'GTQ') => `${currency || 'GTQ'} ${Number(value || 0).toFixed(2)}`;
+  const formatDate = (value) => {
+    if (!value) return 'Sin fecha';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString('es-GT', { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+  const truncateOptionLabel = (value, max = 52) => {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+  };
+  const isPdfFieldSelected = (selected, key) => {
+    const values = Array.isArray(selected) && selected.length ? selected : quotePdfDefaultFields;
+    return values.includes(key);
+  };
+  const quoteLineMarginPercent = (line) => {
+    const saved = Number(line && line.margin_percent);
+    if (Number.isFinite(saved) && saved !== 0) return saved;
+    const cost = Number(line && line.unit_cost) || 0;
+    const price = Number(line && line.unit_price) || 0;
+    return cost > 0 ? ((price - cost) / cost) * 100 : saved || 0;
+  };
+  const taskStatusClass = {
+    pending: 'project-status-planning',
+    in_progress: 'project-status-progress',
+    paused: 'project-status-paused',
+    completed: 'project-status-completed',
+    cancelled: 'project-status-cancelled'
+  };
+  const quoteStatusClass = {
+    draft: 'project-status-draft',
+    sent: 'project-status-progress',
+    approved: 'project-status-completed',
+    rejected: 'project-status-cancelled',
+    converted_project: 'project-status-planning',
+    converted: 'project-status-planning',
+    archived: 'project-status-paused'
+  };
+  const buildDashboardUrl = (overrides = {}) => {
+    const values = {
+      section: activeSection || 'summary',
+      view: dashboardView || 'kanban',
+      quote_view: quoteView || 'summary',
+      q: filters.q || '',
+      status: filters.status || 'all',
+      created_from: filters.created_from || '',
+      created_to: filters.created_to || '',
+      finished_from: filters.finished_from || '',
+      finished_to: filters.finished_to || '',
+      task_q: filters.task_q || '',
+      task_project_id: filters.task_project_id || '',
+      task_status: filters.task_status || 'all',
+      assigned_to: filters.assigned_to || '',
+      due_from: filters.due_from || '',
+      due_to: filters.due_to || '',
+      quote_q: filters.quote_q || '',
+      quote_project_id: filters.quote_project_id || '',
+      quote_status: filters.quote_status || 'all',
+      quote_scope: filters.quote_scope || 'active',
+      valid_from: filters.valid_from || '',
+      valid_to: filters.valid_to || '',
+      quote_target_id: filters.quote_target_id || '',
+      ...overrides
+    };
+    const params = new URLSearchParams();
+    Object.entries(values).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      const text = String(value).trim();
+      if (!text) return;
+      if ((key === 'status' || key === 'task_status' || key === 'quote_status') && text === 'all') return;
+      if (key === 'quote_scope' && text === 'active') return;
+      params.set(key, text);
+    });
+    const queryString = params.toString();
+    return queryString ? `/projects?${queryString}` : '/projects';
+  };
+  const sectionTabs = [
+    { key: 'summary', label: 'Resumen', href: buildDashboardUrl({ section: 'summary' }) },
+    { key: 'quotes', label: 'Cotizaciones', href: buildDashboardUrl({ section: 'quotes' }) },
+    { key: 'projects', label: 'Proyectos', href: buildDashboardUrl({ section: 'projects' }) },
+    { key: 'tasks', label: 'Tareas', href: buildDashboardUrl({ section: 'tasks' }) }
+  ];
+  const sectionSubtitle = {
+    summary: 'Vista ejecutiva del modulo con estado general, cierres y proyectos con atraso.',
+    projects: 'Tablero general de proyectos con alta rapida, filtros y orden por etapa.',
+    tasks: 'Control general de tareas por proyecto, con filtros y alta centralizada.',
+    quotes: 'Cotizaciones del modulo con servicios, filtros y seguimiento comercial.'
+  };
+  const visibleProjectsLabel = filteredSummary.totalProjects === 1
+    ? '1 proyecto visible'
+    : `${filteredSummary.totalProjects} proyectos visibles`;
+  const visibleTasksLabel = taskSummary.total === 1
+    ? '1 tarea visible'
+    : `${taskSummary.total} tareas visibles`;
+  const visibleQuotesLabel = quoteSummary.total === 1
+    ? '1 cotizacion visible'
+    : `${quoteSummary.total} cotizaciones visibles`;
+%>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Proyectos</title>
+  <%- include('partials/head-assets') %>
+  <link rel="stylesheet" href="/css/projects.css" />
+</head>
+<body class="page projects-page">
+  <%- include('partials/header', {
+    moduleTabs,
+    activeTab: 'dashboard',
+    currentModule: 'projects'
+  }) %>
+
+  <main class="container projects-shell">
+    <%- include('partials/page-shell', {
+      pageTitle: 'Proyectos',
+      pageSubtitle: sectionSubtitle[activeSection] || sectionSubtitle.summary
+    }) %>
+
+    <%- include('partials/toasts', { flash }) %>
+
+    <section class="projects-section-nav" aria-label="Menu del modulo de proyectos">
+      <% sectionTabs.forEach((tab) => { %>
+        <a
+          href="<%= tab.href %>"
+          class="projects-section-tab <%= activeSection === tab.key ? 'is-active' : '' %>"
+          <%= activeSection === tab.key ? 'aria-current="page"' : '' %>
+        >
+          <span><%= tab.label %></span>
+        </a>
+      <% }) %>
+    </section>
+
+    <% if (activeSection === 'summary') { %>
+      <section class="projects-kpi-grid">
+        <article class="projects-kpi-card">
+          <span>Total proyectos</span>
+          <strong><%= summary.totalProjects %></strong>
+        </article>
+        <article class="projects-kpi-card">
+          <span>Activos</span>
+          <strong><%= summary.activeProjects %></strong>
+        </article>
+        <article class="projects-kpi-card">
+          <span>Finalizados</span>
+          <strong><%= summary.completedProjects %></strong>
+        </article>
+        <article class="projects-kpi-card">
+          <span>% cierre</span>
+          <strong><%= summary.completionRate %>%</strong>
+        </article>
+        <article class="projects-kpi-card">
+          <span>Presupuesto estimado</span>
+          <strong><%= formatMoney(summary.estimatedBudget) %></strong>
+        </article>
+        <article class="projects-kpi-card">
+          <span>Costo real</span>
+          <strong><%= formatMoney(summary.realCost) %></strong>
+        </article>
+        <article class="projects-kpi-card">
+          <span>Venta proyectada</span>
+          <strong><%= formatMoney(summary.saleAmount) %></strong>
+        </article>
+        <article class="projects-kpi-card">
+          <span>Utilidad estimada</span>
+          <strong><%= formatMoney(summary.estimatedProfit) %></strong>
+        </article>
+      </section>
+
+      <section class="projects-summary-grid">
+        <article class="panel app-panel">
+          <div class="panel-header app-panel-header">
+            <div>
+              <h2>Control de tareas</h2>
+              <p class="muted">Lectura general de ejecucion entre todos los proyectos.</p>
+            </div>
+            <a class="btn app-btn" href="<%= buildDashboardUrl({ section: 'tasks' }) %>">Abrir tareas</a>
+          </div>
+          <div class="projects-home-metrics">
+            <div><span>Total</span><strong><%= taskPortfolioSummary.total %></strong></div>
+            <div><span>En proceso</span><strong><%= taskPortfolioSummary.inProgress %></strong></div>
+            <div><span>Completadas</span><strong><%= taskPortfolioSummary.completed %></strong></div>
+            <div><span>Vencidas</span><strong><%= taskPortfolioSummary.overdue %></strong></div>
+            <div><span>Horas estimadas</span><strong><%= Number(taskPortfolioSummary.estimatedHours || 0).toFixed(2) %></strong></div>
+            <div><span>Horas reales</span><strong><%= Number(taskPortfolioSummary.realHours || 0).toFixed(2) %></strong></div>
+          </div>
+        </article>
+
+        <article class="panel app-panel">
+          <div class="panel-header app-panel-header">
+            <div>
+              <h2>Control de cotizaciones</h2>
+              <p class="muted">Seguimiento central de cotizaciones y montos visibles.</p>
+            </div>
+            <a class="btn app-btn" href="<%= buildDashboardUrl({ section: 'quotes' }) %>">Abrir cotizaciones</a>
+          </div>
+          <div class="projects-home-metrics">
+            <div><span>Total</span><strong><%= quotePortfolioSummary.total %></strong></div>
+            <div><span>Borrador</span><strong><%= quotePortfolioSummary.draft %></strong></div>
+            <div><span>Enviadas</span><strong><%= quotePortfolioSummary.sent %></strong></div>
+            <div><span>Aprobadas</span><strong><%= quotePortfolioSummary.approved %></strong></div>
+            <div><span>Vencidas</span><strong><%= quotePortfolioSummary.expired %></strong></div>
+            <div><span>Monto</span><strong><%= formatMoney(quotePortfolioSummary.totalAmount) %></strong></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel app-panel">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Resumen por etapa</h2>
+            <p class="muted">Cada tarjeta concentra cantidad de proyectos y montos de cada etapa.</p>
+          </div>
+        </div>
+        <div class="projects-status-grid">
+          <% statusOverview.forEach((item) => { %>
+            <article class="projects-status-card">
+              <div class="projects-status-card__head">
+                <span class="status-badge <%= item.badgeClass %>"><%= item.label %></span>
+                <strong><%= item.count %></strong>
+              </div>
+              <div class="projects-status-card__body">
+                <div><span>Presupuesto</span><strong><%= formatMoney(item.estimatedBudget) %></strong></div>
+                <div><span>Costo real</span><strong><%= formatMoney(item.realCost) %></strong></div>
+                <div><span>Venta</span><strong><%= formatMoney(item.saleAmount) %></strong></div>
+              </div>
+            </article>
+          <% }) %>
+        </div>
+      </section>
+
+      <section class="projects-summary-grid">
+        <article class="panel app-panel">
+          <div class="panel-header app-panel-header">
+            <div>
+              <h2>Proyectos finalizados recientemente</h2>
+              <p class="muted">Ultimos cierres registrados en el sistema.</p>
+            </div>
+          </div>
+          <div class="projects-mini-list">
+            <% if (!recentCompletedProjects.length) { %>
+              <div class="app-empty-state projects-empty-card">
+                <p class="app-empty-state-text">No hay proyectos finalizados todavia.</p>
+              </div>
+            <% } %>
+            <% recentCompletedProjects.forEach((project) => { %>
+              <a href="/projects/<%= project.id %>" class="projects-mini-item">
+                <div>
+                  <strong><%= project.name %></strong>
+                  <p class="muted"><%= project.client_display %></p>
+                </div>
+                <span><%= formatDate(project.real_end_date) %></span>
+              </a>
+            <% }) %>
+          </div>
+        </article>
+
+        <article class="panel app-panel">
+          <div class="panel-header app-panel-header">
+            <div>
+              <h2>Proyectos con atraso</h2>
+              <p class="muted">Pendientes que ya superaron la fecha estimada.</p>
+            </div>
+          </div>
+          <div class="projects-mini-list">
+            <% if (!overdueProjects.length) { %>
+              <div class="app-empty-state projects-empty-card">
+                <p class="app-empty-state-text">No hay proyectos atrasados en este momento.</p>
+              </div>
+            <% } %>
+            <% overdueProjects.forEach((project) => { %>
+              <a href="/projects/<%= project.id %>" class="projects-mini-item">
+                <div>
+                  <strong><%= project.name %></strong>
+                  <p class="muted"><%= project.client_display %></p>
+                </div>
+                <span class="projects-overdue"><%= formatDate(project.estimated_end_date) %></span>
+              </a>
+            <% }) %>
+          </div>
+        </article>
+      </section>
+    <% } %>
+
+    <% if (activeSection === 'projects') { %>
+      <section class="panel app-panel projects-toolbar-panel">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Tablero de proyectos</h2>
+            <p class="muted">Filtra por etapa, fecha de creacion y fecha de finalizacion para ordenar mejor la operacion.</p>
+          </div>
+          <div class="actions">
+            <a class="btn app-btn <%= dashboardView === 'kanban' ? 'primary app-btn-primary' : '' %>" href="<%= buildDashboardUrl({ section: 'projects', view: 'kanban' }) %>">Vista Kanban</a>
+            <a class="btn app-btn <%= dashboardView === 'list' ? 'primary app-btn-primary' : '' %>" href="<%= buildDashboardUrl({ section: 'projects', view: 'list' }) %>">Vista Lista</a>
+            <% if (can('projects', 'create')) { %>
+              <a class="btn primary app-btn app-btn-primary" href="#new-project">Nuevo proyecto</a>
+            <% } %>
+          </div>
+        </div>
+
+        <form method="GET" action="/projects" class="projects-filter-grid">
+          <input type="hidden" name="section" value="projects" />
+          <input type="hidden" name="view" value="<%= dashboardView %>" />
+          <label class="app-field">
+            <span>Buscar</span>
+            <input class="app-input" type="search" name="q" value="<%= filters.q || '' %>" placeholder="Codigo, proyecto o cliente..." />
+          </label>
+          <label class="app-field">
+            <span>Etapa</span>
+            <select name="status">
+              <option value="all" <%= filters.status === 'all' ? 'selected' : '' %>>Todas</option>
+              <% projectStatuses.forEach((status) => { %>
+                <option value="<%= status.key %>" <%= filters.status === status.key ? 'selected' : '' %>><%= status.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Creado desde</span>
+            <input class="app-input" type="date" name="created_from" value="<%= filters.created_from || '' %>" />
+          </label>
+          <label class="app-field">
+            <span>Creado hasta</span>
+            <input class="app-input" type="date" name="created_to" value="<%= filters.created_to || '' %>" />
+          </label>
+          <label class="app-field">
+            <span>Finalizado desde</span>
+            <input class="app-input" type="date" name="finished_from" value="<%= filters.finished_from || '' %>" />
+          </label>
+          <label class="app-field">
+            <span>Finalizado hasta</span>
+            <input class="app-input" type="date" name="finished_to" value="<%= filters.finished_to || '' %>" />
+          </label>
+          <div class="actions projects-filter-actions">
+            <span class="projects-filter-results"><%= visibleProjectsLabel %></span>
+            <button type="submit" class="btn primary app-btn app-btn-primary">Aplicar</button>
+            <a class="btn app-btn" href="/projects?section=projects&view=<%= dashboardView %>">Limpiar</a>
+          </div>
+        </form>
+      </section>
+
+      <% if (dashboardView === 'kanban') { %>
+        <section class="projects-kanban-board">
+          <% projectColumns.forEach((column) => { %>
+            <article class="projects-kanban-column">
+              <header class="projects-kanban-column__header">
+                <div>
+                  <h3><%= column.label %></h3>
+                  <span class="muted"><%= column.count %> proyecto(s)</span>
+                </div>
+              </header>
+
+              <% if (!column.projects.length) { %>
+                <div class="app-empty-state projects-empty-card">
+                  <p class="app-empty-state-text">Sin proyectos en esta etapa.</p>
+                </div>
+              <% } %>
+
+              <% column.projects.forEach((project) => { %>
+                <a href="/projects/<%= project.id %>" class="projects-card">
+                  <div class="projects-card__top">
+                    <span class="status-badge <%= project.status_meta.badgeClass %>"><%= project.status_label %></span>
+                    <span class="projects-card__code"><%= project.code || 'Sin codigo' %></span>
+                  </div>
+                  <h4><%= project.name %></h4>
+                  <p class="muted"><%= project.client_display %></p>
+                  <div class="projects-card__stats">
+                    <span>Avance <strong><%= project.progress_percent %>%</strong></span>
+                    <span>Tareas <strong><%= project.completed_tasks || 0 %>/<%= project.task_count || 0 %></strong></span>
+                  </div>
+                  <div class="projects-progress">
+                    <span style="width:<%= project.progress_percent %>%"></span>
+                  </div>
+                  <div class="projects-card__footer">
+                    <span><%= formatMoney(project.estimated_budget) %></span>
+                    <span class="<%= project.isOverdue ? 'projects-overdue' : '' %>"><%= formatDate(project.estimated_end_date) %></span>
+                  </div>
+                </a>
+              <% }) %>
+            </article>
+          <% }) %>
+        </section>
+      <% } else { %>
+        <section class="panel app-panel">
+          <div class="panel-header app-panel-header">
+            <div>
+              <h2>Lista de proyectos</h2>
+              <p class="muted">Vista ordenada para revisar fechas, etapa, presupuesto y avance del proyecto.</p>
+            </div>
+          </div>
+          <div class="table app-table-wrap projects-table">
+            <div class="table-row header projects-list-row">
+              <div>Codigo</div>
+              <div>Proyecto</div>
+              <div>Cliente</div>
+              <div>Estado</div>
+              <div>Prioridad</div>
+              <div>Fin</div>
+              <div>Presupuesto</div>
+              <div>Costo real</div>
+              <div>Avance</div>
+              <div>Acciones</div>
+            </div>
+            <% if (!projects.length) { %>
+              <div class="table-row empty app-empty-state">
+                <div>No hay proyectos para los filtros seleccionados.</div>
+              </div>
+            <% } %>
+            <% projects.forEach((project) => { %>
+              <div class="table-row projects-list-row">
+                <div><strong><%= project.code || 'Sin codigo' %></strong></div>
+                <div>
+                  <strong><%= project.name %></strong>
+                  <small class="muted">Creado <%= formatDate(project.created_at) %></small>
+                </div>
+                <div><%= project.client_display %></div>
+                <div><span class="status-badge <%= project.status_meta.badgeClass %>"><%= project.status_label %></span></div>
+                <div><span class="projects-priority-chip <%= project.priority_meta.badgeClass %>"><%= project.priority_label %></span></div>
+                <div>
+                  <strong><%= formatDate(project.real_end_date || project.estimated_end_date) %></strong>
+                  <small class="muted"><%= project.real_end_date ? 'Real' : 'Estimado' %></small>
+                </div>
+                <div><%= formatMoney(project.estimated_budget) %></div>
+                <div><%= formatMoney(project.real_cost_resolved) %></div>
+                <div>
+                  <div class="projects-progress projects-progress--compact">
+                    <span style="width:<%= project.progress_percent %>%"></span>
+                  </div>
+                  <small class="muted"><%= project.progress_percent %>%</small>
+                </div>
+                <div class="actions">
+                  <a class="btn app-btn app-btn-small" href="/projects/<%= project.id %>">Abrir</a>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+        </section>
+      <% } %>
+
+      <section class="panel app-panel" id="new-project" style="<%= can('projects', 'create') ? '' : 'display:none' %>">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Nuevo proyecto</h2>
+            <p class="muted">Captura solo la ficha base. El resto se administra dentro del detalle del proyecto.</p>
+          </div>
+        </div>
+
+        <form method="POST" action="/projects/create" class="projects-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label class="app-field projects-form-full">
+            <span>Cotizacion base (opcional)</span>
+            <select name="quote_id">
+              <option value="">Crear proyecto desde cero</option>
+              <% availableProjectQuoteOptions.forEach((quote) => { %>
+                <option value="<%= quote.id %>"><%= truncateOptionLabel(`${quote.title} - ${quote.customer_display} - ${formatMoney(quote.total, quote.currency)}`, 80) %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Codigo</span>
+            <input class="app-input" type="text" name="code" placeholder="Se genera automaticamente si lo dejas vacio" />
+          </label>
+          <label class="app-field">
+            <span>Nombre del proyecto</span>
+            <input class="app-input" type="text" name="name" required />
+          </label>
+          <label class="app-field">
+            <span>Cliente</span>
+            <select name="client_id">
+              <option value="">Sin cliente</option>
+              <% customers.forEach((customer) => { %>
+                <option value="<%= customer.id %>"><%= customer.customer_code ? `${customer.customer_code} - ` : '' %><%= customer.name %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Estado</span>
+            <select name="status">
+              <% projectStatuses.forEach((status) => { %>
+                <option value="<%= status.key %>" <%= createDefaults.status === status.key ? 'selected' : '' %>><%= status.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Prioridad</span>
+            <select name="priority">
+              <% projectPriorities.forEach((priority) => { %>
+                <option value="<%= priority.key %>" <%= createDefaults.priority === priority.key ? 'selected' : '' %>><%= priority.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Inicio</span>
+            <input class="app-input" type="date" name="start_date" value="<%= createDefaults.start_date %>" />
+          </label>
+          <label class="app-field">
+            <span>Fin estimado</span>
+            <input class="app-input" type="date" name="estimated_end_date" />
+          </label>
+          <label class="app-field">
+            <span>Presupuesto estimado</span>
+            <input class="app-input" type="number" step="0.01" min="0" name="estimated_budget" value="0" />
+          </label>
+          <label class="app-field">
+            <span>Venta estimada</span>
+            <input class="app-input" type="number" step="0.01" min="0" name="sale_amount" value="0" />
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Descripcion</span>
+            <textarea class="app-textarea" name="description" rows="3" placeholder="Objetivo, alcance, entregables y observaciones base."></textarea>
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Notas</span>
+            <textarea class="app-textarea" name="notes" rows="2"></textarea>
+          </label>
+          <div class="actions projects-form-full">
+            <button type="submit" class="btn primary app-btn app-btn-primary">Guardar proyecto</button>
+          </div>
+        </form>
+      </section>
+    <% } %>
+
+    <% if (activeSection === 'tasks') { %>
+      <section class="projects-kpi-grid">
+        <article class="projects-kpi-card">
+          <span>Total visibles</span>
+          <strong><%= taskSummary.total %></strong>
+        </article>
+        <article class="projects-kpi-card">
+          <span>En proceso</span>
+          <strong><%= taskSummary.inProgress %></strong>
+        </article>
+        <article class="projects-kpi-card">
+          <span>Completadas</span>
+          <strong><%= taskSummary.completed %></strong>
+        </article>
+        <article class="projects-kpi-card">
+          <span>Vencidas</span>
+          <strong><%= taskSummary.overdue %></strong>
+        </article>
+        <article class="projects-kpi-card">
+          <span>Horas estimadas</span>
+          <strong><%= Number(taskSummary.estimatedHours || 0).toFixed(2) %></strong>
+        </article>
+        <article class="projects-kpi-card">
+          <span>Horas reales</span>
+          <strong><%= Number(taskSummary.realHours || 0).toFixed(2) %></strong>
+        </article>
+        <article class="projects-kpi-card">
+          <span>% completadas</span>
+          <strong><%= taskSummary.completedRate %>%</strong>
+        </article>
+        <article class="projects-kpi-card">
+          <span>Proyectos con tareas</span>
+          <strong><%= new Set(tasks.map((task) => Number(task.project_id))).size %></strong>
+        </article>
+      </section>
+
+      <section class="panel app-panel projects-toolbar-panel">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Filtro general de tareas</h2>
+            <p class="muted">Consulta el avance por proyecto y ordena el trabajo pendiente del modulo.</p>
+          </div>
+        </div>
+        <form method="GET" action="/projects" class="projects-filter-grid">
+          <input type="hidden" name="section" value="tasks" />
+          <label class="app-field">
+            <span>Buscar</span>
+            <input class="app-input" type="search" name="task_q" value="<%= filters.task_q || '' %>" placeholder="Titulo, descripcion o proyecto..." />
+          </label>
+          <label class="app-field">
+            <span>Proyecto</span>
+            <select name="task_project_id">
+              <option value="">Todos</option>
+              <% projectOptions.forEach((project) => { %>
+                <option value="<%= project.id %>" <%= String(filters.task_project_id || '') === String(project.id) ? 'selected' : '' %>><%= project.code ? `${project.code} - ` : '' %><%= project.name %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Estado</span>
+            <select name="task_status">
+              <option value="all" <%= filters.task_status === 'all' ? 'selected' : '' %>>Todos</option>
+              <% taskStatuses.forEach((status) => { %>
+                <option value="<%= status.key %>" <%= filters.task_status === status.key ? 'selected' : '' %>><%= status.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Responsable</span>
+            <select name="assigned_to">
+              <option value="">Todos</option>
+              <% users.forEach((user) => { %>
+                <option value="<%= user.id %>" <%= String(filters.assigned_to || '') === String(user.id) ? 'selected' : '' %>><%= user.username %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Vence desde</span>
+            <input class="app-input" type="date" name="due_from" value="<%= filters.due_from || '' %>" />
+          </label>
+          <label class="app-field">
+            <span>Vence hasta</span>
+            <input class="app-input" type="date" name="due_to" value="<%= filters.due_to || '' %>" />
+          </label>
+          <div class="actions projects-filter-actions">
+            <span class="projects-filter-results"><%= visibleTasksLabel %></span>
+            <button type="submit" class="btn primary app-btn app-btn-primary">Aplicar</button>
+            <a class="btn app-btn" href="/projects?section=tasks">Limpiar</a>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel app-panel" id="new-task" style="<%= can('projects', 'edit') ? '' : 'display:none' %>">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Nueva tarea</h2>
+            <p class="muted">Crea tareas desde el menu general y asignalas al proyecto correcto.</p>
+          </div>
+        </div>
+        <form method="POST" action="/projects/tasks/create" class="projects-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label class="app-field">
+            <span>Proyecto</span>
+            <select name="project_id" required>
+              <option value="">Selecciona un proyecto</option>
+              <% projectOptions.forEach((project) => { %>
+                <option value="<%= project.id %>" <%= String(filters.task_project_id || '') === String(project.id) ? 'selected' : '' %>><%= project.code ? `${project.code} - ` : '' %><%= project.name %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Titulo</span>
+            <input class="app-input" type="text" name="title" required />
+          </label>
+          <label class="app-field">
+            <span>Responsable</span>
+            <select name="assigned_to">
+              <option value="">Sin asignar</option>
+              <% users.forEach((user) => { %>
+                <option value="<%= user.id %>"><%= user.username %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Estado</span>
+            <select name="status">
+              <% taskStatuses.forEach((status) => { %>
+                <option value="<%= status.key %>" <%= createDefaults.task_status === status.key ? 'selected' : '' %>><%= status.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Prioridad</span>
+            <select name="priority">
+              <% projectPriorities.forEach((priority) => { %>
+                <option value="<%= priority.key %>" <%= createDefaults.priority === priority.key ? 'selected' : '' %>><%= priority.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Inicio</span>
+            <input class="app-input" type="date" name="start_date" value="<%= createDefaults.start_date %>" />
+          </label>
+          <label class="app-field">
+            <span>Vence</span>
+            <input class="app-input" type="date" name="due_date" />
+          </label>
+          <label class="app-field">
+            <span>Horas estimadas</span>
+            <input class="app-input" type="number" step="0.01" min="0" name="estimated_hours" value="0" />
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Descripcion</span>
+            <textarea class="app-textarea" name="description" rows="3" placeholder="Entregable, alcance y observaciones de la tarea."></textarea>
+          </label>
+          <div class="actions projects-form-full">
+            <button type="submit" class="btn primary app-btn app-btn-primary">Guardar tarea</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="projects-stack">
+        <% if (!tasks.length) { %>
+          <div class="app-empty-state projects-empty-card">
+            <p class="app-empty-state-text">No hay tareas para los filtros seleccionados.</p>
+          </div>
+        <% } %>
+        <% tasks.forEach((task) => { %>
+          <article class="panel app-panel projects-task-card">
+            <div class="projects-task-card__header">
+              <div>
+                <div class="projects-detail-hero__head">
+                  <span class="status-badge <%= taskStatusClass[task.status] || 'project-status-draft' %>"><%= task.status_label %></span>
+                  <span class="projects-priority-chip <%= task.priority_meta.badgeClass %>"><%= task.priority_label %></span>
+                </div>
+                <h3 class="projects-task-title"><span class="projects-task-color-dot" style="--task-color:<%= task.color %>"></span><%= task.title %></h3>
+                <p class="muted"><%= task.project_display %> · <%= task.assigned_display %></p>
+              </div>
+              <div class="actions">
+                <a class="btn app-btn app-btn-small" href="/projects/<%= task.project_id %>?tab=tasks">Abrir proyecto</a>
+              </div>
+            </div>
+            <div class="projects-task-card__body">
+              <% if (task.description) { %>
+                <p><%= task.description %></p>
+              <% } %>
+              <div class="projects-card__stats">
+                <span>Inicio <strong><%= formatDate(task.start_date) %></strong></span>
+                <span class="<%= task.isOverdue ? 'projects-overdue' : '' %>">Vence <strong><%= formatDate(task.due_date) %></strong></span>
+                <span>Horas estimadas <strong><%= Number(task.estimated_hours || 0).toFixed(2) %></strong></span>
+                <span>Proyecto <strong><%= task.project_progress_percent %>%</strong></span>
+              </div>
+              <div class="projects-progress">
+                <span style="width:<%= task.project_progress_percent %>%"></span>
+              </div>
+            </div>
+          </article>
+        <% }) %>
+      </section>
+      <% } %>
+
+    <% if (activeSection === 'quotes') { %>
+      <%
+        const quoteSummaryHref = buildDashboardUrl({ section: 'quotes', quote_view: 'summary', quote_mode: '', quote_id: '' });
+        const quoteListHref = buildDashboardUrl({ section: 'quotes', quote_view: 'list', quote_mode: '', quote_id: '' });
+        const quoteNewHref = buildDashboardUrl({ section: 'quotes', quote_view: 'new', quote_mode: '', quote_id: '' });
+        const quoteStatusHref = buildDashboardUrl({ section: 'quotes', quote_view: 'status', quote_mode: '', quote_id: '' });
+        const quoteReturnUrl = buildDashboardUrl({ section: 'quotes', quote_view: 'list', quote_mode: '', quote_id: '' });
+        const quoteClearUrl = buildDashboardUrl({
+          section: 'quotes',
+          quote_view: 'list',
+          quote_q: '',
+          quote_project_id: '',
+          quote_status: 'all',
+          quote_scope: 'active',
+          valid_from: '',
+          valid_to: '',
+          quote_mode: '',
+          quote_id: ''
+        });
+        const currentQuoteView = quoteView || 'summary';
+        const isEditingQuote = Boolean(editingQuote && can('projects', 'quotes'));
+        const editingLines = editingQuote && editingQuote.lines ? editingQuote.lines : [];
+        const editingEmptyLineCount = Math.max(0, 2 - editingLines.length);
+        const selectedStatusQuote = selectedQuoteForStatus || null;
+        const listEmptyMessage = filters.quote_scope === 'archived'
+          ? 'No hay cotizaciones archivadas para los filtros seleccionados.'
+          : filters.quote_scope === 'all'
+            ? 'No hay cotizaciones para los filtros seleccionados.'
+            : 'No hay cotizaciones activas para los filtros seleccionados.';
+      %>
+      <section class="projects-subsection-nav" aria-label="Submenu de cotizaciones">
+        <a href="<%= quoteSummaryHref %>" class="projects-subsection-tab <%= currentQuoteView === 'summary' ? 'is-active' : '' %>">Resumen</a>
+        <a href="<%= quoteListHref %>" class="projects-subsection-tab <%= currentQuoteView === 'list' ? 'is-active' : '' %>">Listado de cotizaciones</a>
+        <% if (can('projects', 'quotes')) { %>
+          <a href="<%= quoteNewHref %>" class="projects-subsection-tab <%= currentQuoteView === 'new' ? 'is-active' : '' %>">Nuevo</a>
+          <a href="<%= quoteStatusHref %>" class="projects-subsection-tab <%= currentQuoteView === 'status' ? 'is-active' : '' %>">Cambiar de estado</a>
+        <% } %>
+      </section>
+
+      <% if (currentQuoteView === 'summary') { %>
+        <section class="projects-kpi-grid">
+          <article class="projects-kpi-card">
+            <span>Total registradas</span>
+            <strong><%= quotePortfolioSummary.total %></strong>
+          </article>
+          <article class="projects-kpi-card">
+            <span>Borrador</span>
+            <strong><%= quotePortfolioSummary.draft %></strong>
+          </article>
+          <article class="projects-kpi-card">
+            <span>Enviadas</span>
+            <strong><%= quotePortfolioSummary.sent %></strong>
+          </article>
+          <article class="projects-kpi-card">
+            <span>Aprobadas</span>
+            <strong><%= quotePortfolioSummary.approved %></strong>
+          </article>
+          <article class="projects-kpi-card">
+            <span>Archivadas</span>
+            <strong><%= quotePortfolioSummary.archived %></strong>
+          </article>
+          <article class="projects-kpi-card">
+            <span>Vencidas</span>
+            <strong><%= quotePortfolioSummary.expired %></strong>
+          </article>
+          <article class="projects-kpi-card">
+            <span>Activas</span>
+            <strong><%= quotePortfolioSummary.total - quotePortfolioSummary.archived %></strong>
+          </article>
+          <article class="projects-kpi-card">
+            <span>Monto total</span>
+            <strong><%= formatMoney(quotePortfolioSummary.totalAmount) %></strong>
+          </article>
+        </section>
+
+        <section class="projects-summary-grid">
+          <article class="panel app-panel projects-home-panel">
+            <div class="panel-header app-panel-header">
+              <div>
+                <h2>Actividad reciente</h2>
+                <p class="muted">Cotizaciones activas con movimiento reciente dentro del modulo.</p>
+              </div>
+              <a class="btn app-btn" href="<%= quoteListHref %>">Abrir listado</a>
+            </div>
+            <div class="projects-mini-list">
+              <% if (!recentQuotes.length) { %>
+                <div class="app-empty-state projects-empty-card">
+                  <p class="app-empty-state-text">No hay cotizaciones activas registradas.</p>
+                </div>
+              <% } %>
+              <% recentQuotes.forEach((quote) => { %>
+                <a href="<%= buildDashboardUrl({ section: 'quotes', quote_view: 'list', quote_mode: 'edit', quote_id: quote.id }) %>" class="projects-mini-item">
+                  <div>
+                    <strong><%= quote.title %></strong>
+                    <p class="muted"><%= quote.project_display %></p>
+                  </div>
+                  <span><%= formatMoney(quote.total, quote.currency) %></span>
+                </a>
+              <% }) %>
+            </div>
+          </article>
+
+          <article class="panel app-panel projects-home-panel">
+            <div class="panel-header app-panel-header">
+              <div>
+                <h2>Por vencer</h2>
+                <p class="muted">Cotizaciones que necesitan seguimiento comercial cercano.</p>
+              </div>
+            </div>
+            <div class="projects-mini-list">
+              <% if (!expiringQuotes.length) { %>
+                <div class="app-empty-state projects-empty-card">
+                  <p class="app-empty-state-text">No hay cotizaciones proximas a vencer.</p>
+                </div>
+              <% } %>
+              <% expiringQuotes.forEach((quote) => { %>
+                <a href="<%= buildDashboardUrl({ section: 'quotes', quote_view: 'list', quote_mode: 'edit', quote_id: quote.id }) %>" class="projects-mini-item">
+                  <div>
+                    <strong><%= quote.title %></strong>
+                    <p class="muted"><%= quote.customer_display %></p>
+                  </div>
+                  <span><%= formatDate(quote.valid_until) %></span>
+                </a>
+              <% }) %>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel app-panel">
+          <div class="panel-header app-panel-header">
+            <div>
+              <h2>Archivo de cotizaciones</h2>
+              <p class="muted">Historial de cotizaciones archivadas para consulta y restauracion.</p>
+            </div>
+            <a class="btn app-btn" href="<%= buildDashboardUrl({ section: 'quotes', quote_view: 'list', quote_scope: 'archived' }) %>">Ver archivadas</a>
+          </div>
+          <div class="projects-mini-list">
+            <% if (!recentArchivedQuotes.length) { %>
+              <div class="app-empty-state projects-empty-card">
+                <p class="app-empty-state-text">Todavia no hay cotizaciones archivadas.</p>
+              </div>
+            <% } %>
+            <% recentArchivedQuotes.forEach((quote) => { %>
+              <a href="<%= buildDashboardUrl({ section: 'quotes', quote_view: 'list', quote_scope: 'archived', quote_mode: 'edit', quote_id: quote.id }) %>" class="projects-mini-item">
+                <div>
+                  <strong><%= quote.title %></strong>
+                  <p class="muted"><%= quote.project_display %></p>
+                </div>
+                <span><%= formatDate(quote.archived_at || quote.updated_at) %></span>
+              </a>
+            <% }) %>
+          </div>
+        </section>
+      <% } %>
+
+      <% if (currentQuoteView === 'list') { %>
+
+      <% if (!isEditingQuote) { %>
+        <section class="panel app-panel projects-toolbar-panel">
+          <div class="panel-header app-panel-header">
+            <div>
+              <h2>Listado de cotizaciones</h2>
+              <p class="muted">Filtra, revisa, archiva o continua editando cotizaciones desde una sola vista.</p>
+            </div>
+            <% if (can('projects', 'quotes')) { %>
+              <a class="btn app-btn" href="<%= quoteNewHref %>">Nueva cotizacion</a>
+            <% } %>
+          </div>
+        <form method="GET" action="/projects" class="projects-filter-grid">
+          <input type="hidden" name="section" value="quotes" />
+          <input type="hidden" name="quote_view" value="list" />
+          <label class="app-field">
+            <span>Buscar</span>
+            <input class="app-input" type="search" name="quote_q" value="<%= filters.quote_q || '' %>" placeholder="Titulo, descripcion, cliente o proyecto..." />
+          </label>
+          <label class="app-field">
+            <span>Proyecto</span>
+            <select name="quote_project_id">
+              <option value="">Todos</option>
+              <% projectOptions.forEach((project) => { %>
+                <option value="<%= project.id %>" <%= String(filters.quote_project_id || '') === String(project.id) ? 'selected' : '' %>><%= truncateOptionLabel(`${project.code ? `${project.code} - ` : ''}${project.name}`) %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Estado</span>
+            <select name="quote_status">
+              <option value="all" <%= filters.quote_status === 'all' ? 'selected' : '' %>>Todos</option>
+              <% quoteStatuses.forEach((status) => { %>
+                <option value="<%= status.key %>" <%= filters.quote_status === status.key ? 'selected' : '' %>><%= status.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Alcance</span>
+            <select name="quote_scope">
+              <option value="active" <%= filters.quote_scope === 'active' ? 'selected' : '' %>>Activas</option>
+              <option value="archived" <%= filters.quote_scope === 'archived' ? 'selected' : '' %>>Archivadas</option>
+              <option value="all" <%= filters.quote_scope === 'all' ? 'selected' : '' %>>Todas</option>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Valida desde</span>
+            <input class="app-input" type="date" name="valid_from" value="<%= filters.valid_from || '' %>" />
+          </label>
+          <label class="app-field">
+            <span>Valida hasta</span>
+            <input class="app-input" type="date" name="valid_to" value="<%= filters.valid_to || '' %>" />
+          </label>
+          <div class="actions projects-filter-actions">
+            <span class="projects-filter-results"><%= visibleQuotesLabel %></span>
+            <button type="submit" class="btn primary app-btn app-btn-primary">Aplicar</button>
+            <a class="btn app-btn" href="<%= quoteClearUrl %>">Limpiar</a>
+          </div>
+        </form>
+      </section>
+      <% } %>
+
+      <% if (isEditingQuote) { %>
+        <section class="panel app-panel" id="edit-quote">
+          <div class="panel-header app-panel-header">
+            <div>
+              <h2>Editar cotizacion</h2>
+              <p class="muted">Ajusta montos, lineas y condiciones comerciales de esta cotizacion.</p>
+            </div>
+            <a class="btn app-btn" href="<%= quoteListHref %>">Regresar al listado</a>
+          </div>
+          <form method="POST" action="/projects/quotes/<%= editingQuote.id %>/update" enctype="multipart/form-data" class="projects-form-grid">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <input type="hidden" name="return_to" value="<%= buildDashboardUrl({ section: 'quotes', quote_view: 'list', quote_mode: 'edit', quote_id: editingQuote.id }) %>" />
+            <label class="app-field">
+            <span>Proyecto</span>
+            <select name="project_id" disabled>
+              <% if (!editingQuote.project_id) { %>
+                <option value="">Sin proyecto</option>
+              <% } %>
+              <% projectOptions.forEach((project) => { %>
+                <option value="<%= project.id %>" <%= String(editingQuote.project_id) === String(project.id) ? 'selected' : '' %>><%= project.code ? `${project.code} - ` : '' %><%= project.name %></option>
+              <% }) %>
+              </select>
+            </label>
+            <label class="app-field">
+              <span>Titulo</span>
+              <input class="app-input" type="text" name="title" value="<%= editingQuote.title || '' %>" placeholder="Cotizacion principal del proyecto" />
+            </label>
+            <label class="app-field">
+              <span>Cliente</span>
+              <select name="customer_id">
+                <option value="">Usar cliente del proyecto</option>
+                <% customers.forEach((customer) => { %>
+                  <option value="<%= customer.id %>" <%= String(editingQuote.customer_id || '') === String(customer.id) ? 'selected' : '' %>><%= truncateOptionLabel(`${customer.customer_code ? `${customer.customer_code} - ` : ''}${customer.name}`) %></option>
+                <% }) %>
+              </select>
+            </label>
+            <label class="app-field">
+              <span>Valida hasta</span>
+              <input class="app-input" type="date" name="valid_until" value="<%= editingQuote.valid_until || '' %>" />
+            </label>
+            <label class="app-field">
+              <span>Moneda</span>
+              <select name="currency">
+                <% currencyOptions.forEach((currency) => { %>
+                  <option value="<%= currency %>" <%= (editingQuote.currency || baseCurrency) === currency ? 'selected' : '' %>><%= currency %></option>
+                <% }) %>
+              </select>
+            </label>
+            <label class="app-field">
+              <span>Tipo de cambio</span>
+              <input class="app-input" type="number" name="exchange_rate" step="0.0001" min="0" value="<%= Number(editingQuote.exchange_rate || 1).toFixed(4) %>" />
+            </label>
+            <label class="app-field">
+              <span>Estado</span>
+              <select name="status">
+                <% quoteEditableStatuses.forEach((status) => { %>
+                  <option value="<%= status.key %>" <%= editingQuote.status === status.key ? 'selected' : '' %>><%= status.label %></option>
+                <% }) %>
+              </select>
+            </label>
+            <label class="app-field">
+              <span>Margen %</span>
+              <input class="app-input" type="number" name="margin_percent" step="0.01" min="-100" value="<%= Number(editingQuote.margin_percent || 0).toFixed(2) %>" />
+            </label>
+            <label class="app-field">
+              <span>Impuesto global %</span>
+              <input class="app-input" type="number" name="tax_rate" step="0.01" min="0" value="<%= Number(editingQuote.tax_rate || 0).toFixed(2) %>" />
+            </label>
+            <label class="app-field">
+              <span>Descuento</span>
+              <select name="discount_type">
+                <option value="amount" <%= editingQuote.discount_type === 'amount' ? 'selected' : '' %>>Monto</option>
+                <option value="percent" <%= editingQuote.discount_type === 'percent' ? 'selected' : '' %>>%</option>
+              </select>
+            </label>
+            <label class="app-field">
+              <span>Valor descuento</span>
+              <input class="app-input" type="number" name="discount_value" step="0.01" min="0" value="<%= Number(editingQuote.discount_value || 0).toFixed(2) %>" />
+            </label>
+            <label class="app-field projects-form-full">
+              <span>Descripcion general</span>
+              <textarea class="app-textarea" name="description" rows="2" placeholder="Alcance general, tiempos, condiciones y entregables."><%= editingQuote.description || '' %></textarea>
+            </label>
+            <fieldset class="app-field projects-form-full">
+              <legend>Campos visibles en PDF</legend>
+              <input type="hidden" name="pdf_fields_submitted" value="1" />
+              <div class="projects-quote-lines-summary">
+                <% quotePdfFieldGroups.forEach((group) => { %>
+                  <div class="projects-quote-lines-summary__row">
+                    <strong><%= group.label %></strong>
+                    <span>
+                      <% group.fields.forEach((field) => { %>
+                        <label class="inline-form">
+                          <input type="checkbox" name="pdf_fields" value="<%= field.key %>" <%= isPdfFieldSelected(editingQuote.pdf_fields, field.key) ? 'checked' : '' %> />
+                          <span><%= field.label %></span>
+                        </label>
+                      <% }) %>
+                    </span>
+                  </div>
+                <% }) %>
+              </div>
+            </fieldset>
+
+            <div class="projects-quote-lines projects-form-full is-compact" data-quote-lines>
+              <div class="projects-quote-lines__header">
+                <div>
+                  <h3>Servicios cotizados</h3>
+                  <p class="muted projects-quote-lines__hint">Los campos extra estan ocultos. Puedes mostrarlos y usar el scroll horizontal si hace falta.</p>
+                </div>
+                <div class="projects-quote-lines__actions">
+                  <button type="button" class="btn app-btn app-btn-small" data-toggle-quote-fields aria-expanded="false">Mostrar campos extra</button>
+                  <button type="button" class="btn app-btn app-btn-small" data-add-quote-line>Agregar linea</button>
+                </div>
+              </div>
+              <div class="projects-quote-lines__scroll" data-quote-scroll>
+                <% editingLines.forEach((line) => { %>
+                  <div class="projects-quote-line projects-quote-line--extended" data-quote-line>
+                    <label class="projects-quote-line__field"><span>Servicio</span><input class="app-input" type="text" name="line_service_name" value="<%= line.service_name || '' %>" placeholder="Servicio" /></label>
+                    <label class="projects-quote-line__field" data-quote-optional><span>Detalle o alcance</span><input class="app-input" type="text" name="line_service_details" value="<%= line.service_details || '' %>" placeholder="Detalle o alcance" /></label>
+                    <label class="projects-quote-line__field" data-quote-optional><span>Unidad</span><input class="app-input" type="text" name="line_service_unit" value="<%= line.service_unit || '' %>" placeholder="Unidad" /></label>
+                    <label class="projects-quote-line__field"><span>Descripcion comercial</span><input class="app-input" type="text" name="line_description" value="<%= line.description || '' %>" placeholder="Descripcion comercial" /></label>
+                    <label class="projects-quote-line__field"><span>Cantidad</span><input class="app-input" type="number" name="line_qty" min="0" step="0.01" value="<%= Number(line.qty || 0).toFixed(2) %>" placeholder="Cant." /></label>
+                    <label class="projects-quote-line__field"><span>Costo</span><input class="app-input" type="number" name="line_unit_cost" min="0" step="0.01" value="<%= Number(line.unit_cost || 0).toFixed(2) %>" placeholder="Costo" /></label>
+                    <label class="projects-quote-line__field"><span>Ganancia</span><input class="app-input" type="text" name="line_margin_percent" value="<%= `${quoteLineMarginPercent(line).toFixed(2)}%` %>" placeholder="100 o 20%" /></label>
+                    <label class="projects-quote-line__field"><span>Ganancia Q</span><input class="app-input" type="number" name="line_profit_amount" min="0" step="0.01" value="<%= Number(line.profit_amount || ((Number(line.qty || 0) || 0) * ((Number(line.unit_price || 0) || 0) - (Number(line.unit_cost || 0) || 0)))).toFixed(2) %>" placeholder="Ganancia Q" readonly /></label>
+                    <label class="projects-quote-line__field"><span>Venta</span><input class="app-input" type="number" name="line_unit_price" min="0" step="0.01" value="<%= Number(line.unit_price || 0).toFixed(2) %>" placeholder="Venta" readonly /></label>
+                    <label class="projects-quote-line__field" data-quote-optional><span>IVA %</span><input class="app-input" type="number" name="line_tax_rate" min="0" step="0.01" value="<%= Number(line.tax_rate || 0).toFixed(2) %>" placeholder="IVA %" /></label>
+                    <label class="projects-quote-line__field" data-quote-optional><span>Tipo descuento</span><select name="line_discount_type">
+                        <option value="percent" <%= line.discount_type === 'percent' ? 'selected' : '' %>>Desc. %</option>
+                        <option value="amount" <%= line.discount_type === 'amount' ? 'selected' : '' %>>Desc. monto</option>
+                      </select></label>
+                    <label class="projects-quote-line__field"><span>Descuento</span><input class="app-input" type="number" name="line_discount_value" min="0" step="0.01" value="<%= Number(line.discount_value || 0).toFixed(2) %>" placeholder="Desc. %" /></label>
+                    <label class="projects-quote-line__field"><span>Descuento Q</span><input class="app-input" type="number" name="line_discount_amount" min="0" step="0.01" value="<%= Number(line.discount_amount || 0).toFixed(2) %>" placeholder="Desc. Q" readonly /></label>
+                  </div>
+                <% }) %>
+                <% for (let i = 0; i < editingEmptyLineCount; i += 1) { %>
+                  <div class="projects-quote-line projects-quote-line--extended" data-quote-line>
+                    <label class="projects-quote-line__field"><span>Servicio</span><input class="app-input" type="text" name="line_service_name" placeholder="Servicio" /></label>
+                    <label class="projects-quote-line__field" data-quote-optional><span>Detalle o alcance</span><input class="app-input" type="text" name="line_service_details" placeholder="Detalle o alcance" /></label>
+                    <label class="projects-quote-line__field" data-quote-optional><span>Unidad</span><input class="app-input" type="text" name="line_service_unit" placeholder="Unidad" /></label>
+                    <label class="projects-quote-line__field"><span>Descripcion comercial</span><input class="app-input" type="text" name="line_description" placeholder="Descripcion comercial" /></label>
+                    <label class="projects-quote-line__field"><span>Cantidad</span><input class="app-input" type="number" name="line_qty" min="0" step="0.01" placeholder="Cant." /></label>
+                    <label class="projects-quote-line__field"><span>Costo</span><input class="app-input" type="number" name="line_unit_cost" min="0" step="0.01" placeholder="Costo" /></label>
+                    <label class="projects-quote-line__field"><span>Ganancia</span><input class="app-input" type="text" name="line_margin_percent" placeholder="100 o 20%" /></label>
+                    <label class="projects-quote-line__field"><span>Ganancia Q</span><input class="app-input" type="number" name="line_profit_amount" min="0" step="0.01" placeholder="Ganancia Q" readonly /></label>
+                    <label class="projects-quote-line__field"><span>Venta</span><input class="app-input" type="number" name="line_unit_price" min="0" step="0.01" placeholder="Venta" readonly /></label>
+                    <label class="projects-quote-line__field" data-quote-optional><span>IVA %</span><input class="app-input" type="number" name="line_tax_rate" min="0" step="0.01" placeholder="IVA %" /></label>
+                    <label class="projects-quote-line__field" data-quote-optional><span>Tipo descuento</span><select name="line_discount_type">
+                        <option value="percent">Desc. %</option>
+                        <option value="amount">Desc. monto</option>
+                      </select></label>
+                    <label class="projects-quote-line__field"><span>Descuento</span><input class="app-input" type="number" name="line_discount_value" min="0" step="0.01" placeholder="Desc. %" /></label>
+                    <label class="projects-quote-line__field"><span>Descuento Q</span><input class="app-input" type="number" name="line_discount_amount" min="0" step="0.01" placeholder="Desc. Q" readonly /></label>
+                  </div>
+                <% } %>
+              </div>
+            </div>
+
+            <label class="app-field projects-form-full">
+              <span>Notas</span>
+              <textarea class="app-textarea" name="notes" rows="2"><%= editingQuote.notes || '' %></textarea>
+            </label>
+            <label class="app-field projects-form-full">
+              <span>Adjuntos para el PDF</span>
+              <input class="app-input" type="file" name="quote_attachments" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.png,.jpg,.jpeg,.webp,.gif" />
+            </label>
+          <div class="actions projects-form-full">
+            <button type="submit" class="btn primary app-btn app-btn-primary">Guardar cambios</button>
+            <a class="btn app-btn" href="<%= quoteListHref %>">Regresar al listado</a>
+          </div>
+        </form>
+      </section>
+      <% } %>
+
+      <% if (!isEditingQuote) { %>
+      <section class="projects-stack">
+        <% if (!quotes.length) { %>
+          <div class="app-empty-state projects-empty-card">
+            <p class="app-empty-state-text"><%= listEmptyMessage %></p>
+          </div>
+        <% } %>
+        <% quotes.forEach((quote) => { %>
+          <article class="panel app-panel projects-quote-card">
+            <div class="projects-quote-card__header">
+              <div>
+                <div class="projects-detail-hero__head">
+                  <span class="status-badge <%= quoteStatusClass[quote.status] || 'project-status-draft' %>"><%= quote.status_label %></span>
+                  <% if (quote.isArchived) { %>
+                    <span class="status-badge <%= quoteStatusClass.archived %>">Archivada</span>
+                  <% } %>
+                  <span class="<%= quote.isExpired ? 'projects-overdue' : 'muted' %>"><%= quote.isExpired ? 'Vencida' : 'Vigente' %></span>
+                </div>
+                <h3><%= quote.title %></h3>
+                <p class="muted"><%= quote.project_display %> · <%= quote.customer_display %> · Valida <%= formatDate(quote.valid_until) %></p>
+              </div>
+              <strong><%= formatMoney(quote.total, quote.currency) %></strong>
+            </div>
+            <div class="projects-quote-card__totals">
+              <span>Lineas <strong><%= quote.line_count %></strong></span>
+              <span>Costo estimado <strong><%= formatMoney(quote.cost_estimated, quote.currency) %></strong></span>
+              <span>Subtotal <strong><%= formatMoney(quote.subtotal, quote.currency) %></strong></span>
+              <span>Impuestos <strong><%= formatMoney(quote.tax_amount, quote.currency) %></strong></span>
+              <span>Descuento <strong><%= formatMoney(quote.discount_amount, quote.currency) %></strong></span>
+            </div>
+            <div class="projects-quote-lines-summary">
+              <% quote.lines.forEach((line) => { %>
+                <div class="projects-quote-lines-summary__row">
+                  <div>
+                    <strong><%= line.service_display || line.description %></strong>
+                    <% if (line.service_meta) { %>
+                      <p class="muted"><%= line.service_meta %></p>
+                    <% } %>
+                  </div>
+                  <strong><%= Number(line.qty || 0).toFixed(2) %> x <%= formatMoney(line.unit_price, quote.currency) %></strong>
+                  <p class="muted">
+                    Costo <%= formatMoney(line.unit_cost, quote.currency) %> · Ganancia <%= Number(line.margin_percent || quoteLineMarginPercent(line) || 0).toFixed(2) %>% / <%= formatMoney(line.profit_amount, quote.currency) %> · Desc. <%= formatMoney(line.discount_amount, quote.currency) %>
+                  </p>
+                </div>
+              <% }) %>
+            </div>
+            <% if (quote.rejection_comment) { %>
+              <p class="muted"><strong>Motivo de anulacion:</strong> <%= quote.rejection_comment %></p>
+            <% } %>
+            <div class="actions">
+              <a class="btn app-btn" href="/projects/quotes/<%= quote.id %>">Ver</a>
+              <a class="btn app-btn" href="/projects/quotes/<%= quote.id %>/pdf?download=1">Imprimir PDF</a>
+              <% if (quote.project_id) { %>
+                <a class="btn app-btn" href="/projects/<%= quote.project_id %>?tab=quotes">Abrir proyecto</a>
+              <% } %>
+              <% if (!quote.project_id && !quote.isArchived) { %>
+                <form method="POST" action="/projects/quotes/<%= quote.id %>/project" class="inline-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <input type="hidden" name="return_to" value="<%= quoteReturnUrl %>" />
+                  <button type="submit" class="btn primary app-btn app-btn-primary">Transformar a proyecto</button>
+                </form>
+              <% } %>
+              <% if (!quote.converted_invoice_id) { %>
+                <a class="btn app-btn" href="<%= buildDashboardUrl({ section: 'quotes', quote_view: 'list', quote_mode: 'edit', quote_id: quote.id }) %>">Seguir editando</a>
+              <% } %>
+              <% if (quote.project_id && !quote.isArchived && quote.status !== 'approved' && quote.status !== 'converted') { %>
+                <form method="POST" action="/projects/<%= quote.project_id %>/quotes/<%= quote.id %>/status" class="inline-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <input type="hidden" name="status" value="approved" />
+                  <input type="hidden" name="return_to" value="<%= quoteReturnUrl %>" />
+                  <button type="submit" class="btn app-btn">Aprobar</button>
+                </form>
+              <% } %>
+              <% if (quote.project_id && !quote.isArchived && quote.status === 'approved' && !quote.converted_invoice_id) { %>
+                <form method="POST" action="/projects/<%= quote.project_id %>/quotes/<%= quote.id %>/convert" class="inline-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <input type="hidden" name="return_to" value="<%= quoteReturnUrl %>" />
+                  <button type="submit" class="btn primary app-btn app-btn-primary">Convertir</button>
+                </form>
+              <% } %>
+              <% if (quote.converted_invoice_id) { %>
+                <a class="btn app-btn" href="/invoices/<%= quote.converted_invoice_id %>">Ver factura</a>
+              <% } %>
+              <form method="POST" action="/projects/quotes/<%= quote.id %>/archive" class="inline-form">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <input type="hidden" name="archive_action" value="<%= quote.isArchived ? 'restore' : 'archive' %>" />
+                <input type="hidden" name="return_to" value="<%= quoteReturnUrl %>" />
+                <button type="submit" class="btn app-btn"><%= quote.isArchived ? 'Restaurar' : 'Archivar' %></button>
+              </form>
+            </div>
+          </article>
+        <% }) %>
+      </section>
+      <% } %>
+      <% } %>
+
+      <% if (currentQuoteView === 'status' && can('projects', 'quotes')) { %>
+      <section class="panel app-panel">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Cambiar de estado</h2>
+            <p class="muted">Selecciona una o varias cotizaciones y aplica el estado o accion necesaria.</p>
+          </div>
+        </div>
+        <% if (quoteSelectorOptions && quoteSelectorOptions.length) { %>
+          <form method="POST" action="/projects/quotes/bulk-status" class="projects-form-grid">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <input type="hidden" name="return_to" value="<%= buildDashboardUrl({ section: 'quotes', quote_view: 'status', quote_mode: '', quote_id: '' }) %>" />
+            <label class="app-field">
+              <span>Accion</span>
+              <select name="bulk_action">
+                <option value="status">Cambiar estado</option>
+                <option value="invoice">Facturar seleccionadas</option>
+                <option value="project">Transformar a proyecto</option>
+              </select>
+            </label>
+            <label class="app-field">
+              <span>Estado</span>
+              <select name="status">
+                <% quoteEditableStatuses.forEach((status) => { %>
+                  <option value="<%= status.key %>"><%= status.label %></option>
+                <% }) %>
+              </select>
+            </label>
+            <label class="app-field projects-form-full">
+              <span>Cotizaciones</span>
+              <div class="projects-quote-lines-summary">
+                <% quoteSelectorOptions.forEach((quote) => { %>
+                  <label class="projects-quote-lines-summary__row">
+                    <span>
+                      <input type="checkbox" name="quote_ids" value="<%= quote.id %>" />
+                      <strong><%= quote.title %></strong>
+                      <span class="muted"> · <%= quote.project_display %> · <%= quote.status_label %><%= quote.isArchived ? ' · Archivada' : '' %></span>
+                    </span>
+                    <strong><%= formatMoney(quote.total, quote.currency) %></strong>
+                  </label>
+                <% }) %>
+              </div>
+            </label>
+            <label class="app-field projects-form-full">
+              <span>Motivo de anulacion</span>
+              <textarea class="app-textarea" name="rejection_comment" rows="2" placeholder="Solo requerido si el estado es Rechazada."></textarea>
+            </label>
+            <div class="actions projects-form-full">
+              <button type="submit" class="btn primary app-btn app-btn-primary">Aplicar a seleccionadas</button>
+            </div>
+          </form>
+
+          <form method="GET" action="/projects" class="projects-form-grid">
+            <input type="hidden" name="section" value="quotes" />
+            <input type="hidden" name="quote_view" value="status" />
+            <label class="app-field projects-form-full">
+              <span>Selecciona una cotizacion</span>
+              <select name="quote_target_id" onchange="this.form.submit()">
+                <% quoteSelectorOptions.forEach((quote) => { %>
+                  <option value="<%= quote.id %>" <%= String((filters.quote_target_id || (selectedStatusQuote ? selectedStatusQuote.id : ''))) === String(quote.id) ? 'selected' : '' %>>
+                    <%= truncateOptionLabel(`${quote.title} - ${quote.project_display}`) %>
+                  </option>
+                <% }) %>
+              </select>
+            </label>
+          </form>
+
+          <% if (selectedStatusQuote) { %>
+            <article class="panel app-panel projects-quote-card">
+              <div class="projects-quote-card__header">
+                <div>
+                  <div class="projects-detail-hero__head">
+                    <span class="status-badge <%= quoteStatusClass[selectedStatusQuote.status] || 'project-status-draft' %>"><%= selectedStatusQuote.status_label %></span>
+                    <% if (selectedStatusQuote.isArchived) { %>
+                      <span class="status-badge <%= quoteStatusClass.archived %>">Archivada</span>
+                    <% } %>
+                  </div>
+                  <h3><%= selectedStatusQuote.title %></h3>
+                  <p class="muted"><%= selectedStatusQuote.project_display %> · <%= selectedStatusQuote.customer_display %> · Valida <%= formatDate(selectedStatusQuote.valid_until) %></p>
+                </div>
+                <strong><%= formatMoney(selectedStatusQuote.total, selectedStatusQuote.currency) %></strong>
+              </div>
+              <% if (selectedStatusQuote.rejection_comment) { %>
+                <p class="muted"><strong>Motivo guardado:</strong> <%= selectedStatusQuote.rejection_comment %></p>
+              <% } %>
+              <div class="actions">
+                <% if (selectedStatusQuote.project_id) { %>
+                  <a class="btn app-btn" href="/projects/<%= selectedStatusQuote.project_id %>?tab=quotes">Abrir proyecto asociado</a>
+                <% } %>
+                <% if (!selectedStatusQuote.project_id && !selectedStatusQuote.isArchived) { %>
+                  <form method="POST" action="/projects/quotes/<%= selectedStatusQuote.id %>/project" class="inline-form">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <input type="hidden" name="return_to" value="<%= buildDashboardUrl({ section: 'quotes', quote_view: 'status', quote_target_id: selectedStatusQuote.id, quote_mode: '', quote_id: '' }) %>" />
+                    <button type="submit" class="btn primary app-btn app-btn-primary">Transformar a proyecto</button>
+                  </form>
+                <% } %>
+                <% if (selectedStatusQuote.project_id && !selectedStatusQuote.isArchived && selectedStatusQuote.status !== 'approved' && selectedStatusQuote.status !== 'converted') { %>
+                  <form method="POST" action="/projects/<%= selectedStatusQuote.project_id %>/quotes/<%= selectedStatusQuote.id %>/status" class="inline-form">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <input type="hidden" name="status" value="approved" />
+                    <input type="hidden" name="return_to" value="<%= buildDashboardUrl({ section: 'quotes', quote_view: 'status', quote_target_id: selectedStatusQuote.id, quote_mode: '', quote_id: '' }) %>" />
+                    <button type="submit" class="btn app-btn">Aprobar cotizacion</button>
+                  </form>
+                <% } %>
+                <% if (selectedStatusQuote.project_id && !selectedStatusQuote.isArchived && selectedStatusQuote.status === 'approved' && !selectedStatusQuote.converted_invoice_id) { %>
+                  <form method="POST" action="/projects/<%= selectedStatusQuote.project_id %>/quotes/<%= selectedStatusQuote.id %>/convert" class="inline-form">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <input type="hidden" name="return_to" value="<%= buildDashboardUrl({ section: 'quotes', quote_view: 'status', quote_target_id: selectedStatusQuote.id, quote_mode: '', quote_id: '' }) %>" />
+                    <button type="submit" class="btn primary app-btn app-btn-primary">Facturar de una vez</button>
+                  </form>
+                <% } %>
+                <% if (selectedStatusQuote.converted_invoice_id) { %>
+                  <a class="btn app-btn" href="/invoices/<%= selectedStatusQuote.converted_invoice_id %>">Ver factura</a>
+                <% } %>
+              </div>
+            </article>
+
+            <% if (selectedStatusQuote.project_id && !selectedStatusQuote.isArchived && !selectedStatusQuote.converted_invoice_id) { %>
+              <section class="panel app-panel">
+                <div class="panel-header app-panel-header">
+                  <div>
+                    <h3>Anular cotizacion</h3>
+                    <p class="muted">El comentario es obligatorio y queda guardado como motivo de rechazo.</p>
+                  </div>
+                </div>
+                <form method="POST" action="/projects/<%= selectedStatusQuote.project_id %>/quotes/<%= selectedStatusQuote.id %>/status" class="projects-form-grid">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <input type="hidden" name="status" value="rejected" />
+                  <input type="hidden" name="return_to" value="<%= buildDashboardUrl({ section: 'quotes', quote_view: 'status', quote_target_id: selectedStatusQuote.id, quote_mode: '', quote_id: '' }) %>" />
+                  <label class="app-field projects-form-full">
+                    <span>Motivo de anulacion</span>
+                    <textarea class="app-textarea" name="rejection_comment" rows="3" placeholder="Escribe por que se anula esta cotizacion..." required><%= selectedStatusQuote.status === 'rejected' ? (selectedStatusQuote.rejection_comment || '') : '' %></textarea>
+                  </label>
+                  <div class="actions projects-form-full">
+                    <button type="submit" class="btn app-btn">Guardar anulacion</button>
+                  </div>
+                </form>
+              </section>
+            <% } %>
+          <% } %>
+        <% } else { %>
+          <div class="app-empty-state projects-empty-card">
+            <p class="app-empty-state-text">No hay cotizaciones registradas para cambiar de estado.</p>
+          </div>
+        <% } %>
+      </section>
+      <% } %>
+
+      <% if (currentQuoteView === 'new' && can('projects', 'quotes')) { %>
+      <section class="panel app-panel" id="new-quote">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Nueva cotizacion</h2>
+            <p class="muted">Agrega servicios, cantidades y condiciones comerciales desde una vista dedicada.</p>
+          </div>
+          <a class="btn app-btn" href="<%= quoteListHref %>">Ver listado</a>
+        </div>
+        <form method="POST" action="/projects/quotes/create" enctype="multipart/form-data" class="projects-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label class="app-field">
+            <span>Proyecto</span>
+            <select name="project_id">
+              <option value="">Sin proyecto</option>
+              <% projectOptions.forEach((project) => { %>
+                <option value="<%= project.id %>" <%= String(filters.quote_project_id || '') === String(project.id) ? 'selected' : '' %>><%= project.code ? `${project.code} - ` : '' %><%= project.name %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Titulo</span>
+            <input class="app-input" type="text" name="title" placeholder="Cotizacion principal del proyecto" />
+          </label>
+          <label class="app-field">
+            <span>Cliente</span>
+            <select name="customer_id">
+              <option value="">Usar cliente del proyecto</option>
+              <% customers.forEach((customer) => { %>
+                <option value="<%= customer.id %>"><%= truncateOptionLabel(`${customer.customer_code ? `${customer.customer_code} - ` : ''}${customer.name}`) %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Valida hasta</span>
+            <input class="app-input" type="date" name="valid_until" />
+          </label>
+          <label class="app-field">
+            <span>Moneda</span>
+            <select name="currency">
+              <% currencyOptions.forEach((currency) => { %>
+                <option value="<%= currency %>" <%= baseCurrency === currency ? 'selected' : '' %>><%= currency %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Tipo de cambio</span>
+            <input class="app-input" type="number" name="exchange_rate" step="0.0001" min="0" value="1" />
+          </label>
+          <label class="app-field">
+            <span>Estado</span>
+            <select name="status">
+              <% quoteEditableStatuses.forEach((status) => { %>
+                <option value="<%= status.key %>" <%= createDefaults.quote_status === status.key ? 'selected' : '' %>><%= status.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Margen %</span>
+            <input class="app-input" type="number" name="margin_percent" step="0.01" min="-100" value="0" />
+          </label>
+          <label class="app-field">
+            <span>Impuesto global %</span>
+            <input class="app-input" type="number" name="tax_rate" step="0.01" min="0" value="0" />
+          </label>
+          <label class="app-field">
+            <span>Descuento</span>
+            <select name="discount_type">
+              <option value="amount">Monto</option>
+              <option value="percent">%</option>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Valor descuento</span>
+            <input class="app-input" type="number" name="discount_value" step="0.01" min="0" value="0" />
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Descripcion general</span>
+            <textarea class="app-textarea" name="description" rows="2" placeholder="Alcance general, tiempos, condiciones y entregables."></textarea>
+          </label>
+          <fieldset class="app-field projects-form-full">
+            <legend>Campos visibles en PDF</legend>
+            <input type="hidden" name="pdf_fields_submitted" value="1" />
+            <div class="projects-quote-lines-summary">
+              <% quotePdfFieldGroups.forEach((group) => { %>
+                <div class="projects-quote-lines-summary__row">
+                  <strong><%= group.label %></strong>
+                  <span>
+                    <% group.fields.forEach((field) => { %>
+                      <label class="inline-form">
+                        <input type="checkbox" name="pdf_fields" value="<%= field.key %>" checked />
+                        <span><%= field.label %></span>
+                      </label>
+                    <% }) %>
+                  </span>
+                </div>
+              <% }) %>
+            </div>
+          </fieldset>
+
+          <div class="projects-quote-lines projects-form-full is-compact" data-quote-lines>
+            <div class="projects-quote-lines__header">
+              <div>
+                <h3>Servicios cotizados</h3>
+                <p class="muted projects-quote-lines__hint">Los campos extra estan ocultos. Puedes mostrarlos y usar el scroll horizontal si hace falta.</p>
+              </div>
+              <div class="projects-quote-lines__actions">
+                <button type="button" class="btn app-btn app-btn-small" data-toggle-quote-fields aria-expanded="false">Mostrar campos extra</button>
+                <button type="button" class="btn app-btn app-btn-small" data-add-quote-line>Agregar linea</button>
+              </div>
+            </div>
+            <div class="projects-quote-lines__scroll" data-quote-scroll>
+              <% for (let i = 0; i < 2; i += 1) { %>
+                <div class="projects-quote-line projects-quote-line--extended" data-quote-line>
+                  <label class="projects-quote-line__field"><span>Servicio</span><input class="app-input" type="text" name="line_service_name" placeholder="Servicio" /></label>
+                  <label class="projects-quote-line__field" data-quote-optional><span>Detalle o alcance</span><input class="app-input" type="text" name="line_service_details" placeholder="Detalle o alcance" /></label>
+                  <label class="projects-quote-line__field" data-quote-optional><span>Unidad</span><input class="app-input" type="text" name="line_service_unit" placeholder="Unidad" /></label>
+                  <label class="projects-quote-line__field"><span>Descripcion comercial</span><input class="app-input" type="text" name="line_description" placeholder="Descripcion comercial" /></label>
+                  <label class="projects-quote-line__field"><span>Cantidad</span><input class="app-input" type="number" name="line_qty" min="0" step="0.01" placeholder="Cant." /></label>
+                  <label class="projects-quote-line__field"><span>Costo</span><input class="app-input" type="number" name="line_unit_cost" min="0" step="0.01" placeholder="Costo" /></label>
+                  <label class="projects-quote-line__field"><span>Ganancia</span><input class="app-input" type="text" name="line_margin_percent" placeholder="100 o 20%" /></label>
+                  <label class="projects-quote-line__field"><span>Ganancia Q</span><input class="app-input" type="number" name="line_profit_amount" min="0" step="0.01" placeholder="Ganancia Q" readonly /></label>
+                  <label class="projects-quote-line__field"><span>Venta</span><input class="app-input" type="number" name="line_unit_price" min="0" step="0.01" placeholder="Venta" readonly /></label>
+                  <label class="projects-quote-line__field" data-quote-optional><span>IVA %</span><input class="app-input" type="number" name="line_tax_rate" min="0" step="0.01" placeholder="IVA %" /></label>
+                  <label class="projects-quote-line__field" data-quote-optional><span>Tipo descuento</span><select name="line_discount_type">
+                      <option value="percent">Desc. %</option>
+                      <option value="amount">Desc. monto</option>
+                    </select></label>
+                  <label class="projects-quote-line__field"><span>Descuento</span><input class="app-input" type="number" name="line_discount_value" min="0" step="0.01" placeholder="Desc. %" /></label>
+                  <label class="projects-quote-line__field"><span>Descuento Q</span><input class="app-input" type="number" name="line_discount_amount" min="0" step="0.01" placeholder="Desc. Q" readonly /></label>
+                </div>
+              <% } %>
+            </div>
+          </div>
+
+          <label class="app-field projects-form-full">
+            <span>Notas</span>
+            <textarea class="app-textarea" name="notes" rows="2"></textarea>
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Adjuntos para el PDF</span>
+            <input class="app-input" type="file" name="quote_attachments" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.png,.jpg,.jpeg,.webp,.gif" />
+          </label>
+          <div class="actions projects-form-full">
+            <button type="submit" class="btn primary app-btn app-btn-primary">Guardar cotizacion</button>
+          </div>
+        </form>
+      </section>
+      <% } %>
+    <% } %>
+  </main>
+
+  <script>
+    (function () {
+      const groups = document.querySelectorAll('[data-quote-lines]');
+      if (!groups.length) return;
+      groups.forEach(function (container) {
+        const addButton = container.querySelector('[data-add-quote-line]');
+        const toggleButton = container.querySelector('[data-toggle-quote-fields]');
+        const scrollArea = container.querySelector('[data-quote-scroll]') || container;
+        const numberValue = function (input) {
+          const value = Number(input && input.value);
+          return Number.isFinite(value) ? value : 0;
+        };
+        const profitValue = function (input, cost) {
+          const raw = String(input && input.value || '').trim().replace(',', '.');
+          if (!raw) return 0;
+          const numeric = Number(raw.replace('%', ''));
+          if (!Number.isFinite(numeric)) return 0;
+          return raw.includes('%') && cost > 0 ? cost * (numeric / 100) : numeric;
+        };
+        const syncLine = function (line) {
+          if (!line) return;
+          const qtyInput = line.querySelector('[name="line_qty"]');
+          const costInput = line.querySelector('[name="line_unit_cost"]');
+          const marginInput = line.querySelector('[name="line_margin_percent"]');
+          const profitInput = line.querySelector('[name="line_profit_amount"]');
+          const saleInput = line.querySelector('[name="line_unit_price"]');
+          const discountTypeInput = line.querySelector('[name="line_discount_type"]');
+          const discountValueInput = line.querySelector('[name="line_discount_value"]');
+          const discountAmountInput = line.querySelector('[name="line_discount_amount"]');
+          const qty = numberValue(qtyInput);
+          const cost = numberValue(costInput);
+          const profitPerUnit = profitValue(marginInput, cost);
+          const sale = cost + profitPerUnit;
+          const profitAmount = Math.max(0, qty * (sale - cost));
+          const discountValue = numberValue(discountValueInput);
+          const discountBase = qty * sale;
+          const discountAmount = discountTypeInput && discountTypeInput.value === 'amount'
+            ? discountValue
+            : discountBase * (discountValue / 100);
+          if (saleInput) saleInput.value = sale ? sale.toFixed(2) : '';
+          if (profitInput) profitInput.value = profitAmount ? profitAmount.toFixed(2) : '';
+          if (discountAmountInput) discountAmountInput.value = discountAmount ? discountAmount.toFixed(2) : '';
+        };
+        const bindLine = function (line) {
+          if (!line || line.dataset.quoteLineBound === '1') return;
+          line.dataset.quoteLineBound = '1';
+          line.querySelectorAll('input, select').forEach(function (field) {
+            field.addEventListener('input', function () { syncLine(line); });
+            field.addEventListener('change', function () { syncLine(line); });
+          });
+          syncLine(line);
+        };
+        scrollArea.querySelectorAll('[data-quote-line]').forEach(bindLine);
+        if (toggleButton) {
+          const syncToggle = function () {
+            const compact = container.classList.contains('is-compact');
+            toggleButton.textContent = compact ? 'Mostrar campos extra' : 'Ocultar campos extra';
+            toggleButton.setAttribute('aria-expanded', compact ? 'false' : 'true');
+          };
+          toggleButton.addEventListener('click', function () {
+            container.classList.toggle('is-compact');
+            syncToggle();
+          });
+          syncToggle();
+        }
+        if (!addButton) return;
+        addButton.addEventListener('click', function () {
+          const first = scrollArea.querySelector('[data-quote-line]');
+          if (!first) return;
+          const clone = first.cloneNode(true);
+          clone.dataset.quoteLineBound = '';
+          clone.querySelectorAll('input').forEach((input) => { input.value = ''; });
+          clone.querySelectorAll('select').forEach((select) => { select.selectedIndex = 0; });
+          scrollArea.appendChild(clone);
+          bindLine(clone);
+          scrollArea.scrollLeft = scrollArea.scrollWidth;
+        });
+      });
+    })();
+  </script>
+  <script src="/status-footer.js" defer></script>
+</body>
+</html>

@@ -330,7 +330,7 @@
 </label>
 <label>
 <%= t('consignatarios.country') %>
-<select name="country" data-country data-selected="">
+<select name="country" data-country data-selected="" required>
 <% countries.forEach(country => { %>
 <option value="<%= country %>">
 <%= country %>
@@ -356,8 +356,16 @@
 </label>
 <label>
 <%= t('consignatarios.full_address') %>
-<textarea name="full_address" rows="2" placeholder="<%= t('consignatarios.full_address') %>">
+<textarea name="full_address" rows="2" placeholder="<%= t('consignatarios.full_address') %>" required>
 </textarea>
+</label>
+<label>
+Codigo postal
+<input type="text" name="postal_code" />
+</label>
+<label>
+Referencia
+<input type="text" name="reference" />
 </label>
 <label>
 <%= t('consignatarios.notes') %>

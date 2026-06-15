@@ -75,6 +75,37 @@ body.page h2 {
   padding: clamp(16px, 2vw, 24px);
 }
 
+.address-select-search {
+  margin-bottom: 6px;
+}
+
+.address-status {
+  color: var(--muted, #64748b);
+}
+
+.address-loading select[data-country],
+.address-loading select[data-department],
+.address-loading select[data-municipality] {
+  cursor: progress;
+}
+
+.mensajeria-meta-menu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.mensajeria-meta-menu .app-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mensajeria-meta-menu .actions {
+  margin-top: auto;
+}
+
 .app-card,
 .app-container {
   padding: var(--space-5);
@@ -4958,6 +4989,10 @@ body.page .app-tag {
 }
 
 @media (max-width: 720px) {
+  .mensajeria-meta-menu {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .company-create-page .company-create-page-main {
     width: min(100% - 24px, 1440px);
   }
