@@ -25,14 +25,20 @@ function registerAuthRoutes(app, deps) {
   } = deps;
 
   app.get('/', (req, res) => {
-    if (req.session && req.session.user) return res.redirect('/dashboard');
     if (req.session && req.session.master) return res.redirect('/master');
+    if (req.session && req.session.user) {
+      const companySlug = createCompanySlug(req.session.company_slug || (req.session.company && req.session.company.slug) || req.session.company_name);
+      return res.redirect(companySlug ? `/${companySlug}/panel` : '/login');
+    }
     return res.redirect('/login');
   });
 
   app.get('/login', (req, res) => {
-    if (req.session && req.session.user) return res.redirect('/dashboard');
     if (req.session && req.session.master) return res.redirect('/master');
+    if (req.session && req.session.user) {
+      const companySlug = createCompanySlug(req.session.company_slug || (req.session.company && req.session.company.slug) || req.session.company_name);
+      return res.redirect(companySlug ? `/${companySlug}/panel` : '/login');
+    }
     return res.render('login', { error: null });
   });
 
@@ -54,6 +60,7 @@ function registerAuthRoutes(app, deps) {
 
     db.get('SELECT * FROM companies WHERE username = ? LIMIT 1', [companyUsername], (compErr, company) => {
       if (compErr || !company) {
+        console.log('[login] usuario encontrado=false company_id=null role=null redirect=null');
         return res.render('login', { error: res.locals.t('errors.invalid_credentials') });
       }
       if (company.is_active === 0 || company.is_active === '0') {
@@ -68,13 +75,16 @@ function registerAuthRoutes(app, deps) {
         [username, company.id],
         (userErr, user) => {
           if (userErr || !user || !user.password_hash) {
+            console.log(`[login] usuario encontrado=false company_id=${company.id} role=null redirect=null`);
             return res.render('login', { error: res.locals.t('errors.invalid_credentials') });
           }
           if (user.is_active === 0) {
+            console.log(`[login] usuario encontrado=true company_id=${company.id} role=${user.role || null} redirect=null`);
             return res.render('login', { error: res.locals.t('errors.invalid_credentials') });
           }
           const ok = bcrypt.compareSync(password, user.password_hash);
           if (!ok) {
+            console.log(`[login] usuario encontrado=true company_id=${company.id} role=${user.role || null} redirect=null`);
             return res.render('login', { error: res.locals.t('errors.invalid_credentials') });
           }
           loginRateLimit.delete(loginKey);
@@ -96,6 +106,7 @@ function registerAuthRoutes(app, deps) {
               username: user.username,
               role: user.role,
               is_active: user.is_active,
+              company_id: company.id,
               launcher_type: user.launcher_type || null,
               chat_display_name: user.chat_display_name || null,
               chat_presence_status: user.chat_presence_status || 'online',
@@ -103,6 +114,7 @@ function registerAuthRoutes(app, deps) {
               chat_profile_completed_at: user.chat_profile_completed_at || null
             };
             req.session.company_id = company.id;
+            req.session.companyId = company.id;
             req.session.company_name = companyName;
             req.session.company_slug = companySlug;
             req.session.company = {
@@ -149,7 +161,9 @@ function registerAuthRoutes(app, deps) {
               } else {
                 req.session.permissionMap = permissionMap;
               }
-              return res.redirect('/dashboard');
+              const redirectTarget = companySlug ? `/${companySlug}/panel` : '/login';
+              console.log(`[login] usuario encontrado=true company_id=${company.id} role=${user.role || null} redirect=${redirectTarget}`);
+              return res.redirect(redirectTarget);
             });
           });
         }
@@ -175,7 +189,8 @@ function registerAuthRoutes(app, deps) {
     if (req.session && SUPPORTED_LANGS[lang]) {
       req.session.lang = lang;
     }
-    const fallback = req.session && req.session.user ? '/dashboard' : '/login';
+    const companySlug = createCompanySlug(req.session && (req.session.company_slug || (req.session.company && req.session.company.slug) || req.session.company_name));
+    const fallback = req.session && req.session.user && companySlug ? `/${companySlug}/panel` : '/login';
     const referer = req.get('referer');
     if (referer && referer.startsWith(req.protocol + '://' + req.get('host'))) {
       return res.redirect(referer);

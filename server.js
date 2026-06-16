@@ -705,12 +705,12 @@ function requireCompanySlug(req, res, next) {
   const companySlug = createCompanySlug(req.params && req.params.companySlug);
   const sessionSlug = getSessionCompanySlug(req);
 
-  if (!sessionSlug) {
+  if (!(req.session && req.session.user) || !sessionSlug) {
     return res.redirect('/login');
   }
 
   if (companySlug !== sessionSlug) {
-    return res.status(403).send('No tienes acceso a esta empresa.');
+    return res.redirect(buildCompanyScopedPath(sessionSlug, '/dashboard'));
   }
 
   res.locals.currentCompanySlug = sessionSlug;
@@ -833,7 +833,7 @@ app.use((req, res, next) => {
       return requireCompanySlug(req, res, next);
     }
     if (firstSegment && !COMPANY_KNOWN_ROOTS.has(firstSegment) && firstSegment !== sessionSlug) {
-      return res.status(403).send('No tienes acceso a esta empresa.');
+      return res.redirect(buildCompanyScopedPath(sessionSlug, '/dashboard'));
     }
     if (pathname === '/') {
       return next();
@@ -841,7 +841,7 @@ app.use((req, res, next) => {
     if (req.method === 'GET' || req.method === 'HEAD') {
       return res.redirect(buildCompanyScopedPath(sessionSlug, pathname));
     }
-    return res.status(403).send('No tienes acceso a esta empresa.');
+    return res.redirect(buildCompanyScopedPath(sessionSlug, '/dashboard'));
   }
 
   const normalizedCandidate = normalizePathForModuleDetection(pathname);
@@ -5474,8 +5474,8 @@ db.serialize(() => {
 
 function getCompanyId(req) {
   const raw =
-    req.session && (req.session.company_id || (req.session.company && req.session.company.id))
-      ? req.session.company_id || (req.session.company && req.session.company.id)
+    req.session && (req.session.companyId || req.session.company_id || (req.session.company && req.session.company.id) || (req.session.user && req.session.user.company_id))
+      ? req.session.companyId || req.session.company_id || (req.session.company && req.session.company.id) || (req.session.user && req.session.user.company_id)
       : null;
   const parsed = Number(raw);
   if (!Number.isInteger(parsed) || parsed <= 0) return null;
@@ -8269,6 +8269,7 @@ function buildCompanyStatus(company) {
 
 function requireAuth(req, res, next) {
   if (req.session && req.session.user && getCompanyId(req)) {
+    req.session.companyId = getCompanyId(req);
     return next();
   }
   return res.redirect('/login');
@@ -8438,10 +8439,15 @@ function hasPermission(permissionMap, moduleCode, actionCode) {
 
 function requirePermission(moduleCode, actionCode) {
   return (req, res, next) => {
-    if (!req.session || !req.session.user || !getCompanyId(req)) {
+    const companyId = getCompanyId(req);
+    if (!req.session || !req.session.user || !companyId) {
       return res.redirect('/login');
     }
+    req.session.companyId = companyId;
     const map = req.session.permissionMap || null;
+    if (moduleCode === 'dashboard' && actionCode === 'view') {
+      return next();
+    }
     if (!hasPermission(map, moduleCode, actionCode)) {
       return res.status(403).send('Forbidden');
     }

@@ -371,6 +371,7 @@ function registerMasterCompanyRoutes(app, deps) {
             })()
           };
           req.session.user = user;
+          req.session.companyId = company.id;
           const allowedModulesValue = req.session.company.allowed_modules || null;
           getPermissionMap(user.id, company.id, allowedModulesValue, (permErr, permissionMap) => {
             if (permErr) {
