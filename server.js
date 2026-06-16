@@ -5156,6 +5156,7 @@ db.serialize(() => {
       ('billing','FacturaciÃ³n','FacturaciÃ³n y cobros'),
       ('accounting','Contabilidad','Contabilidad y finanzas'),
       ('agenda_medica','Agenda Medica','Citas y calendario medico'),
+      ('rrhh','RRHH','Gestion integral de recursos humanos'),
       ('portal','Portal clientes','Accesos al portal de clientes'),
       ('inventory','Inventario','GestiÃ³n de inventario'),
       ('production','Produccion y Manufactura','Ordenes de produccion, formulas BOM, costos y producto terminado'),
@@ -5267,7 +5268,13 @@ db.serialize(() => {
        WHERE pm.code = 'agenda_medica' AND pa.code IN ('view','create','edit','delete')`
     );
 
-    
+    db.run(
+      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+       SELECT pm.id, pa.id
+       FROM permission_modules pm, permission_actions pa
+       WHERE pm.code = 'rrhh' AND pa.code IN ('view','create','edit','delete','export','approve')`
+    );
+
 
     db.run(
       `INSERT OR IGNORE INTO module_actions (module_id, action_id)
