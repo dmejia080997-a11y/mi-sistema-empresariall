@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<%
+  const money = (value) => `GTQ ${Number(value || 0).toFixed(2)}`;
+  const date = (value) => value ? String(value).slice(0, 10) : 'Sin fecha';
+  const tabs = moduleTabs || [];
+  const flashMessage = flash || null;
+  const canManageSales = typeof can === 'function' ? can('sales', 'manage') : false;
+  const selectableUsers = access && access.unrestricted ? users : users.filter((user) => access.sellerIds.includes(user.id));
+%>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ventas / CRM</title>
+  <%- include('partials/head-assets') %>
+  <link rel="stylesheet" href="/css/sales.css" />
+</head>
+<body class="page sales-page">
+  <%- include('partials/header', { moduleTabs: tabs, activeTab: activeSection, currentModule: 'sales' }) %>
+  <main class="container sales-shell">
+    <%- include('partials/page-shell', {
+      pageTitle: 'Ventas / CRM Comercial',
+      pageSubtitle: 'Prospecto -> Oportunidad -> Cotizacion -> Pedido -> Factura -> Venta cerrada.'
+    }) %>
+
+    <%- include('partials/toasts', { flash: flashMessage }) %>
+
+    <section class="sales-tabs" aria-label="Secciones de ventas">
+      <% tabs.forEach((tab) => { %>
+        <a class="sales-tab <%= activeSection === tab.key ? 'is-active' : '' %>" href="<%= tab.href %>"><%= tab.label %></a>
+      <% }) %>
+    </section>
+
+    <% if (activeSection === 'dashboard' || activeSection === 'reports') { %>
+      <section class="sales-kpis">
+        <article><span>Ventas cerradas</span><strong><%= stats.sales.count || 0 %></strong></article>
+        <article><span>Total vendido</span><strong><%= money(stats.sales.total) %></strong></article>
+        <article><span>Comisiones</span><strong><%= money(stats.sales.commission) %></strong></article>
+        <article><span>Oportunidades</span><strong><%= stats.opportunities.count || 0 %></strong></article>
+        <article><span>Cotizaciones</span><strong><%= money(stats.quotes.total) %></strong></article>
+        <article><span>Pedidos</span><strong><%= money(stats.orders.total) %></strong></article>
+      </section>
+      <section class="sales-grid">
+        <article class="panel app-panel">
+          <div class="panel-header app-panel-header"><h2>Embudo comercial</h2></div>
+          <div class="sales-funnel">
+            <div><span>Prospectos</span><strong><%= prospects.length %></strong></div>
+            <div><span>Oportunidades</span><strong><%= opportunities.length %></strong></div>
+            <div><span>Cotizaciones</span><strong><%= quotes.length %></strong></div>
+            <div><span>Pedidos</span><strong><%= orders.length %></strong></div>
+            <div><span>Ventas</span><strong><%= salesRows.length %></strong></div>
+          </div>
+        </article>
+        <article class="panel app-panel">
+          <div class="panel-header app-panel-header"><h2>Ventas recientes</h2></div>
+          <div class="sales-list">
+            <% salesRows.slice(0, 8).forEach((sale) => { %>
+              <a href="/sales/<%= sale.id %>"><strong><%= sale.sale_number %></strong><span><%= sale.customer_name || sale.prospect_name || 'Sin cliente' %></span><em><%= money(sale.total) %></em></a>
+            <% }) %>
+            <% if (!salesRows.length) { %><p class="muted">No hay ventas cerradas.</p><% } %>
+          </div>
+        </article>
+      </section>
+    <% } %>
+
+    <% if (activeSection === 'clients') { %>
+      <section class="sales-grid">
+        <article class="panel app-panel">
+          <div class="panel-header app-panel-header"><h2>Nuevo prospecto</h2></div>
+          <form class="sales-form" method="post" action="/sales/prospects/create">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <label>Nombre<input name="name" required /></label>
+            <label>Contacto<input name="contact_name" /></label>
+            <label>Correo<input name="email" type="email" /></label>
+            <label>Telefono<input name="phone" /></label>
+            <label>Fuente<input name="source" /></label>
+            <% if (access.unrestricted || access.role === 'supervisor') { %>
+              <label>Vendedor<select name="assigned_user_id"><% selectableUsers.forEach((user) => { %><option value="<%= user.id %>"><%= user.username %></option><% }) %></select></label>
+            <% } %>
+            <label>Notas<textarea name="notes"></textarea></label>
+            <button class="btn app-btn primary" type="submit">Crear prospecto</button>
+          </form>
+        </article>
+        <article class="panel app-panel">
+          <div class="panel-header app-panel-header"><h2>Prospectos</h2></div>
+          <table class="sales-table"><thead><tr><th>Nombre</th><th>Contacto</th><th>Vendedor</th><th>Estado</th></tr></thead><tbody>
+            <% prospects.forEach((row) => { %><tr><td><%= row.name %></td><td><%= row.contact_name || row.email || row.phone || '' %></td><td><%= row.assigned_name || '' %></td><td><%= row.status %></td></tr><% }) %>
+          </tbody></table>
+        </article>
+      </section>
+    <% } %>
+
+    <% if (activeSection === 'opportunities') { %>
+      <section class="sales-grid">
+        <article class="panel app-panel">
+          <div class="panel-header app-panel-header"><h2>Nueva oportunidad</h2></div>
+          <form class="sales-form" method="post" action="/sales/opportunities/create">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <label>Titulo<input name="title" required /></label>
+            <label>Cliente<select name="customer_id"><option value="">Prospecto / sin cliente</option><% customers.forEach((customer) => { %><option value="<%= customer.id %>"><%= customer.name %></option><% }) %></select></label>
+            <label>Prospecto<select name="prospect_id"><option value="">Sin prospecto</option><% prospects.forEach((prospect) => { %><option value="<%= prospect.id %>"><%= prospect.name %></option><% }) %></select></label>
+            <label>Etapa<select name="stage"><option value="oportunidad">Oportunidad</option><option value="cotizacion">Cotizacion</option><option value="pedido">Pedido</option></select></label>
+            <label>Monto esperado<input name="expected_amount" type="number" step="0.01" /></label>
+            <label>Cierre esperado<input name="expected_close_date" type="date" /></label>
+            <% if (access.unrestricted || access.role === 'supervisor') { %>
+              <label>Vendedor<select name="seller_user_id"><% selectableUsers.forEach((user) => { %><option value="<%= user.id %>"><%= user.username %></option><% }) %></select></label>
+            <% } %>
+            <button class="btn app-btn primary" type="submit">Crear oportunidad</button>
+          </form>
+        </article>
+        <article class="panel app-panel">
+          <div class="panel-header app-panel-header"><h2>Oportunidades</h2></div>
+          <table class="sales-table"><thead><tr><th>Titulo</th><th>Cliente</th><th>Etapa</th><th>Monto</th><th>Vendedor</th></tr></thead><tbody>
+            <% opportunities.forEach((row) => { %><tr><td><%= row.title %></td><td><%= row.customer_name || row.prospect_name || '' %></td><td><%= row.stage %></td><td><%= money(row.expected_amount) %></td><td><%= row.seller_name %></td></tr><% }) %>
+          </tbody></table>
+        </article>
+      </section>
+    <% } %>
+
+    <% if (activeSection === 'quotes' || activeSection === 'sales') { %>
+      <section class="sales-grid">
+        <article class="panel app-panel">
+          <div class="panel-header app-panel-header"><h2><%= activeSection === 'quotes' ? 'Nueva cotizacion' : 'Venta directa' %></h2></div>
+          <form class="sales-form" method="post" action="<%= activeSection === 'quotes' ? '/sales/quotes/create' : '/sales/direct/create' %>" <%- activeSection === 'quotes' ? 'enctype="multipart/form-data"' : '' %>>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <label>Cliente<select name="customer_id"><option value="">Sin cliente</option><% customers.forEach((customer) => { %><option value="<%= customer.id %>"><%= customer.name %></option><% }) %></select></label>
+            <label>Prospecto<select name="prospect_id"><option value="">Sin prospecto</option><% prospects.forEach((prospect) => { %><option value="<%= prospect.id %>"><%= prospect.name %></option><% }) %></select></label>
+            <% if (activeSection === 'quotes') { %>
+              <label>Oportunidad<select name="opportunity_id"><option value="">Sin oportunidad</option><% opportunities.forEach((opportunity) => { %><option value="<%= opportunity.id %>"><%= opportunity.title %></option><% }) %></select></label>
+            <% } %>
+            <label>Tipo de linea<select name="line_type"><option value="product">Producto de inventario</option><option value="service">Servicio</option></select></label>
+            <label>Producto<select name="item_id"><option value="">Seleccionar</option><% items.forEach((item) => { %><option value="<%= item.id %>"><%= item.name %> - stock <%= item.qty %></option><% }) %></select></label>
+            <label>Descripcion servicio<input name="description" /></label>
+            <label>Cantidad<input name="qty" type="number" step="0.01" value="1" /></label>
+            <label>Precio unitario<input name="unit_price" type="number" step="0.01" required /></label>
+            <label>Descuento<input name="discount" type="number" step="0.01" value="0" /></label>
+            <label>Impuesto %<input name="tax_rate" type="number" step="0.01" value="0" /></label>
+            <% if (activeSection === 'quotes') { %>
+              <label>Soportes de la cotizacion<input name="quote_attachments" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.png,.jpg,.jpeg,.webp" /></label>
+            <% } %>
+            <% if (activeSection === 'sales') { %><label>Comision %<input name="commission_rate" type="number" step="0.01" value="0" /></label><% } %>
+            <% if (access.unrestricted || access.role === 'supervisor') { %>
+              <label>Vendedor<select name="seller_user_id"><% selectableUsers.forEach((user) => { %><option value="<%= user.id %>"><%= user.username %></option><% }) %></select></label>
+            <% } %>
+            <button class="btn app-btn primary" type="submit"><%= activeSection === 'quotes' ? 'Crear cotizacion' : 'Cerrar venta' %></button>
+          </form>
+        </article>
+        <% if (activeSection === 'quotes') { %>
+          <article class="panel app-panel">
+            <div class="panel-header app-panel-header"><h2>Cotizaciones</h2></div>
+            <table class="sales-table"><thead><tr><th>No.</th><th>Cliente</th><th>Total</th><th>Estado</th><th>Accion</th></tr></thead><tbody>
+              <% quotes.forEach((quote) => { %><tr><td><a href="/sales/quotes/<%= quote.id %>/print"><%= quote.quote_number %></a></td><td><%= quote.customer_name || quote.prospect_name || '' %></td><td><%= money(quote.total) %></td><td><%= quote.status %></td><td><div class="sales-actions"><a class="btn app-btn" href="/sales/quotes/<%= quote.id %>/print">PDF</a><form method="post" action="/sales/quotes/<%= quote.id %>/order"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn app-btn" type="submit">A pedido</button></form></div></td></tr><% }) %>
+            </tbody></table>
+          </article>
+        <% } else { %>
+          <article class="panel app-panel">
+            <div class="panel-header app-panel-header"><h2>Ventas cerradas</h2></div>
+            <table class="sales-table"><thead><tr><th>No.</th><th>Cliente</th><th>Tipo</th><th>Total</th><th>Comision</th></tr></thead><tbody>
+              <% salesRows.forEach((sale) => { %><tr><td><a href="/sales/<%= sale.id %>"><%= sale.sale_number %></a></td><td><%= sale.customer_name || sale.prospect_name || '' %></td><td><%= sale.sale_type %></td><td><%= money(sale.total) %></td><td><%= money(sale.commission) %></td></tr><% }) %>
+            </tbody></table>
+          </article>
+        <% } %>
+      </section>
+    <% } %>
+
+    <% if (activeSection === 'orders') { %>
+      <section class="panel app-panel">
+        <div class="panel-header app-panel-header"><h2>Pedidos de venta</h2></div>
+        <table class="sales-table"><thead><tr><th>No.</th><th>Cliente</th><th>Total</th><th>Estado</th><th>Accion</th></tr></thead><tbody>
+          <% orders.forEach((order) => { %>
+            <tr><td><%= order.order_number %></td><td><%= order.customer_name || order.prospect_name || '' %></td><td><%= money(order.total) %></td><td><%= order.status %></td><td>
+              <% if (order.status !== 'cerrado') { %>
+                <form method="post" action="/sales/orders/<%= order.id %>/close"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn app-btn primary" type="submit">Facturar y cerrar</button></form>
+              <% } %>
+            </td></tr>
+          <% }) %>
+        </tbody></table>
+      </section>
+    <% } %>
+
+    <% if (activeSection === 'commissions') { %>
+      <section class="panel app-panel">
+        <div class="panel-header app-panel-header"><h2>Comisiones</h2></div>
+        <table class="sales-table"><thead><tr><th>Venta</th><th>Vendedor</th><th>Base</th><th>%</th><th>Monto</th><th>Estado</th></tr></thead><tbody>
+          <% commissions.forEach((row) => { %><tr><td><%= row.sale_number %></td><td><%= row.seller_name %></td><td><%= money(row.base_amount) %></td><td><%= Number(row.rate || 0).toFixed(2) %></td><td><%= money(row.amount) %></td><td><%= row.status %></td></tr><% }) %>
+        </tbody></table>
+      </section>
+    <% } %>
+
+    <% if (activeSection === 'goals') { %>
+      <section class="sales-grid">
+        <% if (canManageSales) { %>
+          <article class="panel app-panel">
+            <div class="panel-header app-panel-header"><h2>Nueva meta</h2></div>
+            <form class="sales-form" method="post" action="/sales/goals/create">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <label>Vendedor<select name="seller_user_id"><% users.forEach((user) => { %><option value="<%= user.id %>"><%= user.username %></option><% }) %></select></label>
+              <label>Inicio<input name="period_start" type="date" /></label>
+              <label>Fin<input name="period_end" type="date" /></label>
+              <label>Monto meta<input name="target_amount" type="number" step="0.01" /></label>
+              <label>Cantidad meta<input name="target_count" type="number" step="1" /></label>
+              <button class="btn app-btn primary" type="submit">Guardar meta</button>
+            </form>
+          </article>
+        <% } %>
+        <article class="panel app-panel">
+          <div class="panel-header app-panel-header"><h2>Metas</h2></div>
+          <table class="sales-table"><thead><tr><th>Vendedor</th><th>Periodo</th><th>Monto</th><th>Cantidad</th></tr></thead><tbody>
+            <% goals.forEach((goal) => { %><tr><td><%= goal.seller_name %></td><td><%= date(goal.period_start) %> - <%= date(goal.period_end) %></td><td><%= money(goal.target_amount) %></td><td><%= goal.target_count %></td></tr><% }) %>
+          </tbody></table>
+        </article>
+      </section>
+    <% } %>
+
+    <% if (activeSection === 'team' && canManageSales) { %>
+      <section class="panel app-panel">
+        <div class="panel-header app-panel-header"><h2>Equipo comercial</h2></div>
+        <table class="sales-table"><thead><tr><th>Usuario</th><th>Rol</th><th>Supervisor</th><th>Comision</th><th></th></tr></thead><tbody>
+          <% users.forEach((user) => { %>
+            <tr>
+              <form method="post" action="/sales/team/update">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <input type="hidden" name="user_id" value="<%= user.id %>" />
+                <td><%= user.username %></td>
+                <td><select name="commercial_role"><option value="seller" <%= user.commercial_role === 'seller' ? 'selected' : '' %>>Vendedor</option><option value="supervisor" <%= user.commercial_role === 'supervisor' ? 'selected' : '' %>>Supervisor</option><option value="manager" <%= user.commercial_role === 'manager' ? 'selected' : '' %>>Gerente</option></select></td>
+                <td><select name="supervisor_user_id"><option value="">Sin supervisor</option><% users.forEach((sup) => { %><option value="<%= sup.id %>" <%= Number(user.supervisor_user_id || 0) === Number(sup.id) ? 'selected' : '' %>><%= sup.username %></option><% }) %></select></td>
+                <td><input name="commission_rate" type="number" step="0.01" value="<%= Number(user.commission_rate || 0).toFixed(2) %>" /></td>
+                <td><button class="btn app-btn" type="submit">Guardar</button></td>
+              </form>
+            </tr>
+          <% }) %>
+        </tbody></table>
+      </section>
+    <% } %>
+  </main>
+</body>
+</html>

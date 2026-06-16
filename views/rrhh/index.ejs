@@ -58,8 +58,11 @@ const activePagination =
   <script src="/js/rrhh.js" defer></script>
 </head>
 <body class="page hr-page app-module-page">
+  <% const hrModuleTabs = hrTabs.map((tab) => ({ key: tab.key, label: tab.label, href: tabUrl(tab.key, { page: 1, editId: null }) })); %>
   <%- include('../partials/header', {
-    headerBrandText: 'RRHH',
+    moduleTabs: hrModuleTabs,
+    activeTab,
+    currentModule: 'rrhh',
     headerNavItems: [
       { href: '/dashboard', label: 'Dashboard' },
       { href: '/logout', label: t('nav.logout') }
@@ -98,12 +101,6 @@ const activePagination =
         </article>
       </div>
     </section>
-
-    <nav class="module-nav hr-tabs app-toolbar app-module-tabs">
-      <% hrTabs.forEach((tab) => { %>
-        <a href="<%= tabUrl(tab.key, { page: 1, editId: null }) %>" class="<%= activeTab === tab.key ? 'active' : '' %>"><%= tab.label %></a>
-      <% }) %>
-    </nav>
 
     <% if (activeTab === 'employees') { const data = employees || { rows: [], filters: {}, pagination: null, view: 'list' }; %>
       <section class="panel">
@@ -419,8 +416,16 @@ const activePagination =
               <div>Q<%= Number(row.salary_base || 0).toFixed(2) %></div>
               <div>Q<%= Number(row.bonus_amount || 0).toFixed(2) %></div>
               <div><%= row.payment_method || '-' %></div>
-              <div><span class="status-badge"><%= row.status || '-' %></span></div>
+              <div><span class="status-badge"><%= row.status || '-' %></span><% if (row.last_paid_period) { %><small class="muted">Ultimo pago: <%= row.last_paid_period %> · Q<%= Number(row.last_paid_net || 0).toFixed(2) %></small><% } %></div>
               <div class="actions">
+                <% if (can('rrhh', 'approve')) { %>
+                <form method="POST" action="/rrhh/salaries/<%= row.id %>/pay" class="inline-form" onsubmit="return confirm('Registrar pago de planilla y contabilizarlo?');">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <input type="month" name="period" required />
+                  <input type="hidden" name="paid_at" value="<%= new Date().toISOString().slice(0,10) %>" />
+                  <button type="submit" class="btn primary">Pagar planilla</button>
+                </form>
+                <% } %>
                 <a class="btn" href="<%= tabUrl('salaries', { editId: row.id }) %>">Editar</a>
                 <form method="POST" action="/rrhh/salaries/<%= row.id %>/delete" class="inline-form">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />

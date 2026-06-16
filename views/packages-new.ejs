@@ -1,4 +1,19 @@
 <% var currentPackagesNav = typeof packagesNav !== 'undefined' ? packagesNav : 'new'; %>
+<%
+  var canCreatePackageTabs = can('packages', 'create');
+  var packageModuleTabs = [
+    { key: 'dashboard', label: t('packages.module.dashboard'), href: '/packages/dashboard' },
+    { key: 'list', label: t('packages.module.list'), href: '/packages' },
+    { key: 'pending_invoice', label: t('packages.module.pending_invoice'), href: '/packages/pending-invoice' }
+  ];
+  if (canCreatePackageTabs) {
+    packageModuleTabs.push({ key: 'new', label: t('packages.module.new'), href: '/packages/new' });
+  }
+  packageModuleTabs.push(
+    { key: 'statuses', label: t('packages.module.statuses'), href: '/packages/statuses' },
+    { key: 'tracking', label: t('packages.module.tracking'), href: '/packages/tracking' }
+  );
+%>
 <% var prefillData = typeof prefill !== 'undefined' && prefill ? prefill : {}; %>
 <!DOCTYPE html>
 <html lang="<%= lang %>">
@@ -11,7 +26,11 @@
 <%- include('partials/head-assets') %>
 </head>
 <body class="page">
-<%- include('partials/header') %>
+<%- include('partials/header', {
+  moduleTabs: packageModuleTabs,
+  activeTab: currentPackagesNav,
+  currentModule: 'packages'
+}) %>
 <main class="container packages-module">
 <div class="page-header">
 <div>
@@ -30,26 +49,6 @@
 <%= t('packages.module.list') %>
 </a>
 </div>
-</div>
-<div class="module-nav">
-<a href="/packages/dashboard" class="<%= currentPackagesNav === 'dashboard' ? 'active' : '' %>">
-<%= t('packages.module.dashboard') %>
-</a>
-<a href="/packages" class="<%= currentPackagesNav === 'list' ? 'active' : '' %>">
-<%= t('packages.module.list') %>
-</a>
-<a href="/packages/pending-invoice" class="<%= currentPackagesNav === 'pending_invoice' ? 'active' : '' %>">
-<%= t('packages.module.pending_invoice') %>
-</a>
-<a href="/packages/new" class="<%= currentPackagesNav === 'new' ? 'active' : '' %>">
-<%= t('packages.module.new') %>
-</a>
-<a href="/packages/statuses" class="<%= currentPackagesNav === 'statuses' ? 'active' : '' %>">
-<%= t('packages.module.statuses') %>
-</a>
-<a href="/packages/tracking" class="<%= currentPackagesNav === 'tracking' ? 'active' : '' %>">
-<%= t('packages.module.tracking') %>
-</a>
 </div>
 <section class="panel">
 <h2>

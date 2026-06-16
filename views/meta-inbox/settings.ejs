@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mensajeria meta - Configuracion Meta Inbox</title>
+<%- include('../partials/head-assets') %>
+<link rel="stylesheet" href="/css/meta-inbox.css" />
+</head>
+<body class="page">
+<%- include('../partials/header') %>
+<main class="container meta-inbox-page">
+<%- include('../partials/page-shell', {
+  pageEyebrow: 'Mensajeria meta',
+  pageTitle: 'Meta Inbox',
+  pageSubtitle: 'Conexion con Meta Graph API, Messenger Platform, Page API y Webhooks.',
+  pageActions: '<a class="btn app-btn" href="/mensajeria-meta">Menu</a><a class="btn app-btn" href="/meta-inbox">Volver a la bandeja</a>'
+}) %>
+<%- include('../partials/toasts') %>
+
+<section class="mi-settings-grid">
+  <article class="mi-panel">
+    <h2>Conexion</h2>
+    <dl class="mi-kv">
+      <dt>App ID</dt><dd><%= appId || 'No configurado' %></dd>
+      <dt>Graph API</dt><dd><%= graphVersion %></dd>
+      <dt>Estado</dt><dd><%= connection ? connection.status : 'Sin conexion' %></dd>
+      <dt>Token</dt><dd><%= connection && connection.masked_token ? connection.masked_token : 'No guardado' %></dd>
+      <dt>Verify token</dt><dd><%= verifyTokenConfigured ? 'Configurado' : 'Pendiente' %></dd>
+    </dl>
+
+    <% if (oauthReady) { %>
+      <a class="btn app-btn app-btn-primary" href="/meta-inbox/connect/facebook">Conectar con Facebook</a>
+      <small class="muted">Inicia sesion con el perfil que administra tu pagina y acepta los permisos solicitados.</small>
+    <% } else { %>
+      <p class="muted">Para conectar con Facebook desde aqui configura META_APP_ID, META_APP_SECRET y BASE_URL publico.</p>
+    <% } %>
+
+    <form method="POST" action="/meta-inbox/settings/test" class="mi-stack-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <label>Token oficial de usuario de Meta
+        <input class="app-input" type="password" name="user_access_token" autocomplete="off" placeholder="Pega un token con pages_show_list" />
+      </label>
+      <button class="btn app-btn" type="submit">Probar token manual y traer paginas</button>
+      <small class="muted">Opcion tecnica de respaldo. El token se cifra antes de guardarse.</small>
+    </form>
+  </article>
+
+  <article class="mi-panel">
+    <h2>Webhook</h2>
+    <dl class="mi-kv">
+      <dt>OAuth redirect URI</dt><dd><code><%= oauthRedirectUrl || 'Configura BASE_URL publico' %></code></dd>
+      <dt>Callback URL</dt><dd><code><%= callbackUrl %></code></dd>
+      <dt>Endpoint GET</dt><dd><code>/webhooks/meta</code></dd>
+      <dt>Endpoint POST</dt><dd><code>/webhooks/meta</code></dd>
+    </dl>
+    <p class="muted">Meta enviara Messenger, feed/comments y leadgen a este endpoint. La firma X-Hub-Signature-256 se valida con META_APP_SECRET.</p>
+  </article>
+</section>
+
+<section class="mi-panel">
+  <h2>Paginas conectadas</h2>
+  <% if (!pages.length) { %>
+    <p class="muted">Todavia no hay paginas. Prueba la conexion con un token oficial de Meta.</p>
+  <% } else { %>
+    <div class="mi-page-table">
+      <% pages.forEach((page) => { %>
+        <article>
+          <div>
+            <strong><%= page.page_name || page.page_id %></strong>
+            <small class="muted">ID <%= page.page_id %> · Token <%= page.has_page_token ? 'guardado' : 'pendiente' %></small>
+          </div>
+          <form method="POST" action="/meta-inbox/pages/<%= page.id %>/<%= Number(page.is_active) === 1 ? 'deactivate' : 'activate' %>">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <button class="btn app-btn <%= Number(page.is_active) === 1 ? '' : 'app-btn-primary' %>" type="submit">
+              <%= Number(page.is_active) === 1 ? 'Desactivar' : 'Activar' %>
+            </button>
+          </form>
+        </article>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

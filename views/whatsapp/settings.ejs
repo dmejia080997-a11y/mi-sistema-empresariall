@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mensajeria meta - Configuracion WhatsApp</title>
+<%- include('../partials/head-assets') %>
+<link rel="stylesheet" href="/css/whatsapp.css" />
+</head>
+<%
+  const accountStatus = account ? account.status || 'disconnected' : 'disconnected';
+  const connectionCopy = {
+    connected: {
+      label: 'Conectado',
+      title: 'WhatsApp esta conectado',
+      text: 'Meta confirmo este numero. Ya puedes enviar mensajes desde la bandeja.',
+      tone: 'success'
+    },
+    pending: {
+      label: 'Pendiente de verificar',
+      title: 'Falta verificar la conexion',
+      text: 'Guarda los datos y presiona Verificar y conectar para confirmar con Meta.',
+      tone: 'warning'
+    },
+    error: {
+      label: 'No conectado',
+      title: 'La ultima verificacion fallo',
+      text: 'Revisa el token y el Phone Number ID. Luego vuelve a verificar.',
+      tone: 'danger'
+    },
+    disconnected: {
+      label: 'No conectado',
+      title: 'WhatsApp no esta conectado',
+      text: 'Completa los datos de Meta, guarda la configuracion y verifica la conexion.',
+      tone: 'danger'
+    }
+  };
+  const connection = connectionCopy[accountStatus] || connectionCopy.disconnected;
+%>
+<body class="page">
+<%- include('../partials/header') %>
+<main class="container whatsapp-page">
+<%- include('../partials/page-shell', {
+  pageEyebrow: 'Mensajeria meta',
+  pageTitle: 'WhatsApp Business',
+  pageSubtitle: 'Primero guarda los datos de Meta. Luego verifica la conexion para saber si WhatsApp quedo conectado.',
+  pageActions: '<a class="btn app-btn" href="/mensajeria-meta">Menu</a><a class="btn app-btn" href="/whatsapp">Volver a la bandeja</a>'
+}) %>
+<%- include('../partials/toasts') %>
+
+<section class="wa-settings-grid">
+  <form method="POST" action="/whatsapp/settings" class="app-panel wa-settings-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+    <div class="wa-settings-callout">
+      <strong>Conexion recomendada: Meta Cloud API</strong>
+      <p class="muted">Completa Phone Number ID, WhatsApp Business Account ID y access token. Despues de guardar, usa el boton Verificar y conectar.</p>
+    </div>
+
+    <label class="app-field">
+      <span>Tipo de proveedor</span>
+      <select class="app-input" name="provider_type">
+        <option value="official_api" <%= !account || account.provider_type === 'official_api' ? 'selected' : '' %>>Oficial - Meta Cloud API</option>
+        <option value="qr_web" <%= account && account.provider_type === 'qr_web' ? 'selected' : '' %>>QR experimental - WhatsApp Web</option>
+      </select>
+    </label>
+
+    <div class="wa-form-grid">
+      <label class="app-field">
+        <span>Nombre del negocio</span>
+        <input class="app-input" name="business_name" value="<%= account ? account.business_name || '' : '' %>" placeholder="Nombre en WhatsApp Business" />
+      </label>
+      <label class="app-field">
+        <span>Telefono visible</span>
+        <input class="app-input" name="phone_number" value="<%= account ? account.phone_number || '' : '' %>" placeholder="+502..." />
+      </label>
+    </div>
+
+    <div class="wa-form-grid">
+      <label class="app-field">
+        <span>Phone Number ID</span>
+        <input class="app-input" name="phone_number_id" value="<%= account ? account.phone_number_id || '' : '' %>" autocomplete="off" />
+      </label>
+      <label class="app-field">
+        <span>WhatsApp Business Account ID</span>
+        <input class="app-input" name="whatsapp_business_account_id" value="<%= account ? account.whatsapp_business_account_id || '' : '' %>" autocomplete="off" />
+      </label>
+    </div>
+
+    <div class="wa-form-grid">
+      <label class="app-field">
+        <span>Meta App ID</span>
+        <input class="app-input" name="meta_app_id" value="<%= account ? account.meta_app_id || '' : '' %>" autocomplete="off" />
+      </label>
+      <label class="app-field">
+        <span>Webhook URL publica</span>
+        <input class="app-input" name="webhook_url" value="<%= account ? account.webhook_url || '' : '' %>" placeholder="https://tu-dominio.com/webhooks/whatsapp" />
+      </label>
+    </div>
+
+    <label class="app-field">
+      <span>Access token</span>
+      <input class="app-input" name="access_token" type="password" value="" autocomplete="new-password" placeholder="<%= account && Number(account.has_access_token) === 1 ? 'Token guardado. Escribe uno nuevo solo para reemplazarlo.' : 'Pega el token de Meta' %>" />
+    </label>
+
+    <label class="app-field">
+      <span>Webhook verify token</span>
+      <input class="app-input" name="webhook_verify_token" value="<%= account && account.webhook_verify_token ? account.webhook_verify_token : generatedVerifyToken %>" autocomplete="off" />
+    </label>
+
+    <label class="app-field">
+      <span>QR / sesion experimental</span>
+      <textarea class="app-textarea" name="qr_code" rows="4" placeholder="Reservado para proveedor QR no oficial"><%= account ? account.qr_code || '' : '' %></textarea>
+    </label>
+
+    <div class="wa-settings-warning">
+      <strong>Modo QR no oficial</strong>
+      <p>Este metodo puede fallar, cerrar sesion o incumplir politicas del proveedor. Se deja como integracion experimental, no como opcion principal para produccion.</p>
+    </div>
+
+    <div class="wa-form-actions">
+      <button type="submit" class="btn app-btn app-btn-primary">Guardar datos</button>
+    </div>
+  </form>
+
+  <aside class="app-panel wa-settings-side">
+    <div class="wa-connection-card wa-connection-card--<%= connection.tone %>">
+      <span class="wa-connection-card__label"><%= connection.label %></span>
+      <h2><%= connection.title %></h2>
+      <p><%= connection.text %></p>
+      <% if (account && account.last_connected_at) { %>
+        <small>Ultima conexion confirmada: <%= new Date(account.last_connected_at).toLocaleString('es-GT') %></small>
+      <% } %>
+    </div>
+    <form method="POST" action="/whatsapp/settings/test" class="wa-verify-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <button type="submit" class="btn app-btn app-btn-primary" <%= account && account.provider_type === 'official_api' ? '' : 'disabled' %>>Verificar y conectar</button>
+      <p class="muted">Este boton consulta Meta con el token guardado. Solo si Meta responde bien se marcara como conectado.</p>
+    </form>
+
+    <h2>Webhook de Meta</h2>
+    <dl>
+      <dt>URL</dt>
+      <dd><code>/webhooks/whatsapp</code></dd>
+      <dt>Verify token</dt>
+      <dd><code><%= account && account.webhook_verify_token ? account.webhook_verify_token : generatedVerifyToken %></code></dd>
+      <dt>Eventos</dt>
+      <dd>messages, statuses</dd>
+    </dl>
+    <h2>Seguridad</h2>
+    <p class="muted">El token se guarda cifrado cuando existe <code>WHATSAPP_TOKEN_SECRET</code>, <code>FILE_TOKEN_SECRET</code> o <code>SESSION_SECRET</code>. En pantalla solo se muestra si hay token guardado.</p>
+  </aside>
+</section>
+
+<section class="app-panel wa-templates-panel">
+  <div class="wa-section-heading">
+    <div>
+      <h2>Plantillas oficiales</h2>
+      <p class="muted">Registra aqui las plantillas ya creadas o aprobadas en Meta para enviarlas desde la bandeja.</p>
+    </div>
+  </div>
+
+  <form method="POST" action="/whatsapp/templates" class="wa-template-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <div class="wa-form-grid">
+      <label class="app-field">
+        <span>Nombre de plantilla</span>
+        <input class="app-input" name="template_name" placeholder="hello_world" />
+      </label>
+      <label class="app-field">
+        <span>Idioma</span>
+        <input class="app-input" name="language_code" value="es" />
+      </label>
+    </div>
+    <div class="wa-form-grid">
+      <label class="app-field">
+        <span>Categoria</span>
+        <input class="app-input" name="category" placeholder="MARKETING, UTILITY, AUTHENTICATION" />
+      </label>
+      <label class="app-field">
+        <span>Estado</span>
+        <input class="app-input" name="status" placeholder="APPROVED" />
+      </label>
+    </div>
+    <label class="app-field">
+      <span>Cuerpo</span>
+      <textarea class="app-textarea" name="body" rows="3" placeholder="Texto aprobado de la plantilla"></textarea>
+    </label>
+    <div class="wa-form-grid">
+      <label class="app-field">
+        <span>Header</span>
+        <input class="app-input" name="header" />
+      </label>
+      <label class="app-field">
+        <span>Footer</span>
+        <input class="app-input" name="footer" />
+      </label>
+    </div>
+    <label class="app-field">
+      <span>Buttons JSON</span>
+      <textarea class="app-textarea" name="buttons_json" rows="2" placeholder='[{"type":"URL","text":"Ver"}]'></textarea>
+    </label>
+    <button class="btn app-btn app-btn-primary" type="submit">Guardar plantilla</button>
+  </form>
+
+  <div class="wa-template-list">
+    <% if (!templates || !templates.length) { %>
+      <p class="muted">No hay plantillas registradas.</p>
+    <% } %>
+    <% (templates || []).forEach((tpl) => { %>
+      <article>
+        <strong><%= tpl.template_name %></strong>
+        <small class="muted"><%= tpl.language_code %> · <%= tpl.category || '-' %> · <%= tpl.status || '-' %></small>
+        <% if (tpl.body) { %><p><%= tpl.body %></p><% } %>
+      </article>
+    <% }) %>
+  </div>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

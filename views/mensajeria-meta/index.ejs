@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mensajeria meta</title>
+<%- include('../partials/head-assets') %>
+<link rel="stylesheet" href="/css/meta-inbox.css" />
+<link rel="stylesheet" href="/css/whatsapp.css" />
+</head>
+<body class="page">
+<%- include('../partials/header') %>
+<main class="container meta-inbox-page">
+<%- include('../partials/page-shell', {
+  pageEyebrow: 'Modulo unificado',
+  pageTitle: 'Mensajeria meta',
+  pageSubtitle: 'Selecciona el canal de atencion que quieres abrir.'
+}) %>
+<%- include('../partials/toasts') %>
+
+<section class="mensajeria-meta-menu">
+  <article class="app-panel">
+    <h2>WhatsApp Business</h2>
+    <p class="muted">Bandeja para conversaciones de WhatsApp Cloud API, plantillas, adjuntos, asignaciones y notas.</p>
+    <div class="actions">
+      <a class="btn app-btn app-btn-primary" href="/whatsapp">Entrar</a>
+      <% if (typeof can === 'function' && can('whatsapp', 'manage')) { %>
+      <a class="btn app-btn" href="/whatsapp/settings">Configurar</a>
+      <% } %>
+    </div>
+  </article>
+
+  <article class="app-panel">
+    <h2>Meta Inbox</h2>
+    <p class="muted">Bandeja oficial para Messenger, comentarios de Facebook y Lead Ads conectados con Meta.</p>
+    <div class="actions">
+      <a class="btn app-btn app-btn-primary" href="/meta-inbox">Entrar</a>
+      <% if (typeof can === 'function' && can('meta_inbox', 'settings')) { %>
+      <a class="btn app-btn" href="/meta-inbox/settings">Configurar</a>
+      <% } %>
+    </div>
+  </article>
+</section>
+</main>
+</body>
+</html>

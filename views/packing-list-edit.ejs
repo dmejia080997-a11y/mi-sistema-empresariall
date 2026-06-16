@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Packing List <%= invoice.invoiceNumber %></title>
+<%- include('partials/head-assets') %>
+<link rel="stylesheet" href="/css/invoices.css" />
+</head>
+<%
+  const formatDate = (value) => {
+    if (!value) return 'Sin fecha';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString('es-GT', { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+  const formatMeasure = (value, precision = 2) => Number(value || 0).toFixed(precision).replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1');
+%>
+<body class="page invoice-erp-page">
+<%- include('partials/header', {
+  moduleTabs,
+  activeTab: 'facturas',
+  currentModule: 'invoices'
+}) %>
+<main class="container invoice-detail-shell">
+  <%- include('partials/page-shell', {
+    pageTitle: `Packing List · ${invoice.invoiceNumber}`,
+    pageSubtitle: `${invoice.header.customerName} · ${formatDate(invoice.header.issueDate)}`,
+    pageActions: `
+      <a class="btn app-btn" href="/invoices/${invoice.header.id}">Volver a factura</a>
+      <a class="btn app-btn" href="/invoices/${invoice.header.id}/packing-list/pdf" target="_blank">Vista previa PDF</a>
+      <a class="btn app-btn" href="/invoices/${invoice.header.id}/packing-list/pdf?download=1" target="_blank">Descargar PDF</a>
+    `
+  }) %>
+
+  <%- include('partials/toasts', {
+    error: null,
+    message: notice ? { type: 'success', message: notice } : null
+  }) %>
+
+  <section class="packing-list-summary-grid">
+    <article class="invoice-kpi-card">
+      <span class="invoice-kpi-label">Factura</span>
+      <strong class="invoice-kpi-value packing-list-kpi-value"><%= packingList.invoiceNumber %></strong>
+    </article>
+    <article class="invoice-kpi-card">
+      <span class="invoice-kpi-label">Cliente</span>
+      <strong class="packing-list-kpi-text"><%= invoice.header.customerName %></strong>
+      <small class="muted"><%= invoice.header.customerCode || 'Sin documento' %></small>
+    </article>
+    <article class="invoice-kpi-card">
+      <span class="invoice-kpi-label">Lineas</span>
+      <strong class="invoice-kpi-value packing-list-kpi-value"><%= packingList.items.length %></strong>
+    </article>
+    <article class="invoice-kpi-card">
+      <span class="invoice-kpi-label">Total bultos</span>
+      <strong class="invoice-kpi-value packing-list-kpi-value" id="packing-summary-packages"><%= formatMeasure(packingList.totals.totalPackages, 2) %></strong>
+    </article>
+    <article class="invoice-kpi-card">
+      <span class="invoice-kpi-label">Peso total</span>
+      <strong class="invoice-kpi-value packing-list-kpi-value" id="packing-summary-weight"><%= formatMeasure(packingList.totals.totalWeight, 3) %></strong>
+    </article>
+    <article class="invoice-kpi-card">
+      <span class="invoice-kpi-label">Volumen</span>
+      <strong class="invoice-kpi-value packing-list-kpi-value" id="packing-summary-volume"><%= packingList.totals.totalVolume ? `${formatMeasure(packingList.totals.totalVolume, 3)} ${packingList.totals.hasMixedVolumeUnits ? '' : `${packingList.totals.volumeUnit || 'u'}³`}` : '-' %></strong>
+      <small class="muted"><%= packingList.updatedAt ? `Actualizado: ${formatDate(packingList.updatedAt)}` : 'Sin guardar previo' %></small>
+    </article>
+  </section>
+
+  <section class="panel app-panel packing-list-panel">
+    <div class="panel-header app-panel-header">
+      <div>
+        <h2>Vista previa editable</h2>
+        <p class="muted">Cada linea se guarda por `company_id` e `invoice_id`. El PDF toma estos datos guardados.</p>
+      </div>
+    </div>
+
+    <form method="POST" action="/invoices/<%= invoice.header.id %>/packing-list/save" class="packing-list-form" id="packing-list-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+      <div class="packing-list-meta-grid">
+        <div class="invoice-record-grid">
+          <div><span class="muted">Cliente</span><strong><%= invoice.header.customerName %></strong></div>
+          <div><span class="muted">Documento</span><strong><%= invoice.header.customerCode || 'N/D' %></strong></div>
+          <div><span class="muted">Direccion</span><strong><%= invoice.header.customerAddress || 'Sin direccion' %></strong></div>
+          <div><span class="muted">Telefono</span><strong><%= invoice.header.customerPhone || 'N/D' %></strong></div>
+          <div><span class="muted">Correo</span><strong><%= invoice.header.customerEmail || 'N/D' %></strong></div>
+          <div><span class="muted">Fecha</span><strong><%= formatDate(invoice.header.issueDate) %></strong></div>
+        </div>
+      </div>
+
+      <div class="packing-list-table-wrap">
+        <table class="app-table packing-list-table">
+          <thead>
+            <tr>
+              <th>No.</th>
+              <th>Descripcion</th>
+              <th>SKU</th>
+              <th>Cantidad</th>
+              <th>Peso unitario</th>
+              <th>Peso total</th>
+              <th>Largo</th>
+              <th>Ancho</th>
+              <th>Alto</th>
+              <th>Unidad</th>
+              <th>Bultos</th>
+              <th>Tipo de empaque</th>
+              <th>Observaciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% packingList.items.forEach((item) => { %>
+              <tr data-packing-row data-qty="<%= item.qty %>">
+                <td>
+                  <strong><%= item.lineNumber %></strong>
+                  <input type="hidden" name="invoice_item_id" value="<%= item.invoiceItemId %>" />
+                </td>
+                <td class="packing-list-description-cell">
+                  <strong><%= item.description %></strong>
+                </td>
+                <td><%= item.sku || '-' %></td>
+                <td><%= formatMeasure(item.qty, 2) %></td>
+                <td>
+                  <input class="app-input" type="number" min="0" step="0.001" name="weight_unit" value="<%= item.weightUnit || '' %>" data-weight-unit />
+                </td>
+                <td>
+                  <input class="app-input" type="number" min="0" step="0.001" name="weight_total" value="<%= item.weightTotal || '' %>" data-weight-total />
+                  <small class="muted" data-weight-suggested></small>
+                </td>
+                <td><input class="app-input" type="number" min="0" step="0.001" name="length" value="<%= item.length || '' %>" data-dimension /></td>
+                <td><input class="app-input" type="number" min="0" step="0.001" name="width" value="<%= item.width || '' %>" data-dimension /></td>
+                <td><input class="app-input" type="number" min="0" step="0.001" name="height" value="<%= item.height || '' %>" data-dimension /></td>
+                <td>
+                  <select name="dimension_unit" data-dimension-unit>
+                    <% ['cm', 'm', 'mm', 'in', 'ft'].forEach((unit) => { %>
+                      <option value="<%= unit %>" <%= item.dimensionUnit === unit ? 'selected' : '' %>><%= unit %></option>
+                    <% }) %>
+                  </select>
+                </td>
+                <td><input class="app-input" type="number" min="0" step="0.01" name="packages_count" value="<%= item.packagesCount || '' %>" data-packages /></td>
+                <td><input class="app-input" type="text" name="package_type" value="<%= item.packageType || '' %>" placeholder="Caja, pallet..." /></td>
+                <td><textarea class="app-textarea" name="notes" rows="2" placeholder="Notas por linea"><%= item.notes || '' %></textarea></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="packing-list-actions">
+        <button type="submit" class="btn primary app-btn app-btn-primary">Guardar Packing List</button>
+        <button type="submit" class="btn app-btn" formaction="/invoices/<%= invoice.header.id %>/packing-list/save?next=pdf" formtarget="_blank">Vista previa PDF</button>
+        <button type="submit" class="btn app-btn" formaction="/invoices/<%= invoice.header.id %>/packing-list/save?next=download" formtarget="_blank">Descargar PDF</button>
+        <button type="submit" class="btn app-btn" formaction="/invoices/<%= invoice.header.id %>/packing-list/save?next=print" formtarget="_blank">Imprimir Packing List</button>
+      </div>
+    </form>
+  </section>
+</main>
+
+<script>
+  (function () {
+    const form = document.getElementById('packing-list-form');
+    if (!form) return;
+
+    const rows = Array.from(form.querySelectorAll('[data-packing-row]'));
+    const summaryPackages = document.getElementById('packing-summary-packages');
+    const summaryWeight = document.getElementById('packing-summary-weight');
+    const summaryVolume = document.getElementById('packing-summary-volume');
+
+    function toNumber(value) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function formatMeasure(value, precision) {
+      return toNumber(value).toFixed(precision).replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1');
+    }
+
+    function refresh() {
+      let totalPackages = 0;
+      let totalWeight = 0;
+      let totalVolume = 0;
+      const volumeUnits = new Set();
+
+      rows.forEach((row) => {
+        const qty = toNumber(row.dataset.qty);
+        const weightUnitInput = row.querySelector('[data-weight-unit]');
+        const weightTotalInput = row.querySelector('[data-weight-total]');
+        const suggested = row.querySelector('[data-weight-suggested]');
+        const dimensions = Array.from(row.querySelectorAll('[data-dimension]'));
+        const packagesInput = row.querySelector('[data-packages]');
+        const unitSelect = row.querySelector('[data-dimension-unit]');
+
+        const weightUnit = toNumber(weightUnitInput.value);
+        const suggestedWeight = weightUnit > 0 ? weightUnit * qty : 0;
+        if (!weightTotalInput.value && suggestedWeight > 0) {
+          weightTotalInput.value = suggestedWeight.toFixed(3);
+        }
+        suggested.textContent = suggestedWeight > 0 ? `Sugerido: ${formatMeasure(suggestedWeight, 3)}` : '';
+
+        const weightTotal = toNumber(weightTotalInput.value);
+        const packages = toNumber(packagesInput.value);
+        const length = toNumber(dimensions[0].value);
+        const width = toNumber(dimensions[1].value);
+        const height = toNumber(dimensions[2].value);
+        const volume = length > 0 && width > 0 && height > 0 && packages > 0 ? length * width * height * packages : 0;
+
+        totalPackages += packages;
+        totalWeight += weightTotal;
+        totalVolume += volume;
+        if (volume > 0 && unitSelect.value) volumeUnits.add(unitSelect.value);
+      });
+
+      summaryPackages.textContent = formatMeasure(totalPackages, 2);
+      summaryWeight.textContent = formatMeasure(totalWeight, 3);
+      if (totalVolume > 0) {
+        const unit = volumeUnits.size === 1 ? `${Array.from(volumeUnits)[0]}³` : '';
+        summaryVolume.textContent = `${formatMeasure(totalVolume, 3)}${unit ? ` ${unit}` : ''}`;
+      } else {
+        summaryVolume.textContent = '-';
+      }
+    }
+
+    form.addEventListener('input', refresh);
+    form.addEventListener('change', refresh);
+    refresh();
+  })();
+</script>
+</body>
+</html>

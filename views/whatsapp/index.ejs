@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mensajeria meta - WhatsApp</title>
+<%- include('../partials/head-assets') %>
+<link rel="stylesheet" href="/css/whatsapp.css" />
+</head>
+<%
+  const fmt = (value) => {
+    if (!value) return 'Sin fecha';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString('es-GT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
+  const statusLabel = { open: 'Abierta', pending: 'Pendiente', closed: 'Cerrada' };
+  const priorityLabel = { low: 'Baja', normal: 'Normal', high: 'Alta', urgent: 'Urgente' };
+  const typeLabel = { text: 'Texto', image: 'Imagen', document: 'Documento', audio: 'Audio', video: 'Video', location: 'Ubicacion', template: 'Plantilla' };
+  const initials = (name) => String(name || 'WA').trim().split(/\s+/).slice(0, 2).map((p) => p.charAt(0).toUpperCase()).join('') || 'WA';
+  const accountStatus = account ? account.status || 'disconnected' : 'disconnected';
+  const connectionCopy = {
+    connected: ['Conectado', 'WhatsApp esta verificado con Meta y listo para enviar mensajes.', 'success'],
+    pending: ['Pendiente de verificar', 'Guarda o revisa la configuracion y presiona Verificar y conectar.', 'warning'],
+    error: ['No conectado', 'La ultima verificacion fallo. Revisa la configuracion de WhatsApp.', 'danger'],
+    disconnected: ['No conectado', 'Configura WhatsApp y verifica la conexion antes de enviar mensajes.', 'danger']
+  };
+  const connection = connectionCopy[accountStatus] || connectionCopy.disconnected;
+  const filters = [
+    ['open', 'Abiertos'],
+    ['pending', 'Pendientes'],
+    ['closed', 'Cerrados'],
+    ['unread', 'No leidos'],
+    ['mine', 'Asignados a mi'],
+    ['unassigned', 'Sin asignar'],
+    ['all', 'Todos']
+  ];
+%>
+<body class="page">
+<%- include('../partials/header') %>
+<main class="container whatsapp-page">
+<%- include('../partials/page-shell', {
+  pageEyebrow: 'Mensajeria meta',
+  pageTitle: 'WhatsApp Business',
+  pageSubtitle: 'Bandeja por empresa para atender conversaciones, asignarlas y conservar el historial.',
+  pageActions: (access.isAdmin ? '<a class="btn app-btn app-btn-primary" href="/whatsapp/settings">Configurar WhatsApp</a>' : '') + '<a class="btn app-btn" href="/mensajeria-meta">Menu</a>'
+}) %>
+<%- include('../partials/toasts') %>
+
+<section class="wa-status-strip">
+  <div>
+    <strong><%= connection[0] %></strong>
+    <small class="muted">
+      <%= connection[1] %>
+      <% if (account) { %>
+        Telefono: <%= account.phone_number || '-' %>.
+      <% } %>
+    </small>
+  </div>
+  <% if (account && account.provider_type === 'qr_web') { %>
+    <span class="app-chip app-chip-warning">No oficial / no recomendado para produccion</span>
+  <% } else if (connection[2] === 'success') { %>
+    <span class="app-chip app-chip-success">Conexion confirmada</span>
+  <% } else if (connection[2] === 'warning') { %>
+    <span class="app-chip app-chip-warning">Verificacion pendiente</span>
+  <% } else { %>
+    <a class="btn app-btn app-btn-primary" href="/whatsapp/settings">Conectar WhatsApp</a>
+  <% } %>
+</section>
+
+<section class="wa-shell">
+  <aside class="wa-sidebar">
+    <form method="GET" action="/whatsapp" class="wa-search">
+      <input class="app-input" type="search" name="q" value="<%= search || '' %>" placeholder="Buscar nombre, telefono o mensaje" />
+      <input type="hidden" name="filter" value="<%= filter %>" />
+    </form>
+
+    <nav class="wa-filters" aria-label="Filtros de conversaciones">
+      <% filters.forEach(([key, label]) => { %>
+        <a href="/whatsapp?filter=<%= key %><%= search ? `&q=${encodeURIComponent(search)}` : '' %>" class="<%= filter === key ? 'is-active' : '' %>"><%= label %></a>
+      <% }) %>
+    </nav>
+
+    <div class="wa-chat-list">
+      <% if (!conversations.length) { %>
+        <div class="app-empty-state wa-empty-small">
+          <p class="app-empty-state-text">No hay conversaciones para este filtro.</p>
+        </div>
+      <% } %>
+      <% conversations.forEach((conversation) => { %>
+        <a class="wa-chat-card <%= selectedConversation && selectedConversation.id === conversation.id ? 'is-active' : '' %>" href="/whatsapp?filter=<%= filter %>&conversation=<%= conversation.id %><%= search ? `&q=${encodeURIComponent(search)}` : '' %>">
+          <span class="wa-avatar"><%= initials(conversation.contact_name || conversation.contact_phone) %></span>
+          <span class="wa-chat-card__body">
+            <strong><%= conversation.contact_name || conversation.contact_phone %></strong>
+            <small><%= conversation.contact_phone %> · <%= statusLabel[conversation.status] || conversation.status %></small>
+            <span><%= conversation.last_message || 'Sin mensajes todavia.' %></span>
+          </span>
+          <span class="wa-chat-card__meta">
+            <small><%= fmt(conversation.last_message_at || conversation.updated_at) %></small>
+            <% if (Number(conversation.unread_count || 0) > 0) { %>
+              <b><%= conversation.unread_count %></b>
+            <% } %>
+          </span>
+        </a>
+      <% }) %>
+    </div>
+  </aside>
+
+  <section class="wa-conversation">
+    <% if (!selectedConversation) { %>
+      <div class="app-empty-state wa-empty-main">
+        <h2 class="app-empty-state-title">Selecciona una conversacion</h2>
+        <p class="app-empty-state-text">Los mensajes entrantes desde el webhook apareceran aqui por empresa.</p>
+      </div>
+    <% } else { %>
+      <header class="wa-conversation__header">
+        <div class="wa-person">
+          <span class="wa-avatar wa-avatar-large"><%= initials(selectedConversation.contact_name || selectedConversation.contact_phone) %></span>
+          <div>
+            <h2><%= selectedConversation.contact_name || selectedConversation.contact_phone %></h2>
+            <p class="muted"><%= selectedConversation.contact_phone %> · <%= selectedConversation.assigned_username ? `Asignado a ${selectedConversation.assigned_username}` : 'Sin asignar' %></p>
+          </div>
+        </div>
+        <div class="wa-tag-row">
+          <% (selectedConversation.tags || []).forEach((tag) => { %>
+            <span class="wa-tag" style="--tag-color:<%= tag.color || '#0f766e' %>"><%= tag.label %></span>
+          <% }) %>
+        </div>
+      </header>
+
+      <div class="wa-message-list">
+        <% if (!messages.length) { %>
+          <div class="app-empty-state wa-empty-small">
+            <p class="app-empty-state-text">Todavia no hay mensajes guardados.</p>
+          </div>
+        <% } %>
+        <% messages.forEach((message) => { %>
+          <article class="wa-message <%= message.direction === 'outbound' ? 'is-outbound' : 'is-inbound' %>">
+            <div class="wa-message__meta">
+              <strong><%= message.direction === 'outbound' ? 'Agente' : (selectedConversation.contact_name || 'Cliente') %></strong>
+              <span><%= typeLabel[message.message_type] || message.message_type %> · <%= fmt(message.timestamp || message.created_at) %></span>
+            </div>
+            <% if (message.body) { %><p><%= message.body %></p><% } %>
+            <% if (message.attachment_id) { %>
+              <a class="wa-attachment" href="/whatsapp/attachments/<%= message.attachment_id %>/download"><%= message.original_name || 'Adjunto' %></a>
+            <% } else if (message.media_url && message.direction === 'inbound') { %>
+              <span class="wa-attachment">Media ID: <%= message.media_url %></span>
+            <% } %>
+            <small class="wa-message__status"><%= message.status %></small>
+          </article>
+        <% }) %>
+      </div>
+
+      <form method="POST" action="/whatsapp/conversations/<%= selectedConversation.id %>/message" enctype="multipart/form-data" class="wa-compose">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <textarea class="app-textarea" name="body" rows="3" placeholder="Escribe una respuesta..."></textarea>
+        <div class="wa-compose__actions">
+          <input type="file" name="attachment" />
+          <button class="btn app-btn app-btn-primary" type="submit">Enviar</button>
+        </div>
+        <small class="muted">Adjuntos hasta <%= uploadLimitMb %> MB. Para archivos enviados por Meta Cloud API se guarda el ID de media recibido.</small>
+      </form>
+      <% if (templates && templates.length) { %>
+        <form method="POST" action="/whatsapp/send-template" class="wa-template-send">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <input type="hidden" name="conversation_id" value="<%= selectedConversation.id %>" />
+          <select class="app-input" name="template_id">
+            <% templates.forEach((tpl) => { %>
+              <option value="<%= tpl.id %>"><%= tpl.template_name %> (<%= tpl.language_code %>)</option>
+            <% }) %>
+          </select>
+          <input class="app-input" name="language_code" value="es" />
+          <button class="btn app-btn" type="submit">Enviar plantilla</button>
+        </form>
+      <% } %>
+    <% } %>
+  </section>
+
+  <aside class="wa-detail">
+    <% if (selectedConversation) { %>
+      <section class="wa-detail-section">
+        <h3>Cliente</h3>
+        <dl>
+          <dt>Nombre</dt><dd><%= selectedConversation.contact_name || '-' %></dd>
+          <dt>Telefono</dt><dd><%= selectedConversation.contact_phone || '-' %></dd>
+          <dt>Email</dt><dd><%= selectedConversation.contact_email || '-' %></dd>
+          <dt>Pais</dt><dd><%= selectedConversation.contact_country || '-' %></dd>
+          <dt>Origen</dt><dd><%= selectedConversation.contact_source || 'whatsapp' %></dd>
+        </dl>
+      </section>
+
+      <section class="wa-detail-section">
+        <h3>Gestion</h3>
+        <form method="POST" action="/whatsapp/conversations/<%= selectedConversation.id %>/status" class="wa-stack-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label>Estado
+            <select class="app-input" name="status">
+              <% ['open','pending','closed'].forEach((item) => { %>
+                <option value="<%= item %>" <%= selectedConversation.status === item ? 'selected' : '' %>><%= statusLabel[item] %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>Prioridad
+            <select class="app-input" name="priority">
+              <% ['low','normal','high','urgent'].forEach((item) => { %>
+                <option value="<%= item %>" <%= selectedConversation.priority === item ? 'selected' : '' %>><%= priorityLabel[item] %></option>
+              <% }) %>
+            </select>
+          </label>
+          <button class="btn app-btn" type="submit">Actualizar</button>
+        </form>
+
+        <form method="POST" action="/whatsapp/conversations/<%= selectedConversation.id %>/assign" class="wa-stack-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label>Asignar a
+            <select class="app-input" name="assigned_user_id">
+              <option value="">Sin asignar</option>
+              <% users.forEach((entry) => { %>
+                <option value="<%= entry.id %>" <%= Number(selectedConversation.assigned_user_id || 0) === Number(entry.id) ? 'selected' : '' %>><%= entry.username %></option>
+              <% }) %>
+            </select>
+          </label>
+          <button class="btn app-btn" type="submit">Reasignar</button>
+        </form>
+      </section>
+
+      <section class="wa-detail-section">
+        <h3>Etiquetas</h3>
+        <form method="POST" action="/whatsapp/conversations/<%= selectedConversation.id %>/tag" class="wa-inline-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <input class="app-input" name="label" placeholder="Nueva etiqueta" />
+          <input class="app-input wa-color-input" name="color" type="color" value="#0f766e" />
+          <button class="btn app-btn" type="submit">Agregar</button>
+        </form>
+      </section>
+
+      <section class="wa-detail-section">
+        <h3>Notas internas</h3>
+        <form method="POST" action="/whatsapp/conversations/<%= selectedConversation.id %>/note" class="wa-stack-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <textarea class="app-textarea" name="note" rows="3" placeholder="Nota que el cliente no ve"></textarea>
+          <button class="btn app-btn" type="submit">Guardar nota</button>
+        </form>
+        <div class="wa-notes">
+          <% notes.forEach((note) => { %>
+            <article>
+              <p><%= note.note || note.body %></p>
+              <small class="muted"><%= note.username || 'Usuario' %> · <%= fmt(note.created_at) %></small>
+            </article>
+          <% }) %>
+        </div>
+      </section>
+    <% } else { %>
+      <section class="wa-detail-section">
+        <h3>Datos del cliente</h3>
+        <p class="muted">Abre una conversacion para ver contacto, etiquetas, asignacion y notas internas.</p>
+      </section>
+    <% } %>
+  </aside>
+</section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

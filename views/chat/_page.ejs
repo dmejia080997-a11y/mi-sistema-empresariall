@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Chat interno</title>
+<%- include('../partials/head-assets') %>
+</head>
+<%
+  const formatDateTime = (value) => {
+    if (!value) return 'Sin fecha';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleString('es-GT', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+  const presenceLabel = (value) => {
+    switch (String(value || '').toLowerCase()) {
+      case 'busy':
+        return 'Ocupado';
+      case 'away':
+        return 'Ausente';
+      default:
+        return 'En linea';
+    }
+  };
+  const avatarInitials = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return 'CH';
+    const parts = text.split(/\s+/).filter(Boolean).slice(0, 2);
+    if (!parts.length) return text.slice(0, 2).toUpperCase();
+    return parts.map((part) => part.charAt(0).toUpperCase()).join('').slice(0, 2);
+  };
+  const escapeAttr = (value) => String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  const renderAvatar = (userId, photoPath, label, className = '') => {
+    const safeLabel = label || 'Usuario';
+    const safeClass = className ? ` ${className}` : '';
+    if (photoPath) {
+      return `<span class="chat-avatar${safeClass}"><img src="/chat/profile-photo/${Number(userId || 0)}" alt="${escapeAttr(safeLabel)}" loading="lazy" /></span>`;
+    }
+    return `<span class="chat-avatar${safeClass} is-fallback" aria-hidden="true">${avatarInitials(safeLabel)}</span>`;
+  };
+  const getAttachmentExt = (fileName = '') => {
+    const match = String(fileName || '').toLowerCase().match(/\.[^.]+$/);
+    return match ? match[0] : '';
+  };
+  const isAudioAttachment = (mimeType, fileName = '') => {
+    const normalizedMime = String(mimeType || '').toLowerCase();
+    if (normalizedMime.startsWith('audio/')) return true;
+    return ['.webm', '.ogg', '.mp3', '.mp4', '.m4a', '.aac', '.wav'].includes(getAttachmentExt(fileName));
+  };
+  const isImageAttachment = (mimeType, fileName = '') => {
+    const normalizedMime = String(mimeType || '').toLowerCase();
+    if (normalizedMime.startsWith('image/')) return true;
+    return ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.svg', '.heic', '.heif'].includes(getAttachmentExt(fileName));
+  };
+  const isVideoAttachment = (mimeType, fileName = '') => {
+    const normalizedMime = String(mimeType || '').toLowerCase();
+    if (normalizedMime.startsWith('video/')) return true;
+    return ['.mp4', '.webm', '.mov', '.m4v', '.ogv'].includes(getAttachmentExt(fileName));
+  };
+  const messageCount = Array.isArray(chatMessages) ? chatMessages.length : 0;
+  const threadCount = Array.isArray(chatThreads) ? chatThreads.length : 0;
+  const activeChatView = chatView === 'new' ? 'new' : 'conversations';
+  const currentProfileName = chatCurrentUserProfile ? (chatCurrentUserProfile.display_name || chatCurrentUserProfile.username) : 'Tu perfil';
+  const currentPresence = chatCurrentUserProfile ? chatCurrentUserProfile.presence_status : 'online';
+  const selectedOtherName = selectedThread ? (selectedThread.other_display_name || selectedThread.other_username) : '';
+  const chatQuickIcons = ['\u{1F642}', '\u{1F602}', '\u{1F60D}', '\u{1F44D}', '\u{1F64F}', '\u{1F389}', '\u{2764}\u{FE0F}', '\u{1F525}', '\u{2705}', '\u{1F4E6}', '\u{1F69A}', '\u{1F4C4}', '\u{1F4AC}', '\u{1F4CC}', '\u{26A0}\u{FE0F}', '\u{2757}'];
+%>
+<body class="page">
+<%- include('../partials/header') %>
+<main class="container chat-page">
+<%- include('../partials/page-shell', {
+  pageEyebrow: 'Comunicacion interna',
+  pageTitle: 'Chat interno por empresa',
+  pageSubtitle: 'Conversaciones privadas entre usuarios de la misma empresa, con historial, adjuntos y control de lectura.',
+  pageActions: '<a href="/chat/settings" class="btn app-btn">Configuracion del chat</a>'
+}) %>
+
+<%- include('../partials/toasts') %>
+
+<section class="chat-shell">
+  <aside class="chat-sidebar app-panel">
+    <div class="chat-sidebar__section">
+      <div class="chat-profile-card">
+        <div class="chat-profile-card__person">
+          <%- renderAvatar(chatCurrentUserId, chatCurrentUserProfile && chatCurrentUserProfile.profile_photo_path, currentProfileName, 'chat-avatar-large') %>
+          <div class="chat-profile-card__copy">
+            <strong><%= currentProfileName %></strong>
+            <small class="muted">Usuario de acceso: <%= chatCurrentUserProfile && chatCurrentUserProfile.username ? chatCurrentUserProfile.username : '-' %></small>
+          </div>
+        </div>
+        <div class="chat-profile-card__meta">
+          <span class="app-chip chat-presence-chip is-<%= currentPresence %>"><%= presenceLabel(currentPresence) %></span>
+          <a href="/chat/settings" class="btn app-btn app-btn-small">Editar perfil</a>
+        </div>
+      </div>
+    </div>
+
+    <nav class="chat-sidebar-tabs" aria-label="Secciones del chat">
+      <a href="/chat" class="chat-sidebar-tab <%= activeChatView === 'conversations' ? 'is-active' : '' %>" <%= activeChatView === 'conversations' ? 'aria-current="page"' : '' %>>Conversaciones</a>
+      <a href="/chat?view=new" class="chat-sidebar-tab <%= activeChatView === 'new' ? 'is-active' : '' %>" <%= activeChatView === 'new' ? 'aria-current="page"' : '' %>>Nueva conversacion</a>
+    </nav>
+
+    <% if (activeChatView === 'conversations') { %>
+    <div class="chat-sidebar__section">
+      <div class="chat-sidebar__header">
+        <div>
+          <h2>Conversaciones</h2>
+          <p class="muted">Tus hilos recientes y mensajes pendientes.</p>
+        </div>
+        <span class="app-chip"><%= threadCount %> activas</span>
+      </div>
+
+      <% if (!chatThreads.length) { %>
+        <div class="app-empty-state chat-empty-compact">
+          <p class="app-empty-state-text">Todavia no tienes conversaciones activas.</p>
+        </div>
+      <% } else { %>
+        <div class="chat-thread-list">
+          <% chatThreads.forEach((thread) => { %>
+            <a href="/chat/<%= thread.id %>" class="chat-thread-card <%= selectedThread && selectedThread.id === thread.id ? 'is-active' : '' %>" data-thread-id="<%= thread.id %>">
+              <div class="chat-thread-card__top">
+                <div class="chat-person">
+                  <%- renderAvatar(thread.other_user_id, thread.other_profile_photo_path, thread.other_display_name || thread.other_username) %>
+                  <div class="chat-person__copy">
+                    <strong><%= thread.other_display_name || thread.other_username %></strong>
+                    <small class="muted"><%= presenceLabel(thread.other_presence_status) %></small>
+                  </div>
+                </div>
+                <% if (Number(thread.unread_count || 0) > 0) { %>
+                  <span class="app-badge app-badge-danger"><%= thread.unread_count %> sin leer</span>
+                <% } %>
+              </div>
+              <p><%= thread.last_message_body || (thread.last_attachment_name ? (isAudioAttachment(thread.last_attachment_mime, thread.last_attachment_name) ? 'Audio de voz' : (isImageAttachment(thread.last_attachment_mime, thread.last_attachment_name) ? 'Foto' : (isVideoAttachment(thread.last_attachment_mime, thread.last_attachment_name) ? 'Video' : `Adjunto: ${thread.last_attachment_name}`))) : 'Sin mensajes enviados todavia.') %></p>
+              <small class="muted"><%= formatDateTime(thread.last_message_at || thread.updated_at || thread.created_at) %></small>
+            </a>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+    <% } else { %>
+    <div class="chat-sidebar__section">
+      <div class="chat-sidebar__header">
+        <div>
+          <h2>Nueva conversacion</h2>
+          <p class="muted">Busca un usuario activo de tu empresa.</p>
+        </div>
+      </div>
+
+      <% if (!chatUsers.length) { %>
+        <div class="app-empty-state chat-empty-compact">
+          <p class="app-empty-state-text">No hay otros usuarios activos disponibles.</p>
+        </div>
+      <% } else { %>
+        <label class="app-field chat-user-search">
+          <span>Buscar usuario</span>
+          <input type="search" class="app-input" placeholder="Nombre, usuario o rol..." autocomplete="off" data-chat-user-search />
+        </label>
+        <div class="chat-user-list" data-chat-user-list>
+          <% chatUsers.forEach((entry) => { %>
+            <form method="POST" action="/chat/start" class="chat-user-card" data-chat-user-card data-search-text="<%= escapeAttr(`${entry.display_name || entry.username} ${entry.username || ''} ${entry.role || ''}`.toLowerCase()) %>">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <input type="hidden" name="user_id" value="<%= entry.id %>" />
+              <div class="chat-person">
+                <%- renderAvatar(entry.id, entry.profile_photo_path, entry.display_name || entry.username) %>
+                <div class="chat-person__copy">
+                  <strong><%= entry.display_name || entry.username %></strong>
+                  <small class="muted">Rol: <%= entry.role || 'usuario' %> · <%= presenceLabel(entry.presence_status) %></small>
+                </div>
+              </div>
+              <button type="submit" class="btn app-btn app-btn-small">Abrir chat</button>
+            </form>
+          <% }) %>
+        </div>
+        <div class="app-empty-state chat-empty-compact" data-chat-user-search-empty hidden>
+          <p class="app-empty-state-text">No se encontraron usuarios con ese criterio.</p>
+        </div>
+      <% } %>
+    </div>
+    <% } %>
+  </aside>
+
+  <section
+    class="chat-main app-panel"
+    <% if (selectedThread) { %>
+      data-chat-thread-root
+      data-thread-id="<%= selectedThread.id %>"
+      data-current-user-id="<%= chatCurrentUserId %>"
+      data-other-username="<%= selectedOtherName %>"
+      data-csrf="<%= csrfToken %>"
+    <% } %>
+  >
+    <% if (!selectedThread) { %>
+      <div class="app-empty-state chat-empty-main">
+        <% if (activeChatView === 'new') { %>
+          <h2 class="app-empty-state-title">Nueva conversacion</h2>
+          <p class="app-empty-state-text">Busca y selecciona un usuario para abrir una conversacion privada.</p>
+        <% } else { %>
+          <h2 class="app-empty-state-title">Selecciona una conversacion</h2>
+          <p class="app-empty-state-text">Abre uno de tus hilos existentes o usa la pestaña Nueva conversacion para buscar con quien hablar.</p>
+        <% } %>
+      </div>
+    <% } else { %>
+      <div class="chat-main__header">
+        <div class="chat-thread-hero">
+          <%- renderAvatar(selectedThread.other_user_id, selectedThread.other_profile_photo_path, selectedOtherName, 'chat-avatar-large') %>
+          <div class="chat-thread-hero__copy">
+            <h2><%= selectedOtherName %></h2>
+            <p class="muted">Mensajes: <span data-chat-message-count><%= messageCount %></span> · Estado: <%= presenceLabel(selectedThread.other_presence_status) %></p>
+            <div class="chat-typing-indicator" data-chat-typing-indicator hidden>
+              <span class="chat-typing-indicator__icon" aria-hidden="true">&#9998;</span>
+              <span class="chat-typing-indicator__text"><%= selectedOtherName %> esta escribiendo...</span>
+            </div>
+          </div>
+        </div>
+        <span class="app-chip chat-presence-chip is-<%= selectedThread.other_presence_status || 'online' %>"><%= presenceLabel(selectedThread.other_presence_status) %></span>
+      </div>
+
+      <div class="chat-message-list" id="chat-message-list">
+        <% if (!chatMessages.length) { %>
+          <div class="app-empty-state chat-empty-compact" data-chat-empty-state>
+            <p class="app-empty-state-text">Todavia no hay mensajes en esta conversacion.</p>
+          </div>
+        <% } else { %>
+          <% chatMessages.forEach((message) => { %>
+            <% const senderLabel = message.sender_display_name || message.sender_username; %>
+            <article class="chat-bubble <%= Number(message.sender_id) === Number(chatCurrentUserId) ? 'is-own' : 'is-other' %>" data-message-id="<%= message.id %>">
+              <div class="chat-bubble__meta">
+                <div class="chat-person chat-person-compact">
+                  <%- renderAvatar(message.sender_id, message.sender_profile_photo_path, senderLabel, 'chat-avatar-small') %>
+                  <strong><%= senderLabel %></strong>
+                </div>
+                <span><%= formatDateTime(message.created_at) %></span>
+              </div>
+
+              <% if (message.body) { %>
+                <div class="chat-bubble__body"><%= message.body %></div>
+              <% } %>
+
+              <% if (message.attachment_id) { %>
+                <div class="chat-attachment-card">
+                  <div class="chat-attachment-card__content">
+                    <strong><%= message.original_name %></strong>
+                    <small class="muted"><%= message.mime_type || 'archivo' %> - <%= Number(message.size_bytes || 0).toLocaleString('es-GT') %> bytes</small>
+                    <% if (isImageAttachment(message.mime_type, message.original_name || message.stored_name)) { %>
+                      <img
+                        class="chat-attachment-media"
+                        src="/chat/attachments/<%= message.attachment_id %>/download"
+                        alt="<%= message.original_name || 'Imagen adjunta' %>"
+                        loading="lazy"
+                      />
+                    <% } else if (isVideoAttachment(message.mime_type, message.original_name || message.stored_name)) { %>
+                      <video class="chat-attachment-media" controls preload="metadata" src="/chat/attachments/<%= message.attachment_id %>/download"></video>
+                    <% } else if (isAudioAttachment(message.mime_type, message.original_name || message.stored_name)) { %>
+                      <audio class="chat-audio-player" controls preload="none" src="/chat/attachments/<%= message.attachment_id %>/download"></audio>
+                    <% } %>
+                  </div>
+                  <a class="btn app-btn app-btn-small" href="/chat/attachments/<%= message.attachment_id %>/download">Descargar</a>
+                </div>
+              <% } %>
+
+              <% if (Number(message.sender_id) === Number(chatCurrentUserId)) { %>
+                <div class="chat-bubble__status">
+                  <span class="app-chip <%= Number(message.is_read) === 1 ? 'app-chip-success' : 'app-chip-warning' %>">
+                    <%= Number(message.is_read) === 1 ? `Leido ${formatDateTime(message.read_at)}` : 'Pendiente de lectura' %>
+                  </span>
+                </div>
+              <% } %>
+            </article>
+          <% }) %>
+        <% } %>
+      </div>
+
+      <form method="POST" action="/chat/<%= selectedThread.id %>/message" enctype="multipart/form-data" class="chat-compose" data-chat-compose-form>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <input type="file" data-chat-file-input hidden />
+        <input type="file" accept="image/*" capture="environment" data-chat-camera-photo-input hidden />
+        <input type="file" accept="video/*" capture="environment" data-chat-camera-video-input hidden />
+
+        <label class="app-field chat-compose__field">
+          <span>Mensaje</span>
+          <textarea name="body" class="app-textarea" rows="3" placeholder="Escribe un mensaje para <%= selectedOtherName %>..."></textarea>
+        </label>
+
+        <div class="chat-compose__controls">
+          <div class="chat-compose__toolbar">
+            <div class="chat-compose__tool">
+              <button
+                type="button"
+                class="chat-action-button"
+                data-chat-emoji-toggle
+                aria-label="Abrir iconos"
+                aria-expanded="false"
+                title="Abrir iconos"
+              >
+                <span class="chat-action-button__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"></circle>
+                    <circle cx="9" cy="10" r="1.1" fill="currentColor"></circle>
+                    <circle cx="15" cy="10" r="1.1" fill="currentColor"></circle>
+                    <path d="M8.3 14.2c1 1.4 2.3 2.1 3.7 2.1s2.7-.7 3.7-2.1" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"></path>
+                  </svg>
+                </span>
+              </button>
+              <div class="chat-popover chat-popover--emoji" data-chat-emoji-panel hidden>
+                <div class="chat-icon-picker__grid" data-chat-icon-picker>
+                  <% chatQuickIcons.forEach((icon) => { %>
+                    <button
+                      type="button"
+                      class="chat-icon-picker__button"
+                      data-chat-icon
+                      data-icon-value="<%= icon %>"
+                      aria-label="Agregar <%= icon %> al mensaje"
+                    ><%= icon %></button>
+                  <% }) %>
+                </div>
+              </div>
+            </div>
+
+            <div class="chat-compose__tool">
+              <button
+                type="button"
+                class="chat-action-button"
+                data-chat-camera-toggle
+                aria-label="Abrir camara"
+                aria-expanded="false"
+                title="Tomar foto o grabar video"
+              >
+                <span class="chat-action-button__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M7.2 6.5h2.1l1.2-1.8h2.9l1.2 1.8h2.2a2.4 2.4 0 0 1 2.4 2.4v7.8a2.4 2.4 0 0 1-2.4 2.4H7.2a2.4 2.4 0 0 1-2.4-2.4V8.9a2.4 2.4 0 0 1 2.4-2.4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+                    <circle cx="12" cy="12.8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"></circle>
+                  </svg>
+                </span>
+              </button>
+              <div class="chat-popover chat-popover--camera" data-chat-camera-panel hidden>
+                <div class="chat-camera-panel">
+                  <div class="chat-camera-panel__modes">
+                    <button
+                      type="button"
+                      class="chat-camera-mode is-active"
+                      data-chat-camera-mode="photo"
+                      aria-pressed="true"
+                    >Foto</button>
+                    <button
+                      type="button"
+                      class="chat-camera-mode"
+                      data-chat-camera-mode="video"
+                      aria-pressed="false"
+                    >Video</button>
+                  </div>
+                  <div class="chat-camera-panel__viewport">
+                    <video
+                      class="chat-camera-panel__live"
+                      data-chat-camera-live
+                      autoplay
+                      playsinline
+                      muted
+                    ></video>
+                  </div>
+                  <small class="muted chat-camera-panel__status" data-chat-camera-status>La camara se activara automaticamente.</small>
+                  <div class="chat-camera-panel__actions">
+                    <button
+                      type="button"
+                      class="btn primary app-btn app-btn-primary app-btn-small"
+                      data-chat-camera-capture
+                    >Tomar foto</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="chat-action-button"
+              data-chat-file-trigger
+              aria-label="Adjuntar archivo"
+              title="Adjuntar archivo"
+            >
+              <span class="chat-action-button__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M8.7 12.9 14 7.6a3.2 3.2 0 1 1 4.5 4.5l-7.2 7.2a5 5 0 1 1-7.1-7.1l8-8" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+                </svg>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="chat-action-button chat-action-button--voice"
+              data-chat-voice-toggle
+              aria-label="Mantener presionado para grabar audio"
+              title="Mantener presionado para grabar audio"
+            >
+              <span class="chat-action-button__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <rect x="9" y="4" width="6" height="10" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"></rect>
+                  <path d="M7.5 11.5a4.5 4.5 0 0 0 9 0" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"></path>
+                  <path d="M12 16v3.2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"></path>
+                  <path d="M9.3 19.2h5.4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"></path>
+                </svg>
+              </span>
+            </button>
+          </div>
+
+          <div class="chat-compose__actions">
+            <button type="submit" class="btn primary app-btn app-btn-primary">Enviar mensaje</button>
+          </div>
+        </div>
+
+        <div class="chat-compose__meta">
+          <small class="muted chat-compose__status" data-chat-voice-status>Manten presionado el microfono para grabar audio.</small>
+          <small class="muted chat-compose__status" data-chat-attachment-status>No hay archivo seleccionado. Puedes adjuntar cualquier tipo de archivo. Maximo <%= chatUploadLimitMb %> MB.</small>
+        </div>
+
+        <div class="chat-attachment-draft" data-chat-attachment-draft hidden>
+          <div class="chat-attachment-draft__copy">
+            <strong data-chat-attachment-name>archivo</strong>
+            <small class="muted" data-chat-attachment-meta>Sin archivo seleccionado.</small>
+          </div>
+          <img class="chat-attachment-media" data-chat-image-preview hidden alt="Vista previa de imagen" />
+          <video class="chat-attachment-media" data-chat-video-preview hidden controls preload="metadata"></video>
+          <audio class="chat-audio-player" controls preload="none" data-chat-voice-preview hidden></audio>
+          <div class="chat-attachment-draft__actions">
+            <button type="button" class="btn app-btn app-btn-small" data-chat-attachment-clear hidden>Quitar adjunto</button>
+          </div>
+        </div>
+      </form>
+    <% } %>
+  </section>
+</section>
+</main>
+<script src="/js/chat.js" defer></script>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

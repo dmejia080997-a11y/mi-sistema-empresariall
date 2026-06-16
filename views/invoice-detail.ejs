@@ -3,125 +3,376 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>
-<%= t('invoice_detail.title', { id: invoice.id }) %>
-</title>
+<title><%= invoice.invoiceNumber %></title>
 <%- include('partials/head-assets') %>
+<link rel="stylesheet" href="/css/invoices.css" />
 </head>
-<body class="page">
-<%- include('partials/header') %>
-<main class="container">
-<h1>
-<%= t('invoice_detail.heading', { id: invoice.id }) %>
-</h1>
-<section class="panel">
-<div class="invoice-meta">
-<div>
-<strong>
-<%= t('invoice_detail.customer') %>:</strong>
-<%= invoice.customer_code ? `${invoice.customer_code} - ` : '' %><%= invoice.customer_name || t('common.walk_in') %>
-</div>
-<div>
-<strong>
-<%= t('invoice_detail.created') %>:</strong>
-<%= new Date(invoice.created_at).toLocaleString() %>
-</div>
-</div>
-<% if (invoice.phone || invoice.email || invoice.address) { %>
-<div class="invoice-meta muted">
-<% if (invoice.phone) { %>
-<div>
-<%= t('invoice_detail.phone') %>: <%= invoice.phone %>
-</div>
+<%
+  const formatMoney = (currency, amount) => `${currency || company.baseCurrency} ${Number(amount || 0).toFixed(2)}`;
+  const formatAmount = (amount) => Number(amount || 0).toFixed(2);
+  const formatDate = (value) => {
+    if (!value) return 'Sin fecha';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString('es-GT', { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+  const formatDateTime = (value) => {
+    if (!value) return 'Sin registro';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleString('es-GT', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+  const invoiceTextMap = {
+    es: {
+      invoice: 'Factura',
+      customer: 'Cliente',
+      dueDate: 'Fecha de vencimiento',
+      paymentMethod: 'Metodo',
+      fiscal: 'Fiscal',
+      detail: 'Descripcion',
+      total: 'Total',
+      subtotal: 'Subtotal',
+      taxes: 'Impuestos',
+      discounts: 'Descuentos',
+      paid: 'Pagado',
+      balanceDue: 'Saldo pendiente',
+      notes: 'Observaciones',
+      noDate: 'Sin fecha',
+      noMethod: 'Sin definir',
+      noNotes: 'Sin observaciones.',
+      noContact: 'Sin contacto',
+      manualLine: 'Linea manual'
+    },
+    en: {
+      invoice: 'Invoice',
+      customer: 'Customer',
+      dueDate: 'Due Date',
+      paymentMethod: 'Method',
+      fiscal: 'Tax',
+      detail: 'Description',
+      total: 'Total',
+      subtotal: 'Subtotal',
+      taxes: 'Taxes',
+      discounts: 'Discounts',
+      paid: 'Paid',
+      balanceDue: 'Balance Due',
+      notes: 'Notes',
+      noDate: 'No date',
+      noMethod: 'Not defined',
+      noNotes: 'No notes.',
+      noContact: 'No contact',
+      manualLine: 'Manual line'
+    }
+  };
+  const invoiceLanguage = invoice.header.invoiceLanguage === 'en' ? 'en' : 'es';
+  const invoiceDocText = invoiceTextMap[invoiceLanguage];
+  const isPreviewMode = typeof previewMode !== 'undefined' && previewMode;
+  const isPrintMode = typeof printMode !== 'undefined' && printMode;
+%>
+<body class="page invoice-erp-page <%= isPreviewMode ? 'invoice-preview-mode' : '' %> <%= isPrintMode ? 'invoice-print-mode' : '' %>">
+<% if (!isPrintMode) { %>
+  <%- include('partials/header', {
+    moduleTabs,
+    activeTab: 'facturas',
+    currentModule: 'invoices'
+  }) %>
 <% } %>
-<% if (invoice.email) { %>
-<div>
-<%= t('invoice_detail.email') %>: <%= invoice.email %>
-</div>
-<% } %>
-<% if (invoice.address) { %>
-<div>
-<%= t('invoice_detail.address') %>: <%= invoice.address %>
-</div>
-<% } %>
-</div>
-<% } %>
-</section>
-<section class="panel">
-<h2>
-<%= t('invoice_detail.line_items') %>
-</h2>
-<div class="table">
-<div class="table-row header invoice-detail">
-<div>
-<%= t('invoice_detail.table.product') %>
-</div>
-<div>
-<%= t('invoice_detail.table.sku') %>
-</div>
-<div>
-<%= t('invoice_detail.table.qty') %>
-</div>
-<div>
-<%= t('invoice_detail.table.unit_price') %>
-</div>
-<div>
-<%= t('invoice_detail.table.line_total') %>
-</div>
-</div>
-<% if (lineItems.length === 0) { %>
-<div class="table-row empty">
-<%= t('invoice_detail.no_items') %>
-</div>
-<% } %>
-<% lineItems.forEach(li => { %>
-<div class="table-row invoice-detail">
-<div>
-<%= li.item_name %>
-</div>
-<div class="muted">
-<%= li.sku %>
-</div>
-<div>
-<%= li.qty %>
-</div>
-<div><%= (invoice.currency || company.base_currency || company.currency || 'GTQ') %> <%= Number(li.unit_price || 0).toFixed(2) %>
-</div>
-<div><%= (invoice.currency || company.base_currency || company.currency || 'GTQ') %> <%= Number(li.line_total || 0).toFixed(2) %>
-</div>
-</div>
-<% }) %>
-</div>
-<div class="invoice-totals">
-<div>
-<%= t('invoice_detail.subtotal') %>
-</div>
-<div><%= (invoice.currency || company.base_currency || company.currency || 'GTQ') %> <%= Number(invoice.subtotal || 0).toFixed(2) %>
-</div>
-<div>
-<%= t('invoice_detail.tax') %> (<%= Number(invoice.tax_rate || 0).toFixed(2) %>%)</div>
-<div><%= (invoice.currency || company.base_currency || company.currency || 'GTQ') %> <%= Number(invoice.tax_amount || 0).toFixed(2) %>
-</div>
-<div>
-<%= t('invoice_detail.discount') %>
-<% if (invoice.discount_type === 'percent') { %>            (<%= Number(invoice.discount_value || 0).toFixed(2) %>%)          <% } else { %>            (<%= t('invoices.fixed') %>)          <% } %>
-</div>
-<div><%= (invoice.currency || company.base_currency || company.currency || 'GTQ') %> <%= Number(invoice.discount_amount || 0).toFixed(2) %>
-</div>
-<div>
-<%= t('invoice_detail.total') %>
-</div>
-<div><%= (invoice.currency || company.base_currency || company.currency || 'GTQ') %> <%= Number(invoice.total || 0).toFixed(2) %>
-</div>
-<% if (invoice.currency && (invoice.base_currency || company.base_currency) && invoice.currency !== (company.base_currency || invoice.base_currency)) { %>
-<div class="invoice-totals">
-<span><%= t('invoices.total_base') %> (<%= company.base_currency || invoice.base_currency %>)</span>
-<div><%= company.base_currency || invoice.base_currency %> <%= Number(invoice.total_base || 0).toFixed(2) %></div>
-</div>
-<% } %>
-</div>
-</section>
+<main class="container invoice-detail-shell">
+  <% if (!isPrintMode) { %>
+    <%- include('partials/page-shell', {
+      pageTitle: invoice.invoiceNumber,
+      pageSubtitle: `${invoice.statusMeta.label} Â· ${invoice.header.customerName}`,
+      pageActions: `
+        <a class="btn app-btn" href="/invoices">Volver</a>
+        <a class="btn app-btn" href="/invoices/${invoice.header.id}/preview?print=1">Imprimir</a>
+        <a class="btn app-btn" href="/invoices/${invoice.header.id}/pdf">Visualizar PDF</a>
+        <a class="btn app-btn" href="/invoices/${invoice.header.id}/packing-list/edit">Packing List</a>
+        <a class="btn primary app-btn app-btn-primary" href="/invoices/${invoice.header.id}/pdf?download=1">Descargar PDF</a>
+      `
+    }) %>
+    <%- include('partials/toasts', {
+      error: null,
+      message: notice ? { type: 'success', message: notice } : null
+    }) %>
+  <% } %>
+
+  <section class="invoice-detail-top">
+    <article class="invoice-preview-sheet invoice-detail-document">
+      <header class="invoice-preview-header">
+        <div class="invoice-preview-brand">
+          <% if (company.logoUrl) { %>
+            <img src="<%= company.logoUrl %>" alt="Logo empresa" class="invoice-preview-logo" />
+          <% } else { %>
+            <div class="invoice-preview-logo invoice-preview-logo-fallback"><%= (company.name || 'ER').slice(0, 2).toUpperCase() %></div>
+          <% } %>
+          <div>
+            <strong><%= company.name %></strong>
+            <small><%= company.legalName || company.name %></small>
+            <small><%= company.nit ? `NIT: ${company.nit}` : 'Sin NIT registrado' %></small>
+          </div>
+        </div>
+        <div class="invoice-preview-meta">
+          <span class="invoice-preview-kicker"><%= invoiceDocText.invoice %></span>
+          <span class="invoice-preview-badge <%= invoice.statusMeta.badgeClass %>"><%= invoice.statusMeta.label %></span>
+          <strong><%= invoice.invoiceNumber %></strong>
+          <small><%= formatDate(invoice.header.issueDate) %></small>
+        </div>
+      </header>
+
+      <section class="invoice-preview-customer">
+        <div>
+          <span class="muted"><%= invoiceDocText.customer %></span>
+          <strong><%= invoice.header.customerCode ? `${invoice.header.customerCode} - ` : '' %><%= invoice.header.customerName %></strong>
+          <small><%= invoice.header.customerPhone || invoice.header.customerEmail || invoiceDocText.noContact %></small>
+        </div>
+        <div>
+          <span class="muted"><%= invoiceDocText.dueDate %></span>
+          <strong><%= formatDate(invoice.header.dueDate) %></strong>
+          <small><%= invoiceDocText.paymentMethod %>: <%= invoice.header.paymentMethod || invoiceDocText.noMethod %></small>
+        </div>
+        <div>
+          <span class="muted"><%= invoiceDocText.fiscal %></span>
+          <strong><%= company.taxName || 'Impuesto' %></strong>
+          <small><%= company.taxAddress || company.address || 'Sin direccion fiscal' %></small>
+        </div>
+      </section>
+
+      <section class="invoice-preview-lines">
+        <div class="invoice-preview-lines__head">
+          <span><%= invoiceDocText.detail %></span>
+          <span><%= invoiceDocText.total %></span>
+        </div>
+        <div class="invoice-preview-lines__body">
+          <% invoice.items.forEach((line) => { %>
+            <div class="invoice-preview-line">
+              <div>
+                <strong><%= line.description %></strong>
+                <small><%= line.lineType === 'inventory' ? (line.sku || 'Inventario') : invoiceDocText.manualLine %> Â· <%= Number(line.qty || 0).toFixed(2) %> x <%= formatAmount(line.unitPrice) %></small>
+              </div>
+              <strong><%= formatAmount(line.total) %></strong>
+            </div>
+          <% }) %>
+        </div>
+      </section>
+
+      <section class="invoice-preview-summary">
+        <div><span><%= invoiceDocText.subtotal %></span><strong><%= formatMoney(invoice.header.currency, invoice.header.subtotal) %></strong></div>
+        <div><span><%= invoiceDocText.taxes %></span><strong><%= formatMoney(invoice.header.currency, invoice.header.taxTotal) %></strong></div>
+        <div><span><%= invoiceDocText.discounts %></span><strong><%= formatMoney(invoice.header.currency, invoice.header.discountTotal) %></strong></div>
+        <div><span><%= invoiceDocText.paid %></span><strong><%= formatMoney(invoice.header.currency, invoice.header.paidTotal) %></strong></div>
+        <div class="invoice-preview-summary__total"><span><%= invoiceDocText.total %></span><strong><%= formatMoney(invoice.header.currency, invoice.header.total) %></strong></div>
+        <div class="invoice-preview-summary__total"><span><%= invoiceDocText.balanceDue %></span><strong><%= formatMoney(invoice.header.currency, invoice.header.balanceDue) %></strong></div>
+      </section>
+
+      <section class="invoice-preview-notes">
+        <span class="muted"><%= invoiceDocText.notes %></span>
+        <p><%= invoice.header.notes || invoiceDocText.noNotes %></p>
+      </section>
+    </article>
+
+    <aside class="invoice-detail-sidebar">
+      <article class="panel app-panel invoice-detail-meta-card">
+        <h2>Control ERP</h2>
+        <div class="invoice-record-grid">
+          <div><span class="muted">Origen</span><strong><%= invoice.header.source %></strong></div>
+          <div><span class="muted">Creada por</span><strong><%= invoice.header.createdByName || 'Sistema' %></strong></div>
+          <div><span class="muted">Actualizada por</span><strong><%= invoice.header.updatedByName || 'Sin cambios' %></strong></div>
+          <div><span class="muted">Creada</span><strong><%= formatDateTime(invoice.header.createdAt) %></strong></div>
+          <div><span class="muted">Actualizada</span><strong><%= formatDateTime(invoice.header.updatedAt) %></strong></div>
+          <div><span class="muted">Stock aplicado</span><strong><%= invoice.header.stockApplied ? 'Si' : 'No' %></strong></div>
+        </div>
+      </article>
+
+      <% if (!isPreviewMode && !isPrintMode) { %>
+      <article class="panel app-panel invoice-detail-form-card">
+        <h2>Registrar pago</h2>
+        <form method="POST" action="/invoices/<%= invoice.header.id %>/payments" class="app-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label class="app-field">
+            <span>Monto</span>
+            <input class="app-input" type="number" name="amount" min="0.01" step="0.01" value="<%= invoice.header.balanceDue > 0 ? invoice.header.balanceDue.toFixed(2) : '0.00' %>" />
+          </label>
+          <label class="app-field">
+            <span>Metodo</span>
+            <input class="app-input" type="text" name="method" value="<%= invoice.header.paymentMethod || '' %>" />
+          </label>
+          <label class="app-field">
+            <span>Fecha de pago</span>
+            <input class="app-input" type="date" name="paid_at" value="<%= invoice.header.issueDate || '' %>" />
+          </label>
+          <label class="app-field">
+            <span>Referencia</span>
+            <input class="app-input" type="text" name="reference" placeholder="Voucher, transferencia, recibo..." />
+          </label>
+          <label class="app-field">
+            <span>Notas</span>
+            <textarea class="app-textarea" name="notes" rows="2" placeholder="Detalle del pago"></textarea>
+          </label>
+          <button type="submit" class="btn primary app-btn app-btn-primary" <%= invoice.header.status === 'voided' ? 'disabled' : '' %>>Registrar pago</button>
+        </form>
+      </article>
+
+      <article class="panel app-panel invoice-detail-form-card">
+        <h2>Cambiar estado</h2>
+        <form method="POST" action="/invoices/<%= invoice.header.id %>/status" class="app-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label class="app-field">
+            <span>Nuevo estado</span>
+            <select name="status" <%= invoice.header.status === 'voided' ? 'disabled' : '' %>>
+              <option value="draft" <%= invoice.header.status === 'draft' ? 'selected' : '' %>>Borrador</option>
+              <option value="pending_signature" <%= invoice.header.status === 'pending_signature' ? 'selected' : '' %>>Pendiente de firma</option>
+              <option value="issued" <%= invoice.header.status === 'issued' ? 'selected' : '' %>>Emitida</option>
+              <option value="voided">Anulada</option>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Nota / motivo</span>
+            <textarea class="app-textarea" name="notes" rows="2" placeholder="Motivo del cambio"></textarea>
+          </label>
+          <label class="app-field">
+            <span>Motivo de anulacion</span>
+            <textarea class="app-textarea" name="void_reason" rows="2" placeholder="Solo si la factura se anula"></textarea>
+          </label>
+          <button type="submit" class="btn app-btn app-btn-primary primary" <%= invoice.header.status === 'voided' ? 'disabled' : '' %>>Guardar estado</button>
+        </form>
+      </article>
+
+      <article class="panel app-panel invoice-detail-form-card">
+        <h2>Reenviar por correo</h2>
+        <form method="POST" action="/invoices/<%= invoice.header.id %>/send" class="app-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label class="app-field">
+            <span>Correo destino</span>
+            <input class="app-input" type="email" name="email" value="<%= invoice.header.customerEmail || '' %>" placeholder="cliente@correo.com" />
+          </label>
+          <button type="submit" class="btn app-btn">Enviar factura PDF</button>
+        </form>
+      </article>
+      <% } %>
+    </aside>
+  </section>
+
+  <section class="invoice-detail-grid">
+    <article class="panel app-panel">
+      <div class="panel-header app-panel-header">
+        <div>
+          <h2>Lineas registradas</h2>
+          <p class="muted">Detalle completo con descuentos e impuestos por linea.</p>
+        </div>
+      </div>
+      <div class="invoice-lines-table-wrap">
+        <table class="app-table invoice-lines-table">
+          <thead>
+            <tr>
+              <th>Origen</th>
+              <th>Descripcion</th>
+              <th>SKU</th>
+              <th>Cant.</th>
+              <th>Precio</th>
+              <th>Desc.</th>
+              <th>Imp.</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% invoice.items.forEach((line) => { %>
+              <tr>
+                <td><span class="app-badge <%= line.lineType === 'inventory' ? 'invoice-status-issued' : 'invoice-status-draft' %>"><%= line.lineType === 'inventory' ? 'Inventario' : 'Manual' %></span></td>
+                <td><strong><%= line.description %></strong></td>
+                <td><%= line.sku || 'Sin SKU' %></td>
+                <td><%= Number(line.qty || 0).toFixed(2) %></td>
+                <td><%= formatAmount(line.unitPrice) %></td>
+                <td><%= formatAmount(line.discountAmount) %></td>
+                <td><%= formatAmount(line.taxAmount) %> (<%= Number(line.taxRate || 0).toFixed(2) %>%)</td>
+                <td><strong><%= formatAmount(line.total) %></strong></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="panel app-panel">
+      <div class="panel-header app-panel-header">
+        <div>
+          <h2>Pagos registrados</h2>
+          <p class="muted">Bitacora de cobros, referencias y usuarios.</p>
+        </div>
+      </div>
+      <% if (!invoice.payments.length) { %>
+        <div class="app-empty-state">Aun no hay pagos vinculados a esta factura.</div>
+      <% } else { %>
+        <div class="invoice-ranking-list">
+          <% invoice.payments.forEach((payment) => { %>
+            <div class="invoice-ranking-row">
+              <div>
+                <strong><%= formatMoney(invoice.header.currency, payment.amount) %> Â· <%= payment.method || 'Sin metodo' %></strong>
+                <small class="muted"><%= payment.reference || 'Sin referencia' %> Â· <%= formatDateTime(payment.paidAt) %></small>
+                <small class="muted"><%= payment.recordedByName || 'Sistema' %> Â· <%= payment.notes || 'Sin notas' %></small>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </article>
+
+    <article class="panel app-panel">
+      <div class="panel-header app-panel-header">
+        <div>
+          <h2>Historial de estados</h2>
+          <p class="muted">Cada cambio queda auditado con usuario y nota.</p>
+        </div>
+      </div>
+      <% if (!invoice.statusHistory.length) { %>
+        <div class="app-empty-state">No hay historial de estados.</div>
+      <% } else { %>
+        <div class="invoice-ranking-list">
+          <% invoice.statusHistory.forEach((entry) => { %>
+            <div class="invoice-ranking-row">
+              <div>
+                <strong><%= entry.fromStatus ? entry.fromStatus : 'Inicio' %> -> <%= entry.toStatus || 'Sin destino' %></strong>
+                <small class="muted"><%= entry.changedByName || 'Sistema' %> Â· <%= formatDateTime(entry.createdAt) %></small>
+                <small class="muted"><%= entry.note || 'Sin nota' %></small>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </article>
+
+    <article class="panel app-panel">
+      <div class="panel-header app-panel-header">
+        <div>
+          <h2>Movimientos de inventario</h2>
+          <p class="muted">Salidas y reintegros asociados a la emision o anulacion.</p>
+        </div>
+      </div>
+      <% if (!invoice.inventoryMovements.length) { %>
+        <div class="app-empty-state">Esta factura no genero movimientos de inventario.</div>
+      <% } else { %>
+        <div class="invoice-ranking-list">
+          <% invoice.inventoryMovements.forEach((movement) => { %>
+            <div class="invoice-ranking-row">
+              <div>
+                <strong><%= movement.itemName || 'Articulo' %> Â· <%= movement.movementType %></strong>
+                <small class="muted"><%= movement.itemSku || 'Sin SKU' %> Â· <%= Number(movement.qty || 0).toFixed(2) %> uds.</small>
+                <small class="muted">Stock: <%= Number(movement.stockBefore || 0).toFixed(2) %> -> <%= Number(movement.stockAfter || 0).toFixed(2) %></small>
+              </div>
+              <small class="muted"><%= formatDateTime(movement.createdAt) %></small>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </article>
+  </section>
 </main>
+<script>
+  if (document.body.classList.contains('invoice-print-mode')) {
+    window.addEventListener('load', function () {
+      window.print();
+    });
+  }
+</script>
 <script src="/status-footer.js" defer></script>
 </body>
 </html>

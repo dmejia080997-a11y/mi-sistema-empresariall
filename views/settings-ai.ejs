@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ajustes del asistente</title>
+<meta name="csrf-token" content="<%= csrfToken %>" />
+<%- include('partials/head-assets') %>
+<link rel="stylesheet" href="/css/ai-enterprise.css" />
+</head>
+<body class="page">
+<%- include('partials/header') %>
+<main class="container settings-module" data-ai-root>
+<%- include('partials/page-shell', {
+  pageTitle: 'Ajustes del asistente',
+  pageSubtitle: 'Administra que consultas internas puede interpretar el asistente para esta empresa.'
+}) %>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Intenciones internas</h2>
+      <p class="muted">Activa solo las consultas que deben estar disponibles para los usuarios con permisos del asistente.</p>
+    </div>
+    <div class="actions">
+      <a class="btn secondary" href="/settings">Volver a ajustes</a>
+      <a class="btn" href="/ai">Abrir asistente</a>
+    </div>
+  </div>
+  <div class="ai-table-wrap">
+    <table class="ai-result-table">
+      <thead>
+        <tr>
+          <th>Intencion</th>
+          <th>Modulo</th>
+          <th>Permiso</th>
+          <th>Estado</th>
+          <th>Accion</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% intents.forEach((intent) => { %>
+          <tr>
+            <td><strong><%= intent.name %></strong><br><span><%= intent.description %></span></td>
+            <td><%= intent.module_required %></td>
+            <td><%= intent.permission_required %></td>
+            <td><%= intent.enabled ? 'Activa' : 'Inactiva' %></td>
+            <td>
+              <button type="button" class="app-btn btn secondary" data-toggle-intent="<%= intent.id %>">
+                <%= intent.enabled ? 'Desactivar' : 'Activar' %>
+              </button>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>
+</main>
+<script src="/js/ai-enterprise.js"></script>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

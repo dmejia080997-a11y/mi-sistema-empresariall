@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<%
+  const formatMoney = (value, currency = 'GTQ') => `${currency || 'GTQ'} ${Number(value || 0).toFixed(2)}`;
+  const isPdfFieldSelected = (selected, key) => {
+    const values = Array.isArray(selected) && selected.length ? selected : quotePdfDefaultFields;
+    return values.includes(key);
+  };
+  const formatDate = (value) => {
+    if (!value) return 'Sin fecha';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString('es-GT', { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+  const truncateOptionLabel = (value, max = 52) => {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    return text.length > max ? `${text.slice(0, max - 1)}...` : text;
+  };
+  const formatDateTime = (value) => {
+    if (!value) return 'Sin registro';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleString('es-GT', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+  const statusBadge = project.status_meta ? project.status_meta.badgeClass : '';
+  const pageActions = `
+    <a class="btn app-btn" href="/projects">Volver a proyectos</a>
+    <a class="btn app-btn" href="/projects/${project.id}?tab=tasks&task_mode=new#new-task">Nueva tarea</a>
+    <a class="btn app-btn" href="/projects/${project.id}?tab=expenses&expense_mode=new#new-expense">Nuevo gasto</a>
+    ${project.source_quote_id ? '' : `<a class="btn app-btn" href="/projects/${project.id}?tab=quotes#new-quote">Crear cotización</a>`}
+    ${canConvertQuote ? `<a class="btn primary app-btn app-btn-primary" href="/projects/${project.id}?tab=quotes">Facturar cotizacion</a>` : ''}
+    <a class="btn app-btn" href="/projects/${project.id}?tab=files#new-file">Subir archivo</a>
+    <form method="POST" action="/projects/${project.id}/finalize" class="inline-form">
+      <input type="hidden" name="_csrf" value="${csrfToken}" />
+      <button type="submit" class="btn primary app-btn app-btn-primary">Finalizar proyecto</button>
+    </form>
+  `;
+%>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= project.name %> | Proyectos</title>
+  <%- include('partials/head-assets') %>
+  <link rel="stylesheet" href="/css/projects.css" />
+</head>
+<body class="page projects-page">
+  <%- include('partials/header', {
+    moduleTabs: detailTabs,
+    activeTab,
+    currentModule: 'projects'
+  }) %>
+
+  <main class="container projects-shell">
+    <%- include('partials/page-shell', {
+      pageTitle: project.name,
+      pageSubtitle: `${project.code || 'Sin código'} · ${project.client_display}`,
+      pageActions
+    }) %>
+
+    <%- include('partials/toasts', { flash }) %>
+
+    <% if (activeTab === 'summary') { %>
+    <section class="projects-detail-hero">
+      <article class="projects-detail-hero__card">
+        <div class="projects-detail-hero__head">
+          <span class="status-badge <%= statusBadge %>"><%= project.status_label %></span>
+          <span class="projects-priority-chip <%= project.priority_meta.badgeClass %>"><%= project.priority_label %></span>
+        </div>
+        <div class="projects-progress">
+          <span style="width:<%= project.progress_percent %>%"></span>
+        </div>
+        <div class="projects-detail-hero__meta">
+          <div>
+            <span>Avance</span>
+            <strong><%= project.progress_percent %>%</strong>
+          </div>
+          <div>
+            <span>Presupuesto</span>
+            <strong><%= formatMoney(project.estimated_budget) %></strong>
+          </div>
+          <div>
+            <span>Costo real</span>
+            <strong><%= formatMoney(project.real_cost_resolved) %></strong>
+          </div>
+          <div>
+            <span>Venta</span>
+            <strong><%= formatMoney(project.sale_amount) %></strong>
+          </div>
+        </div>
+      </article>
+
+      <article class="projects-detail-hero__summary">
+        <div>
+          <span>Inicio</span>
+          <strong><%= formatDate(project.start_date) %></strong>
+        </div>
+        <div>
+          <span>Fin estimado</span>
+          <strong><%= formatDate(project.estimated_end_date) %></strong>
+        </div>
+        <div>
+          <span>Fin real</span>
+          <strong><%= formatDate(project.real_end_date) %></strong>
+        </div>
+        <div>
+          <span>Tareas</span>
+          <strong><%= taskSummary.completed %>/<%= taskSummary.total %></strong>
+        </div>
+        <div>
+          <span>Horas</span>
+          <strong><%= Number(financial.realHours || 0).toFixed(2) %> / <%= Number(financial.estimatedHours || 0).toFixed(2) %></strong>
+        </div>
+        <div>
+          <span>Estado financiero</span>
+          <strong><%= financial.financialStatus %></strong>
+        </div>
+      </article>
+    </section>
+
+      <section class="panel app-panel">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Resumen del proyecto</h2>
+            <p class="muted">Edita la ficha principal sin mezclar tareas, gastos ni cronograma.</p>
+          </div>
+          <% if (can('projects', 'edit')) { %>
+            <button type="button" class="btn app-btn" data-project-summary-edit>Editar</button>
+          <% } %>
+        </div>
+        <form method="POST" action="/projects/<%= project.id %>/update" class="projects-form-grid projects-summary-form" data-project-summary-form>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label class="app-field">
+            <span>Código</span>
+            <input class="app-input" type="text" name="code" value="<%= project.code || '' %>" disabled />
+          </label>
+          <label class="app-field">
+            <span>Nombre</span>
+            <input class="app-input" type="text" name="name" value="<%= project.name %>" required disabled />
+          </label>
+          <label class="app-field">
+            <span>Cliente</span>
+            <select name="client_id" disabled>
+              <option value="">Sin cliente</option>
+              <% customers.forEach((customer) => { %>
+                <option value="<%= customer.id %>" <%= Number(project.client_id) === Number(customer.id) ? 'selected' : '' %>><%= truncateOptionLabel(`${customer.customer_code ? `${customer.customer_code} - ` : ''}${customer.name}`) %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Estado</span>
+            <select name="status" disabled>
+              <% projectStatuses.forEach((status) => { %>
+                <option value="<%= status.key %>" <%= project.status === status.key ? 'selected' : '' %>><%= status.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Prioridad</span>
+            <select name="priority" disabled>
+              <% projectPriorities.forEach((priority) => { %>
+                <option value="<%= priority.key %>" <%= project.priority === priority.key ? 'selected' : '' %>><%= priority.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Inicio</span>
+            <input class="app-input" type="date" name="start_date" value="<%= project.start_date || '' %>" disabled />
+          </label>
+          <label class="app-field">
+            <span>Fin estimado</span>
+            <input class="app-input" type="date" name="estimated_end_date" value="<%= project.estimated_end_date || '' %>" disabled />
+          </label>
+          <label class="app-field">
+            <span>Fin real</span>
+            <input class="app-input" type="date" name="real_end_date" value="<%= project.real_end_date || '' %>" disabled />
+          </label>
+          <label class="app-field">
+            <span>Presupuesto estimado</span>
+            <input class="app-input" type="number" name="estimated_budget" step="0.01" min="0" value="<%= Number(project.estimated_budget || 0).toFixed(2) %>" disabled />
+          </label>
+          <label class="app-field">
+            <span>Venta estimada</span>
+            <input class="app-input" type="number" name="sale_amount" step="0.01" min="0" value="<%= Number(project.sale_amount || 0).toFixed(2) %>" disabled />
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Descripción</span>
+            <textarea class="app-textarea" name="description" rows="4" disabled><%= project.description || '' %></textarea>
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Notas</span>
+            <textarea class="app-textarea" name="notes" rows="3" disabled><%= project.notes || '' %></textarea>
+          </label>
+          <div class="actions projects-form-full" data-project-summary-actions hidden>
+            <button type="submit" class="btn primary app-btn app-btn-primary">Guardar cambios</button>
+            <button type="button" class="btn app-btn" data-project-summary-cancel>Cancelar cambios</button>
+          </div>
+        </form>
+      </section>
+    <% } %>
+
+    <% if (activeTab === 'schedule') { %>
+      <section class="projects-schedule-dashboard">
+        <article class="projects-schedule-overview">
+          <div class="projects-schedule-overview__head">
+            <div>
+              <span class="projects-eyebrow">Dashboard del cronograma</span>
+              <h2><%= scheduleDashboard.completionPercent %>% completado</h2>
+              <p class="muted"><%= formatDate(scheduleDashboard.startDate) %> - <%= formatDate(scheduleDashboard.endDate) %></p>
+            </div>
+            <strong><%= scheduleDashboard.completedTasks %>/<%= scheduleDashboard.totalTasks %> tareas</strong>
+          </div>
+          <div class="projects-progress projects-progress--schedule">
+            <span style="width:<%= scheduleDashboard.completionPercent %>%"></span>
+          </div>
+          <div class="projects-schedule-metrics">
+            <div><span>Tareas abiertas</span><strong><%= scheduleDashboard.openTasks %></strong></div>
+            <div><span>Con fecha</span><strong><%= scheduleDashboard.datedTasks %></strong></div>
+            <div class="<%= scheduleDashboard.overdueTasks ? 'is-alert' : '' %>"><span>Vencidas</span><strong><%= scheduleDashboard.overdueTasks %></strong></div>
+            <div>
+              <span>Proxima entrega</span>
+              <strong><%= scheduleDashboard.nextTask ? formatDate(scheduleDashboard.nextTask.due_date) : 'Sin pendiente' %></strong>
+              <% if (scheduleDashboard.nextTask) { %><small><%= scheduleDashboard.nextTask.title %></small><% } %>
+            </div>
+          </div>
+        </article>
+
+        <div class="projects-essential-grid">
+          <article class="projects-essential-card projects-essential-card--quote">
+            <span class="projects-essential-card__dot"></span>
+            <div>
+              <span class="projects-eyebrow">Punto esencial 1</span>
+              <h3>Enviar cotizacion</h3>
+              <p class="muted"><%= commercialDashboard.sendCandidate ? 'Pendiente de enviar al cliente.' : (commercialDashboard.hasQuote ? 'Cotizacion enviada.' : 'Sin cotizacion registrada.') %></p>
+            </div>
+          </article>
+
+          <article class="projects-essential-card projects-essential-card--invoice">
+            <span class="projects-essential-card__dot"></span>
+            <div>
+              <span class="projects-eyebrow">Punto esencial 2</span>
+              <h3>Crear factura</h3>
+              <p class="muted"><%= commercialDashboard.invoicedCount ? `${commercialDashboard.invoicedCount} factura(s) vinculada(s).` : 'Punto pendiente del proyecto.' %></p>
+            </div>
+          </article>
+
+          <article class="projects-essential-card projects-essential-card--collection">
+            <span class="projects-essential-card__dot"></span>
+            <div>
+              <span class="projects-eyebrow">Punto esencial 3</span>
+              <h3>Cobrar cotizacion</h3>
+              <p class="muted">Saldo pendiente: <strong><%= formatMoney(commercialDashboard.pendingCollection) %></strong>.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <details class="panel app-panel projects-schedule-create">
+        <summary class="projects-collapsible-summary">
+          <div>
+            <h2>Nueva actividad</h2>
+            <p class="muted">Mostrar formulario para agregar una actividad al cronograma.</p>
+          </div>
+          <span class="projects-collapsible-summary__more">Mas</span>
+          <span class="projects-collapsible-summary__less">Menos</span>
+        </summary>
+
+        <form method="POST" action="/projects/<%= project.id %>/schedule/create" class="projects-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label class="app-field">
+            <span>Actividad</span>
+            <input class="app-input" type="text" name="name" required />
+          </label>
+          <label class="app-field">
+            <span>Inicio</span>
+            <input class="app-input" type="date" name="start_date" />
+          </label>
+          <label class="app-field">
+            <span>Fin estimado</span>
+            <input class="app-input" type="date" name="estimated_end_date" />
+          </label>
+          <label class="app-field">
+            <span>Fin real</span>
+            <input class="app-input" type="date" name="real_end_date" />
+          </label>
+          <label class="app-field">
+            <span>Responsable</span>
+            <select name="responsible_id">
+              <option value="">Sin responsable</option>
+              <% users.forEach((userItem) => { %>
+                <option value="<%= userItem.id %>"><%= userItem.username %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Estado</span>
+            <select name="status">
+              <% scheduleStatuses.forEach((status) => { %>
+                <option value="<%= status.key %>"><%= status.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>% avance</span>
+            <input class="app-input" type="number" name="progress_percent" min="0" max="100" step="1" value="0" />
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Observaciones</span>
+            <textarea class="app-textarea" name="observations" rows="2"></textarea>
+          </label>
+          <div class="actions projects-form-full">
+            <button type="submit" class="btn primary app-btn app-btn-primary">Agregar actividad</button>
+          </div>
+        </form>
+      </details>
+
+      <section class="panel app-panel projects-timeline-panel">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Cronograma</h2>
+            <p class="muted">Puntos y tareas ordenados cronologicamente por fecha.</p>
+          </div>
+          <span class="app-chip"><%= timeline.length %> elementos</span>
+        </div>
+        <div class="projects-timeline" data-project-timeline>
+        <% if (!timeline.length) { %>
+          <div class="app-empty-state projects-empty-card">
+            <p class="app-empty-state-text">Todavía no hay actividades en el cronograma.</p>
+          </div>
+        <% } %>
+        <% timeline.forEach((item, index) => { %>
+          <article class="projects-timeline-row projects-timeline-row--<%= item.timeline_type || 'schedule' %> <%= item.is_overdue ? 'is-overdue' : '' %>" data-timeline-item <%= index >= 6 ? 'hidden' : '' %>>
+            <div class="projects-timeline-row__date">
+              <strong><%= formatDate(item.timeline_date) %></strong>
+              <% if (item.is_overdue) { %><span>Atrasada</span><% } %>
+            </div>
+            <span class="projects-timeline-row__dot" <% if (item.timeline_type === 'task') { %>style="--task-color:<%= item.color %>"<% } %>></span>
+            <div class="projects-timeline-row__meta">
+              <span class="projects-timeline-type"><%= item.timeline_label || 'Actividad' %></span>
+              <strong><%= item.name %></strong>
+              <small class="muted"><%= item.responsible_display %> · <%= item.status_label %></small>
+            </div>
+            <div class="projects-timeline-row__action">
+              <% if (item.action_kind === 'task') { %>
+                <a class="btn app-btn app-btn-small" href="/projects/<%= project.id %>?tab=tasks&task_id=<%= item.action_id %>#task-detail">Abrir</a>
+              <% } %>
+            </div>
+          </article>
+        <% }) %>
+        </div>
+        <% if (timeline.length > 6) { %>
+          <div class="projects-timeline-controls">
+            <button type="button" class="btn app-btn" data-timeline-toggle aria-expanded="false">
+              <span data-timeline-more>Mostrar mas</span>
+              <span data-timeline-less hidden>Mostrar menos</span>
+            </button>
+          </div>
+        <% } %>
+      </section>
+
+      <details class="projects-schedule-manage">
+        <summary class="projects-collapsible-summary">
+          <div>
+            <h2>Lista de actividades</h2>
+            <p class="muted">Editar las actividades registradas.</p>
+          </div>
+          <span class="projects-collapsible-summary__more">Mas</span>
+          <span class="projects-collapsible-summary__less">Menos</span>
+        </summary>
+        <section class="projects-stack">
+        <% schedule.forEach((item) => { %>
+          <form method="POST" action="/projects/<%= project.id %>/schedule/<%= item.id %>/update" class="panel app-panel projects-inline-form <%= item.is_overdue ? 'is-overdue' : '' %>">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <% if (item.is_overdue) { %><strong class="projects-overdue">Actividad atrasada</strong><% } %>
+            <div class="projects-inline-form__grid">
+              <label class="app-field">
+                <span>Actividad</span>
+                <input class="app-input" type="text" name="name" value="<%= item.name %>" />
+              </label>
+              <label class="app-field">
+                <span>Inicio</span>
+                <input class="app-input" type="date" name="start_date" value="<%= item.start_date || '' %>" />
+              </label>
+              <label class="app-field">
+                <span>Fin estimado</span>
+                <input class="app-input" type="date" name="estimated_end_date" value="<%= item.estimated_end_date || '' %>" />
+              </label>
+              <label class="app-field">
+                <span>Fin real</span>
+                <input class="app-input" type="date" name="real_end_date" value="<%= item.real_end_date || '' %>" />
+              </label>
+              <label class="app-field">
+                <span>Responsable</span>
+                <select name="responsible_id">
+                  <option value="">Sin responsable</option>
+                  <% users.forEach((userItem) => { %>
+                    <option value="<%= userItem.id %>" <%= Number(item.responsible_id) === Number(userItem.id) ? 'selected' : '' %>><%= userItem.username %></option>
+                  <% }) %>
+                </select>
+              </label>
+              <label class="app-field">
+                <span>Estado</span>
+                <select name="status">
+                  <% scheduleStatuses.forEach((status) => { %>
+                    <option value="<%= status.key %>" <%= item.status === status.key ? 'selected' : '' %>><%= status.label %></option>
+                  <% }) %>
+                </select>
+              </label>
+              <label class="app-field">
+                <span>% avance</span>
+                <input class="app-input" type="number" name="progress_percent" min="0" max="100" value="<%= item.progress_percent %>" />
+              </label>
+              <label class="app-field projects-inline-form__wide">
+                <span>Observaciones</span>
+                <textarea class="app-textarea" name="observations" rows="2"><%= item.observations || '' %></textarea>
+              </label>
+            </div>
+            <div class="actions">
+              <button type="submit" class="btn app-btn">Actualizar actividad</button>
+            </div>
+          </form>
+        <% }) %>
+        </section>
+      </details>
+    <% } %>
+
+    <% if (activeTab === 'tasks') { %>
+      <section class="projects-kpi-grid projects-kpi-grid--small">
+        <article class="projects-kpi-card"><span>Total</span><strong><%= taskSummary.total %></strong></article>
+        <article class="projects-kpi-card"><span>Completadas</span><strong><%= taskSummary.completed %></strong></article>
+        <article class="projects-kpi-card"><span>En proceso</span><strong><%= taskSummary.inProgress %></strong></article>
+        <article class="projects-kpi-card"><span>Horas estimadas</span><strong><%= Number(taskSummary.estimatedHours || 0).toFixed(2) %></strong></article>
+        <article class="projects-kpi-card"><span>Horas reales</span><strong><%= Number(taskSummary.realHours || 0).toFixed(2) %></strong></article>
+      </section>
+
+      <% if (taskMode === 'new') { %>
+      <section class="panel app-panel projects-subpage" id="new-task">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Nueva tarea</h2>
+            <p class="muted">Las tareas finalizadas deben documentar tiempo real, complicaciones, solución aplicada y recomendación futura.</p>
+          </div>
+        </div>
+        <form method="POST" action="/projects/<%= project.id %>/tasks/create" enctype="multipart/form-data" class="projects-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label class="app-field">
+            <span>Título</span>
+            <input class="app-input" type="text" name="title" required />
+          </label>
+          <label class="app-field">
+            <span>Asignación</span>
+            <select name="assigned_to">
+              <option value="">Sin asignar</option>
+              <% users.forEach((userItem) => { %>
+                <option value="<%= userItem.id %>"><%= userItem.username %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Estado</span>
+            <select name="status">
+              <% taskStatuses.forEach((status) => { %>
+                <option value="<%= status.key %>"><%= status.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Prioridad</span>
+            <select name="priority">
+              <% projectPriorities.forEach((priority) => { %>
+                <option value="<%= priority.key %>"><%= priority.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Horas estimadas</span>
+            <input class="app-input" type="number" name="estimated_hours" step="0.25" min="0" />
+          </label>
+          <label class="app-field">
+            <span>Inicio</span>
+            <input class="app-input" type="date" name="start_date" />
+          </label>
+          <label class="app-field">
+            <span>Vence</span>
+            <input class="app-input" type="date" name="due_date" />
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Descripción</span>
+            <textarea class="app-textarea" name="description" rows="3"></textarea>
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Adjunto</span>
+            <input class="app-input" type="file" name="attachment" />
+          </label>
+          <div class="actions projects-form-full">
+            <button type="submit" class="btn primary app-btn app-btn-primary">Crear tarea</button>
+            <a class="btn app-btn" href="/projects/<%= project.id %>?tab=tasks">Cancelar</a>
+          </div>
+        </form>
+      </section>
+      <% } %>
+
+      <section class="panel app-panel">
+        <div class="panel-header app-panel-header">
+          <div><h2>Tareas en orden de ejecución</h2><p class="muted">Mueve las tareas para definir el orden en que deben realizarse.</p></div>
+          <a class="btn primary app-btn app-btn-primary" href="/projects/<%= project.id %>?tab=tasks&task_mode=new#new-task">Nueva tarea</a>
+        </div>
+        <% if (!tasks.length) { %>
+          <div class="app-empty-state projects-empty-card">
+            <p class="app-empty-state-text">No hay tareas registradas todavía.</p>
+          </div>
+        <% } %>
+        <% tasks.forEach((task) => { %>
+          <div class="projects-record-row projects-task-list-row">
+            <strong class="projects-record-order"><%= task.sort_order || 0 %></strong>
+            <div><span>Título</span><strong class="projects-task-title"><span class="projects-task-color-dot" style="--task-color:<%= task.color %>"></span><%= task.title %></strong></div>
+            <div><span>Duración</span><strong><%= task.estimated_hours ? `${Number(task.estimated_hours).toFixed(2)} h` : 'Sin estimar' %></strong></div>
+            <div><span>Asignación</span><strong><%= task.assigned_display %></strong></div>
+            <div><span>Prioridad</span><strong class="projects-priority-chip <%= task.priority_meta.badgeClass %>"><%= task.priority_label %></strong></div>
+            <div class="actions projects-record-actions">
+              <form method="POST" action="/projects/<%= project.id %>/tasks/<%= task.id %>/move" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><input type="hidden" name="direction" value="up" /><button class="btn app-btn app-btn-small" type="submit">↑</button></form>
+              <form method="POST" action="/projects/<%= project.id %>/tasks/<%= task.id %>/move" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><input type="hidden" name="direction" value="down" /><button class="btn app-btn app-btn-small" type="submit">↓</button></form>
+              <a class="btn app-btn" href="/projects/<%= project.id %>?tab=tasks&task_id=<%= task.id %>#task-detail">Abrir</a>
+            </div>
+          </div>
+        <% }) %>
+      </section>
+
+      <% if (selectedTask) { const task = selectedTask; %>
+      <section class="projects-stack" id="task-detail">
+          <article class="panel app-panel projects-task-card">
+            <div class="projects-task-card__header">
+              <div>
+                <h3 class="projects-task-title"><span class="projects-task-color-dot" style="--task-color:<%= task.color %>"></span><%= task.title %></h3>
+                <p class="muted"><%= task.assigned_display %> · <%= task.status_label %> · <%= task.priority_label %></p>
+              </div>
+              <span class="projects-priority-chip <%= task.priority_meta.badgeClass %>"><%= task.priority_label %></span>
+            </div>
+            <div class="projects-task-card__body">
+              <% if (task.attachments && task.attachments.length) { %>
+                <div class="projects-linked-files">
+                  <strong>Adjuntos de la tarea</strong>
+                  <% task.attachments.forEach((file) => { %><a class="btn app-btn" href="<%= file.download_url %>" target="_blank" rel="noopener"><%= file.original_name || 'Abrir adjunto' %></a><% }) %>
+                </div>
+              <% } %>
+              <form method="POST" action="/projects/<%= project.id %>/tasks/<%= task.id %>/update" enctype="multipart/form-data" class="projects-inline-form">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <div class="projects-inline-form__grid">
+                  <label class="app-field">
+                    <span>Título</span>
+                    <input class="app-input" type="text" name="title" value="<%= task.title %>" />
+                  </label>
+                  <label class="app-field">
+                    <span>Asignación</span>
+                    <select name="assigned_to">
+                      <option value="">Sin asignar</option>
+                      <% users.forEach((userItem) => { %>
+                        <option value="<%= userItem.id %>" <%= Number(task.assigned_to) === Number(userItem.id) ? 'selected' : '' %>><%= userItem.username %></option>
+                      <% }) %>
+                    </select>
+                  </label>
+                  <label class="app-field">
+                    <span>Estado</span>
+                    <select name="status">
+                      <% taskStatuses.forEach((status) => { %>
+                        <option value="<%= status.key %>" <%= task.status === status.key ? 'selected' : '' %>><%= status.label %></option>
+                      <% }) %>
+                    </select>
+                  </label>
+                  <label class="app-field">
+                    <span>Prioridad</span>
+                    <select name="priority">
+                      <% projectPriorities.forEach((priority) => { %>
+                        <option value="<%= priority.key %>" <%= task.priority === priority.key ? 'selected' : '' %>><%= priority.label %></option>
+                      <% }) %>
+                    </select>
+                  </label>
+                  <label class="app-field">
+                    <span>Horas estimadas</span>
+                    <input class="app-input" type="number" name="estimated_hours" step="0.25" min="0" value="<%= task.estimated_hours || '' %>" />
+                  </label>
+                  <label class="app-field">
+                    <span>Inicio</span>
+                    <input class="app-input" type="date" name="start_date" value="<%= task.start_date || '' %>" />
+                  </label>
+                  <label class="app-field">
+                    <span>Vence</span>
+                    <input class="app-input" type="date" name="due_date" value="<%= task.due_date || '' %>" />
+                  </label>
+                  <label class="app-field projects-inline-form__wide">
+                    <span>Descripción</span>
+                    <textarea class="app-textarea" name="description" rows="2"><%= task.description || '' %></textarea>
+                  </label>
+                  <label class="app-field projects-inline-form__wide">
+                    <span>Agregar adjunto</span>
+                    <input class="app-input" type="file" name="attachment" />
+                  </label>
+                </div>
+                <div class="actions">
+                  <button type="submit" class="btn app-btn">Guardar tarea</button>
+                </div>
+              </form>
+
+              <form method="POST" action="/projects/<%= project.id %>/tasks/<%= task.id %>/complete" class="projects-inline-form projects-inline-form--accent">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <div class="projects-inline-form__grid">
+                  <label class="app-field">
+                    <span>Fecha finalización</span>
+                    <input class="app-input" type="date" name="completed_at" value="<%= task.completed_at || '' %>" />
+                  </label>
+                  <label class="app-field">
+                    <span>Horas reales</span>
+                    <input class="app-input" type="number" name="real_hours" step="0.25" min="0" value="<%= task.real_hours || '' %>" />
+                  </label>
+                  <label class="app-field projects-inline-form__wide">
+                    <span>Complicaciones encontradas</span>
+                    <textarea class="app-textarea" name="complications" rows="2"><%= task.complications || '' %></textarea>
+                  </label>
+                  <label class="app-field projects-inline-form__wide">
+                    <span>Cómo se solucionó</span>
+                    <textarea class="app-textarea" name="solution_applied" rows="2"><%= task.solution_applied || '' %></textarea>
+                  </label>
+                  <label class="app-field projects-inline-form__wide">
+                    <span>Recomendación / aprendizaje</span>
+                    <textarea class="app-textarea" name="learned_notes" rows="2"><%= task.learned_notes || '' %></textarea>
+                  </label>
+                </div>
+                <div class="actions">
+                  <button type="submit" class="btn primary app-btn app-btn-primary">Finalizar tarea</button>
+                </div>
+              </form>
+            </div>
+          </article>
+      </section>
+      <% } %>
+    <% } %>
+
+    <% if (activeTab === 'expenses') { %>
+      <% if (expenseMode === 'new') { %>
+      <section class="panel app-panel projects-subpage" id="new-expense">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Nuevo gasto</h2>
+            <p class="muted">Cada gasto queda marcado para enviarse a contabilidad. Si ya se envió, no se duplica.</p>
+          </div>
+        </div>
+        <form method="POST" action="/projects/<%= project.id %>/expenses/create" enctype="multipart/form-data" class="projects-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label class="app-field">
+            <span>Proveedor</span>
+            <select name="supplier_id">
+              <option value="">Sin proveedor vinculado</option>
+              <% customers.forEach((customer) => { %>
+                <option value="<%= customer.id %>"><%= customer.customer_code ? `${customer.customer_code} - ` : '' %><%= customer.name %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Tarea relacionada</span>
+            <select name="task_id">
+              <option value="">Sin tarea asignada</option>
+              <% tasks.forEach((task) => { %><option value="<%= task.id %>"><%= task.title %></option><% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Fecha</span>
+            <input class="app-input" type="date" name="expense_date" value="<%= project.start_date || '' %>" />
+          </label>
+          <label class="app-field">
+            <span>Categoría</span>
+            <input class="app-input" type="text" name="category" placeholder="Materiales, transporte, mano de obra..." />
+          </label>
+          <label class="app-field">
+            <span>Factura / documento</span>
+            <input class="app-input" type="text" name="invoice_number" />
+          </label>
+          <label class="app-field">
+            <span>Monto base</span>
+            <input class="app-input" type="number" name="amount" step="0.01" min="0" required />
+          </label>
+          <label class="app-field">
+            <span>Impuesto</span>
+            <input class="app-input" type="number" name="tax_amount" step="0.01" min="0" value="0" />
+          </label>
+          <label class="app-field">
+            <span>Total</span>
+            <input class="app-input" type="number" name="total_amount" step="0.01" min="0" value="0" />
+          </label>
+          <label class="app-field">
+            <span>Moneda</span>
+            <select name="currency">
+              <option value="GTQ">GTQ</option>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Pago</span>
+            <select name="payment_status">
+              <% paymentStatuses.forEach((status) => { %>
+                <option value="<%= status.key %>"><%= status.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Descripción</span>
+            <textarea class="app-textarea" name="description" rows="2" required></textarea>
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Observaciones</span>
+            <textarea class="app-textarea" name="notes" rows="2"></textarea>
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Adjunto</span>
+            <input class="app-input" type="file" name="attachment" />
+          </label>
+          <div class="actions projects-form-full">
+            <button type="submit" class="btn primary app-btn app-btn-primary">Guardar gasto</button>
+            <a class="btn app-btn" href="/projects/<%= project.id %>?tab=expenses">Cancelar</a>
+          </div>
+        </form>
+      </section>
+      <% } %>
+
+      <section class="panel app-panel">
+        <div class="panel-header app-panel-header">
+          <div><h2>Gastos del proyecto</h2><p class="muted">Incluye costos creados desde la cotización y gastos agregados sin tarea.</p></div>
+          <a class="btn primary app-btn app-btn-primary" href="/projects/<%= project.id %>?tab=expenses&expense_mode=new#new-expense">Nuevo gasto</a>
+        </div>
+        <% if (!expenses.length) { %>
+          <div class="app-empty-state projects-empty-card">
+            <p class="app-empty-state-text">No hay gastos registrados todavía.</p>
+          </div>
+        <% } %>
+        <% expenses.forEach((expense) => { %>
+          <div class="projects-record-row projects-expense-list-row">
+            <div><span>Gasto</span><strong><%= expense.description %></strong></div>
+            <div><span>Tarea</span><strong><%= expense.task_display %></strong></div>
+            <div><span>Total</span><strong><%= formatMoney(expense.total_amount, expense.currency) %></strong></div>
+            <div><span>Estado</span><strong class="projects-expense-lock-badge <%= expense.is_locked ? 'is-locked' : 'is-editable' %>"><%= expense.lock_status_label %></strong></div>
+            <div><span>Tipo</span><strong><%= expense.is_estimated ? 'Creado desde cotización' : 'Gasto agregado' %></strong></div>
+            <div class="actions projects-record-actions">
+              <a class="btn app-btn" href="/projects/<%= project.id %>?tab=expenses&expense_id=<%= expense.id %>#expense-detail">Abrir</a>
+              <% if (expense.is_locked) { %>
+                <button class="btn app-btn" type="button" disabled>Editar</button>
+              <% } else { %>
+                <a class="btn app-btn" href="/projects/<%= project.id %>?tab=expenses&expense_id=<%= expense.id %>&expense_mode=edit#expense-edit">Editar</a>
+              <% } %>
+              <% if (canManageExpenseLocks) { %>
+                <% if (expense.is_locked) { %>
+                  <form method="POST" action="/projects/<%= project.id %>/expenses/<%= expense.id %>/unlock" class="inline-form" onsubmit="return confirm('¿Seguro que deseas desbloquear este gasto?');">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <button type="submit" class="btn app-btn">Desbloquear</button>
+                  </form>
+                <% } else { %>
+                  <form method="POST" action="/projects/<%= project.id %>/expenses/<%= expense.id %>/lock" class="inline-form" onsubmit="return confirm('¿Seguro que deseas bloquear este gasto? Después no podrá editarse hasta que un administrador lo desbloquee.');">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <button type="submit" class="btn app-btn">Bloquear</button>
+                  </form>
+                <% } %>
+              <% } %>
+            </div>
+          </div>
+        <% }) %>
+      </section>
+
+      <% if (selectedExpense && expenseMode === 'edit') { const expense = selectedExpense; %>
+      <section class="panel app-panel projects-subpage" id="expense-edit">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Editar gasto</h2>
+            <p class="muted"><%= expense.is_locked ? 'Este gasto está bloqueado.' : 'Actualiza los datos del gasto sin duplicar el registro.' %></p>
+          </div>
+          <span class="projects-expense-lock-badge <%= expense.is_locked ? 'is-locked' : 'is-editable' %>"><%= expense.lock_status_label %></span>
+        </div>
+        <% if (expense.is_locked) { %>
+          <div class="app-empty-state projects-empty-card">
+            <p class="app-empty-state-text">No se puede editar un gasto bloqueado.</p>
+          </div>
+        <% } else { %>
+          <form method="POST" action="/projects/<%= project.id %>/expenses/<%= expense.id %>/update" class="projects-form-grid">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <label class="app-field">
+              <span>Proveedor</span>
+              <select name="supplier_id">
+                <option value="">Sin proveedor vinculado</option>
+                <% customers.forEach((customer) => { %>
+                  <option value="<%= customer.id %>" <%= Number(expense.supplier_id) === Number(customer.id) ? 'selected' : '' %>><%= customer.customer_code ? `${customer.customer_code} - ` : '' %><%= customer.name %></option>
+                <% }) %>
+              </select>
+            </label>
+            <label class="app-field">
+              <span>Fecha</span>
+              <input class="app-input" type="date" name="expense_date" value="<%= expense.expense_date || '' %>" />
+            </label>
+            <label class="app-field">
+              <span>Categoría</span>
+              <input class="app-input" type="text" name="category" value="<%= expense.category || '' %>" />
+            </label>
+            <label class="app-field">
+              <span>Documento / referencia</span>
+              <input class="app-input" type="text" name="invoice_number" value="<%= expense.invoice_number || '' %>" />
+            </label>
+            <label class="app-field">
+              <span>Monto</span>
+              <input class="app-input" type="number" name="amount" step="0.01" min="0" value="<%= Number(expense.amount || 0).toFixed(2) %>" required />
+            </label>
+            <label class="app-field">
+              <span>Impuesto</span>
+              <input class="app-input" type="number" name="tax_amount" step="0.01" min="0" value="<%= Number(expense.tax_amount || 0).toFixed(2) %>" />
+            </label>
+            <label class="app-field">
+              <span>Total</span>
+              <input class="app-input" type="number" name="total_amount" step="0.01" min="0" value="<%= Number(expense.total_amount || 0).toFixed(2) %>" />
+            </label>
+            <label class="app-field">
+              <span>Moneda</span>
+              <select name="currency">
+                <% ['GTQ', 'USD', 'EUR'].forEach((currency) => { %>
+                  <option value="<%= currency %>" <%= (expense.currency || 'GTQ') === currency ? 'selected' : '' %>><%= currency %></option>
+                <% }) %>
+              </select>
+            </label>
+            <label class="app-field">
+              <span>Pago</span>
+              <select name="payment_status">
+                <% paymentStatuses.forEach((status) => { %>
+                  <option value="<%= status.key %>" <%= expense.payment_status === status.key ? 'selected' : '' %>><%= status.label %></option>
+                <% }) %>
+              </select>
+            </label>
+            <label class="app-field projects-form-full">
+              <span>Descripción</span>
+              <textarea class="app-textarea" name="description" rows="2" required><%= expense.description || '' %></textarea>
+            </label>
+            <label class="app-field projects-form-full">
+              <span>Observaciones</span>
+              <textarea class="app-textarea" name="notes" rows="2"><%= expense.notes || '' %></textarea>
+            </label>
+            <div class="actions projects-form-full">
+              <button type="submit" class="btn primary app-btn app-btn-primary">Guardar cambios</button>
+              <a class="btn app-btn" href="/projects/<%= project.id %>?tab=expenses&expense_id=<%= expense.id %>#expense-detail">Cancelar</a>
+            </div>
+          </form>
+        <% } %>
+      </section>
+      <% } %>
+
+      <% if (selectedExpense) { const expense = selectedExpense; %>
+      <section class="projects-stack" id="expense-detail">
+          <article class="panel app-panel projects-expense-card">
+            <div class="projects-expense-card__header">
+              <div>
+                <h3><%= expense.description %></h3>
+                <p class="muted"><%= expense.supplier_display %> · <%= formatDate(expense.expense_date) %></p>
+              </div>
+              <div class="projects-expense-card__amount">
+                <span class="projects-expense-lock-badge <%= expense.is_locked ? 'is-locked' : 'is-editable' %>"><%= expense.lock_status_label %></span>
+                <strong><%= formatMoney(expense.total_amount, expense.currency) %></strong>
+              </div>
+            </div>
+            <div class="projects-expense-card__meta">
+              <div><span>Categoría</span><strong><%= expense.category || 'Sin categoría' %></strong></div>
+              <div><span>Pago</span><strong><%= expense.payment_status_label %></strong></div>
+              <div><span>Contabilidad</span><strong><%= expense.accounting_status_label %></strong></div>
+              <div><span>Documento</span><strong><%= expense.invoice_number || 'Sin número' %></strong></div>
+              <div><span>Moneda</span><strong><%= expense.currency || 'GTQ' %></strong></div>
+              <div><span>Actualizado</span><strong><%= expense.updated_by_name || 'Sin usuario' %> · <%= formatDateTime(expense.updated_at) %></strong></div>
+              <div><span>Bloqueo</span><strong><%= expense.is_locked ? `${expense.locked_by_name || 'Sin usuario'} · ${formatDateTime(expense.locked_at)}` : 'No bloqueado' %></strong></div>
+              <div><span>Observaciones</span><strong><%= expense.notes || 'Sin observaciones' %></strong></div>
+            </div>
+            <div class="actions">
+              <% if (expense.is_locked) { %>
+                <button class="btn app-btn" type="button" disabled>Editar</button>
+              <% } else { %>
+                <a class="btn app-btn" href="/projects/<%= project.id %>?tab=expenses&expense_id=<%= expense.id %>&expense_mode=edit#expense-edit">Editar</a>
+              <% } %>
+              <% if (canManageExpenseLocks) { %>
+                <% if (expense.is_locked) { %>
+                  <form method="POST" action="/projects/<%= project.id %>/expenses/<%= expense.id %>/unlock" class="inline-form" onsubmit="return confirm('¿Seguro que deseas desbloquear este gasto?');">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <button type="submit" class="btn app-btn">Desbloquear</button>
+                  </form>
+                <% } else { %>
+                  <form method="POST" action="/projects/<%= project.id %>/expenses/<%= expense.id %>/lock" class="inline-form" onsubmit="return confirm('¿Seguro que deseas bloquear este gasto? Después no podrá editarse hasta que un administrador lo desbloquee.');">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <button type="submit" class="btn app-btn">Bloquear</button>
+                  </form>
+                <% } %>
+              <% } %>
+              <% if (expense.attachment_url && !(expense.files && expense.files.length)) { %>
+                <a class="btn app-btn" href="<%= expense.attachment_url %>" target="_blank" rel="noopener">Ver adjunto</a>
+              <% } %>
+              <% if (expense.files) { expense.files.forEach((file) => { %>
+                <a class="btn app-btn" href="<%= file.download_url %>" target="_blank" rel="noopener"><%= file.original_name || 'Ver adjunto' %></a>
+              <% }) } %>
+              <% if (expense.accounting_status !== 'sent') { %>
+                <form method="POST" action="/projects/<%= project.id %>/expenses/<%= expense.id %>/send-accounting" class="inline-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <button type="submit" class="btn app-btn">Enviar a contabilidad</button>
+                </form>
+              <% } %>
+            </div>
+          </article>
+      </section>
+      <% } %>
+    <% } %>
+
+    <% if (activeTab === 'quotes') { %>
+      <% if (!project.source_quote_id) { %>
+      <section class="panel app-panel" id="new-quote">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Crear cotización</h2>
+            <p class="muted">Puedes aprobarla y convertirla directamente en factura si el cliente la acepta.</p>
+          </div>
+        </div>
+        <form method="POST" action="/projects/<%= project.id %>/quotes/create" enctype="multipart/form-data" class="projects-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label class="app-field">
+            <span>Título</span>
+            <input class="app-input" type="text" name="title" placeholder="Cotización principal del proyecto" />
+          </label>
+          <label class="app-field">
+            <span>Cliente</span>
+            <select name="customer_id">
+              <option value="">Usar cliente del proyecto</option>
+              <% customers.forEach((customer) => { %>
+                <option value="<%= customer.id %>" <%= Number(project.client_id) === Number(customer.id) ? 'selected' : '' %>><%= customer.customer_code ? `${customer.customer_code} - ` : '' %><%= customer.name %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Válida hasta</span>
+            <input class="app-input" type="date" name="valid_until" />
+          </label>
+          <label class="app-field">
+            <span>Moneda</span>
+            <select name="currency">
+              <% currencyOptions.forEach((currency) => { %>
+                <option value="<%= currency %>" <%= baseCurrency === currency ? 'selected' : '' %>><%= currency %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Tipo de cambio</span>
+            <input class="app-input" type="number" name="exchange_rate" step="0.0001" min="0" value="1" />
+          </label>
+          <label class="app-field">
+            <span>Estado</span>
+            <select name="status">
+              <% quoteStatuses.forEach((status) => { %>
+                <option value="<%= status.key %>"><%= status.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Margen %</span>
+            <input class="app-input" type="number" name="margin_percent" step="0.01" min="-100" value="0" />
+          </label>
+          <label class="app-field">
+            <span>Impuesto global %</span>
+            <input class="app-input" type="number" name="tax_rate" step="0.01" min="0" value="0" />
+          </label>
+          <label class="app-field">
+            <span>Descuento</span>
+            <select name="discount_type">
+              <option value="amount">Monto</option>
+              <option value="percent">%</option>
+            </select>
+          </label>
+          <label class="app-field">
+            <span>Valor descuento</span>
+            <input class="app-input" type="number" name="discount_value" step="0.01" min="0" value="0" />
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Descripción</span>
+            <textarea class="app-textarea" name="description" rows="2"><%= project.description || '' %></textarea>
+          </label>
+          <fieldset class="app-field projects-form-full">
+            <legend>Campos visibles en PDF</legend>
+            <input type="hidden" name="pdf_fields_submitted" value="1" />
+            <div class="projects-quote-lines-summary">
+              <% quotePdfFieldGroups.forEach((group) => { %>
+                <div class="projects-quote-lines-summary__row">
+                  <strong><%= group.label %></strong>
+                  <span>
+                    <% group.fields.forEach((field) => { %>
+                      <label class="inline-form">
+                        <input type="checkbox" name="pdf_fields" value="<%= field.key %>" <%= isPdfFieldSelected(null, field.key) ? 'checked' : '' %> />
+                        <span><%= field.label %></span>
+                      </label>
+                    <% }) %>
+                  </span>
+                </div>
+              <% }) %>
+            </div>
+          </fieldset>
+
+          <div class="projects-quote-lines projects-form-full is-compact" data-quote-lines>
+            <div class="projects-quote-lines__header">
+              <div>
+                <h3>Líneas de productos / servicios</h3>
+                <p class="muted projects-quote-lines__hint">Los campos extra estan ocultos. Puedes mostrarlos y usar el scroll horizontal si hace falta.</p>
+              </div>
+              <div class="projects-quote-lines__actions">
+                <button type="button" class="btn app-btn app-btn-small" data-toggle-quote-fields aria-expanded="false">Mostrar campos extra</button>
+                <button type="button" class="btn app-btn app-btn-small" data-add-quote-line>Agregar línea</button>
+              </div>
+            </div>
+            <div class="projects-quote-lines__scroll" data-quote-scroll>
+              <% for (let i = 0; i < 3; i += 1) { %>
+                <div class="projects-quote-line projects-quote-line--basic" data-quote-line>
+                  <label class="projects-quote-line__field"><span>Descripción del servicio</span><input class="app-input" type="text" name="line_description" placeholder="Descripción del servicio" /></label>
+                  <label class="projects-quote-line__field"><span>Cantidad</span><input class="app-input" type="number" name="line_qty" min="0" step="0.01" placeholder="Cant." /></label>
+                  <label class="projects-quote-line__field" data-quote-optional><span>Costo</span><input class="app-input" type="number" name="line_unit_cost" min="0" step="0.01" placeholder="Costo" /></label>
+                  <label class="projects-quote-line__field"><span>Ganancia</span><input class="app-input" type="text" name="line_margin_percent" placeholder="100 o 20%" /></label>
+                  <label class="projects-quote-line__field"><span>Precio</span><input class="app-input" type="number" name="line_unit_price" min="0" step="0.01" placeholder="Precio" /></label>
+                  <label class="projects-quote-line__field" data-quote-optional><span>IVA %</span><input class="app-input" type="number" name="line_tax_rate" min="0" step="0.01" placeholder="IVA %" /></label>
+                  <label class="projects-quote-line__field" data-quote-optional><span>Tipo descuento</span><select name="line_discount_type">
+                      <option value="amount">Desc. monto</option>
+                      <option value="percent">Desc. %</option>
+                    </select></label>
+                  <label class="projects-quote-line__field" data-quote-optional><span>Descuento</span><input class="app-input" type="number" name="line_discount_value" min="0" step="0.01" placeholder="Descuento" /></label>
+                </div>
+              <% } %>
+            </div>
+          </div>
+
+          <label class="app-field projects-form-full">
+            <span>Notas</span>
+            <textarea class="app-textarea" name="notes" rows="2"></textarea>
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Adjuntos para el PDF</span>
+            <input class="app-input" type="file" name="quote_attachments" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.png,.jpg,.jpeg,.webp,.gif" />
+          </label>
+          <div class="actions projects-form-full">
+            <button type="submit" class="btn primary app-btn app-btn-primary">Guardar cotización</button>
+          </div>
+        </form>
+      </section>
+      <% } else { %>
+        <section class="panel app-panel projects-subpage">
+          <div class="panel-header app-panel-header">
+            <div>
+              <h2>Cotización de origen</h2>
+              <p class="muted">Este proyecto fue creado desde una cotización. Aquí solo se permite modificar sus datos actuales.</p>
+            </div>
+          </div>
+        </section>
+      <% } %>
+
+      <section class="projects-stack">
+        <% if (!quotes.length) { %>
+          <div class="app-empty-state projects-empty-card">
+            <p class="app-empty-state-text">Aún no hay cotizaciones registradas.</p>
+          </div>
+        <% } %>
+        <% quotes.forEach((quote) => { %>
+          <article class="panel app-panel projects-quote-card">
+            <div class="projects-quote-card__header">
+              <div>
+                <h3><%= quote.title %></h3>
+                <p class="muted"><%= quote.customer_name || project.client_display %> · <%= quote.status_label %> · Vence <%= formatDate(quote.valid_until) %></p>
+              </div>
+              <strong><%= formatMoney(quote.total, quote.currency) %></strong>
+            </div>
+            <div class="projects-quote-card__totals">
+              <span>Costo estimado <strong><%= formatMoney(quote.cost_estimated, quote.currency) %></strong></span>
+              <span>Subtotal <strong><%= formatMoney(quote.subtotal, quote.currency) %></strong></span>
+              <span>Impuestos <strong><%= formatMoney(quote.tax_amount, quote.currency) %></strong></span>
+              <span>Descuento <strong><%= formatMoney(quote.discount_amount, quote.currency) %></strong></span>
+            </div>
+            <div class="projects-quote-lines-summary">
+              <% quote.lines.forEach((line) => { %>
+                <div class="projects-quote-lines-summary__row">
+                  <span><%= line.description %></span>
+                  <strong><%= Number(line.qty || 0).toFixed(2) %> × <%= formatMoney(line.unit_price, quote.currency) %></strong>
+                </div>
+              <% }) %>
+            </div>
+            <div class="actions">
+              <% if (Number(project.source_quote_id) === Number(quote.id)) { %>
+                <a class="btn primary app-btn app-btn-primary" href="/projects?section=quotes&quote_view=list&quote_scope=archived&quote_mode=edit&quote_id=<%= quote.id %>">Modificar</a>
+              <% } else { %>
+              <a class="btn app-btn" href="/projects/<%= project.id %>/quotes/<%= quote.id %>/pdf?download=1">Descargar PDF</a>
+              <% if (quote.status !== 'approved') { %>
+                <form method="POST" action="/projects/<%= project.id %>/quotes/<%= quote.id %>/status" class="inline-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <input type="hidden" name="status" value="approved" />
+                  <button type="submit" class="btn app-btn">Aprobar</button>
+                </form>
+              <% } %>
+              <% if (quote.status !== 'rejected') { %>
+                <form method="POST" action="/projects/<%= project.id %>/quotes/<%= quote.id %>/status" class="inline-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <input type="hidden" name="status" value="rejected" />
+                  <button type="submit" class="btn app-btn">Rechazar</button>
+                </form>
+              <% } %>
+              <% if (quote.status === 'approved' && !quote.converted_invoice_id) { %>
+                <form method="POST" action="/projects/<%= project.id %>/quotes/<%= quote.id %>/convert" class="inline-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <button type="submit" class="btn primary app-btn app-btn-primary">Convertir a factura</button>
+                </form>
+              <% } %>
+              <% if (quote.converted_invoice_id) { %>
+                <a class="btn app-btn" href="/invoices/<%= quote.converted_invoice_id %>">Ver factura</a>
+              <% } %>
+              <% } %>
+            </div>
+          </article>
+        <% }) %>
+      </section>
+    <% } %>
+
+    <% if (activeTab === 'files') { %>
+      <section class="panel app-panel" id="new-file">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Archivos del proyecto</h2>
+            <p class="muted">PDF, Excel, Word, imágenes, documentos de proveedor, contratos, planos y cotizaciones.</p>
+          </div>
+        </div>
+        <form method="POST" action="/projects/<%= project.id %>/files/upload" enctype="multipart/form-data" class="projects-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label class="app-field projects-form-full">
+            <span>Archivo</span>
+            <input class="app-input" type="file" name="project_file" required />
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Notas</span>
+            <textarea class="app-textarea" name="notes" rows="2"></textarea>
+          </label>
+          <div class="actions projects-form-full">
+            <button type="submit" class="btn primary app-btn app-btn-primary">Subir archivo</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="projects-file-folders">
+        <% if (!files.length) { %>
+          <div class="app-empty-state projects-empty-card">
+            <p class="app-empty-state-text">No hay archivos cargados todavía.</p>
+          </div>
+        <% } %>
+        <% fileFolders.forEach((folder) => { %>
+          <details class="panel app-panel projects-file-folder" open>
+            <summary><strong><%= folder.name %></strong><span><%= folder.files.length %> archivo(s)</span></summary>
+            <div class="projects-files-grid">
+              <% folder.files.forEach((file) => { %>
+                <article class="projects-file-card">
+                  <h3><%= file.original_name || file.filename %></h3>
+                  <p class="muted">Origen: <%= file.origin_display %></p>
+                  <p class="muted"><%= file.file_type || 'Archivo' %> · <%= file.uploaded_by_name || 'Sistema' %></p>
+                  <p class="muted"><%= file.notes || 'Sin notas' %></p>
+                  <% if (file.download_url) { %><a class="btn app-btn" href="<%= file.download_url %>" target="_blank" rel="noopener">Abrir archivo</a><% } %>
+                </article>
+              <% }) %>
+            </div>
+          </details>
+        <% }) %>
+      </section>
+    <% } %>
+
+    <% if (activeTab === 'knowledge') { %>
+      <section class="panel app-panel">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Bitácora y lecciones aprendidas</h2>
+            <p class="muted">Registra notas manuales y consulta tareas finalizadas de proyectos anteriores para estimar mejor los próximos trabajos.</p>
+          </div>
+        </div>
+        <form method="POST" action="/projects/<%= project.id %>/logs/create" class="projects-form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <label class="app-field">
+            <span>Tipo de nota</span>
+            <select name="log_type">
+              <option value="manual_note">Nota manual</option>
+              <option value="important_comment">Comentario importante</option>
+              <option value="lesson_learned">Lección aprendida</option>
+            </select>
+          </label>
+          <label class="app-field projects-form-full">
+            <span>Mensaje</span>
+            <textarea class="app-textarea" name="message" rows="3" required></textarea>
+          </label>
+          <div class="actions projects-form-full">
+            <button type="submit" class="btn primary app-btn app-btn-primary">Guardar nota</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel app-panel">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Base de conocimiento de tareas anteriores</h2>
+            <p class="muted">Busca complicaciones, soluciones y diferencias entre tiempo estimado y real en proyectos ya terminados.</p>
+          </div>
+        </div>
+        <form method="GET" action="/projects/<%= project.id %>" class="projects-filter-grid">
+          <input type="hidden" name="tab" value="knowledge" />
+          <label class="app-field">
+            <span>Buscar aprendizaje</span>
+            <input class="app-input" type="search" name="knowledge_q" value="<%= knowledgeSearch || '' %>" placeholder="complicación, solución, tarea..." />
+          </label>
+          <div class="actions projects-filter-actions">
+            <button type="submit" class="btn app-btn">Buscar</button>
+            <a class="btn app-btn" href="/projects/<%= project.id %>?tab=knowledge">Limpiar</a>
+          </div>
+        </form>
+        <div class="projects-knowledge-grid">
+          <% if (!knowledge.length) { %>
+            <div class="app-empty-state projects-empty-card">
+              <p class="app-empty-state-text">No hay tareas históricas con aprendizajes documentados.</p>
+            </div>
+          <% } %>
+          <% knowledge.forEach((item) => { %>
+            <article class="projects-knowledge-card">
+              <h3><%= item.title %></h3>
+              <p class="muted"><%= item.project_code ? `${item.project_code} · ` : '' %><%= item.project_name %> · <%= item.assigned_display %></p>
+              <div class="projects-knowledge-card__stats">
+                <span>Estimado: <strong><%= Number(item.estimated_hours || 0).toFixed(2) %>h</strong></span>
+                <span>Real: <strong><%= Number(item.real_hours || 0).toFixed(2) %>h</strong></span>
+                <span>Variación: <strong><%= Number(item.variance_hours || 0).toFixed(2) %>h</strong></span>
+              </div>
+              <p><strong>Complicaciones:</strong> <%= item.complications || 'Sin detalle' %></p>
+              <p><strong>Solución aplicada:</strong> <%= item.solution_applied || 'Sin detalle' %></p>
+              <p><strong>Aprendizaje:</strong> <%= item.learned_notes || 'Sin detalle' %></p>
+            </article>
+          <% }) %>
+        </div>
+      </section>
+
+      <section class="panel app-panel">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Bitácora del proyecto</h2>
+            <p class="muted">Historial automático y manual del proyecto.</p>
+          </div>
+        </div>
+        <div class="projects-log-list">
+          <% if (!logs.length) { %>
+            <div class="app-empty-state projects-empty-card">
+              <p class="app-empty-state-text">No hay registros en la bitácora todavía.</p>
+            </div>
+          <% } %>
+          <% logs.forEach((logItem) => { %>
+            <article class="projects-log-entry">
+              <div>
+                <strong><%= logItem.type_label %></strong>
+                <p><%= logItem.message %></p>
+              </div>
+              <small class="muted"><%= logItem.created_by_name || 'Sistema' %> · <%= formatDateTime(logItem.created_at) %></small>
+            </article>
+          <% }) %>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (activeTab === 'financial') { %>
+      <section class="projects-kpi-grid">
+        <article class="projects-kpi-card"><span>Presupuesto estimado</span><strong><%= formatMoney(financial.estimatedBudget) %></strong></article>
+        <article class="projects-kpi-card"><span>Gastos reales</span><strong><%= formatMoney(financial.realExpenses) %></strong></article>
+        <article class="projects-kpi-card"><span>Venta cotizada</span><strong><%= formatMoney(financial.quotedSale) %></strong></article>
+        <article class="projects-kpi-card"><span>Utilidad estimada</span><strong><%= formatMoney(financial.estimatedProfit) %></strong></article>
+        <article class="projects-kpi-card"><span>Utilidad real</span><strong><%= formatMoney(financial.realProfit) %></strong></article>
+        <article class="projects-kpi-card"><span>Diferencia costo</span><strong><%= formatMoney(financial.estimatedVsRealCostDiff) %></strong></article>
+        <article class="projects-kpi-card"><span>Horas estimadas</span><strong><%= Number(financial.estimatedHours || 0).toFixed(2) %></strong></article>
+        <article class="projects-kpi-card"><span>Horas reales</span><strong><%= Number(financial.realHours || 0).toFixed(2) %></strong></article>
+      </section>
+
+      <section class="panel app-panel">
+        <div class="panel-header app-panel-header">
+          <div>
+            <h2>Reporte financiero del proyecto</h2>
+            <p class="muted">Lectura rápida del costo esperado vs costo real y del estado financiero actual.</p>
+          </div>
+        </div>
+        <div class="detail-grid">
+          <div><strong>Estado financiero:</strong> <%= financial.financialStatus %></div>
+          <div><strong>Porcentaje de avance:</strong> <%= financial.progressPercent %>%</div>
+          <div><strong>Presupuesto estimado:</strong> <%= formatMoney(financial.estimatedBudget) %></div>
+          <div><strong>Gasto real acumulado:</strong> <%= formatMoney(financial.realExpenses) %></div>
+          <div><strong>Venta estimada / aprobada:</strong> <%= formatMoney(financial.quotedSale) %></div>
+          <div><strong>Utilidad estimada:</strong> <%= formatMoney(financial.estimatedProfit) %></div>
+          <div><strong>Utilidad real:</strong> <%= formatMoney(financial.realProfit) %></div>
+          <div><strong>Diferencia entre costo estimado y real:</strong> <%= formatMoney(financial.estimatedVsRealCostDiff) %></div>
+        </div>
+      </section>
+    <% } %>
+  </main>
+
+  <script>
+    (function () {
+      const summaryForm = document.querySelector('[data-project-summary-form]');
+      const editButton = document.querySelector('[data-project-summary-edit]');
+      const cancelButton = document.querySelector('[data-project-summary-cancel]');
+      const summaryActions = document.querySelector('[data-project-summary-actions]');
+      if (!summaryForm || !editButton || !cancelButton || !summaryActions) return;
+
+      const editableFields = summaryForm.querySelectorAll('input:not([type="hidden"]), select, textarea');
+      const setEditing = function (editing) {
+        summaryForm.classList.toggle('is-editing', editing);
+        editableFields.forEach(function (field) {
+          field.disabled = !editing;
+        });
+        editButton.hidden = editing;
+        summaryActions.hidden = !editing;
+        if (editing && editableFields.length) editableFields[0].focus();
+      };
+
+      editButton.addEventListener('click', function () {
+        setEditing(true);
+      });
+      cancelButton.addEventListener('click', function () {
+        summaryForm.reset();
+        setEditing(false);
+      });
+      setEditing(false);
+    })();
+  </script>
+  <script>
+    (function () {
+      const toggle = document.querySelector('[data-timeline-toggle]');
+      const timeline = document.querySelector('[data-project-timeline]');
+      if (!toggle || !timeline) return;
+      const extraItems = Array.from(timeline.querySelectorAll('[data-timeline-item]')).slice(6);
+      const moreLabel = toggle.querySelector('[data-timeline-more]');
+      const lessLabel = toggle.querySelector('[data-timeline-less]');
+      toggle.addEventListener('click', function () {
+        const expanded = toggle.getAttribute('aria-expanded') === 'true';
+        extraItems.forEach(function (item) { item.hidden = expanded; });
+        toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        moreLabel.hidden = !expanded;
+        lessLabel.hidden = expanded;
+      });
+    })();
+  </script>
+  <script>
+    (function () {
+      const groups = document.querySelectorAll('[data-quote-lines]');
+      if (!groups.length) return;
+      groups.forEach(function (container) {
+        const addButton = container.querySelector('[data-add-quote-line]');
+        const toggleButton = container.querySelector('[data-toggle-quote-fields]');
+        const scrollArea = container.querySelector('[data-quote-scroll]') || container;
+        const numberValue = function (input) {
+          const value = Number(input && input.value);
+          return Number.isFinite(value) ? value : 0;
+        };
+        const profitValue = function (input, cost) {
+          const raw = String(input && input.value || '').trim().replace(',', '.');
+          if (!raw) return null;
+          const numeric = Number(raw.replace('%', ''));
+          if (!Number.isFinite(numeric)) return null;
+          return raw.includes('%') && cost > 0 ? cost * (numeric / 100) : numeric;
+        };
+        const syncLine = function (line) {
+          if (!line) return;
+          const costInput = line.querySelector('[name="line_unit_cost"]');
+          const marginInput = line.querySelector('[name="line_margin_percent"]');
+          const saleInput = line.querySelector('[name="line_unit_price"]');
+          const profitPerUnit = profitValue(marginInput, numberValue(costInput));
+          if (saleInput && profitPerUnit !== null) {
+            saleInput.value = (numberValue(costInput) + profitPerUnit).toFixed(2);
+          }
+        };
+        const bindLine = function (line) {
+          if (!line || line.dataset.quoteLineBound === '1') return;
+          line.dataset.quoteLineBound = '1';
+          line.querySelectorAll('input, select').forEach(function (field) {
+            field.addEventListener('input', function () { syncLine(line); });
+            field.addEventListener('change', function () { syncLine(line); });
+          });
+          syncLine(line);
+        };
+        scrollArea.querySelectorAll('[data-quote-line]').forEach(bindLine);
+        if (toggleButton) {
+          const syncToggle = function () {
+            const compact = container.classList.contains('is-compact');
+            toggleButton.textContent = compact ? 'Mostrar campos extra' : 'Ocultar campos extra';
+            toggleButton.setAttribute('aria-expanded', compact ? 'false' : 'true');
+          };
+          toggleButton.addEventListener('click', function () {
+            container.classList.toggle('is-compact');
+            syncToggle();
+          });
+          syncToggle();
+        }
+        if (!addButton) return;
+        addButton.addEventListener('click', function () {
+          const first = scrollArea.querySelector('[data-quote-line]');
+          if (!first) return;
+          const clone = first.cloneNode(true);
+          clone.dataset.quoteLineBound = '';
+          clone.querySelectorAll('input').forEach((input) => { input.value = ''; });
+          clone.querySelectorAll('select').forEach((select) => { select.selectedIndex = 0; });
+          scrollArea.appendChild(clone);
+          bindLine(clone);
+          scrollArea.scrollLeft = scrollArea.scrollWidth;
+        });
+      });
+    })();
+  </script>
+  <script src="/status-footer.js" defer></script>
+</body>
+</html>

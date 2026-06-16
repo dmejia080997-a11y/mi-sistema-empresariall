@@ -1,4 +1,27 @@
-?<%  var currentPackagesNav = typeof packagesNav !== 'undefined' ? packagesNav : 'list';  var safeStats = typeof stats !== 'undefined' && stats ? stats : {    total: 0,    receivedToday: 0,    pending: 0,    delivered: 0,    inTransit: 0,    customsHold: 0  };%>
+?<%
+  var currentPackagesNav = typeof packagesNav !== 'undefined' ? packagesNav : 'list';
+  var safeStats = typeof stats !== 'undefined' && stats ? stats : {
+    total: 0,
+    receivedToday: 0,
+    pending: 0,
+    delivered: 0,
+    inTransit: 0,
+    customsHold: 0
+  };
+  var canCreatePackageTabs = can('packages', 'create');
+  var packageModuleTabs = [
+    { key: 'dashboard', label: t('packages.module.dashboard'), href: '/packages/dashboard' },
+    { key: 'list', label: t('packages.module.list'), href: '/packages' },
+    { key: 'pending_invoice', label: t('packages.module.pending_invoice'), href: '/packages/pending-invoice' }
+  ];
+  if (canCreatePackageTabs) {
+    packageModuleTabs.push({ key: 'new', label: t('packages.module.new'), href: '/packages/new' });
+  }
+  packageModuleTabs.push(
+    { key: 'statuses', label: t('packages.module.statuses'), href: '/packages/statuses' },
+    { key: 'tracking', label: t('packages.module.tracking'), href: '/packages/tracking' }
+  );
+%>
 <!DOCTYPE html>
 <html lang="<%= lang %>">
 <head>
@@ -10,9 +33,13 @@
 <%- include('partials/head-assets') %>
 </head>
 <body class="page packages-page">
-<%- include('partials/header') %>
+<%- include('partials/header', {
+  moduleTabs: packageModuleTabs,
+  activeTab: currentPackagesNav,
+  currentModule: 'packages'
+}) %>
 <main class="container packages-module app-module">
-<% const canPackagesCreate = can('packages', 'create'); %>
+<% const canPackagesCreate = canCreatePackageTabs; %>
 <% const canPackagesExport = can('packages', 'export'); %>
 <% const canPackagesEdit = can('packages', 'edit'); %>
 <% const canPackagesStatus = can('packages', 'change_status'); %>
@@ -38,28 +65,6 @@
 <%= t('packages.dashboard_link') %>
 </a>
 </div>
-</div>
-<div class="module-nav app-toolbar">
-<a href="/packages/dashboard" class="<%= currentPackagesNav === 'dashboard' ? 'active' : '' %>">
-<%= t('packages.module.dashboard') %>
-</a>
-<a href="/packages" class="<%= currentPackagesNav === 'list' ? 'active' : '' %>">
-<%= t('packages.module.list') %>
-</a>
-<a href="/packages/pending-invoice" class="<%= currentPackagesNav === 'pending_invoice' ? 'active' : '' %>">
-<%= t('packages.module.pending_invoice') %>
-</a>
-<% if (canPackagesCreate) { %>
-<a href="/packages/new" class="<%= currentPackagesNav === 'new' ? 'active' : '' %>">
-<%= t('packages.module.new') %>
-</a>
-<% } %>
-<a href="/packages/statuses" class="<%= currentPackagesNav === 'statuses' ? 'active' : '' %>">
-<%= t('packages.module.statuses') %>
-</a>
-<a href="/packages/tracking" class="<%= currentPackagesNav === 'tracking' ? 'active' : '' %>">
-<%= t('packages.module.tracking') %>
-</a>
 </div>
 <div class="packages-quick-actions app-action-bar">
 <span class="quick-label">

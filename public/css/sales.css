@@ -1,0 +1,341 @@
+.sales-page {
+  background: #f6f7f9;
+}
+
+.sales-shell {
+  padding-bottom: 48px;
+}
+
+.sales-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0;
+}
+
+.sales-tab {
+  border: 1px solid #d5dae1;
+  color: #1f2937;
+  background: #fff;
+  border-radius: 6px;
+  padding: 8px 12px;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.sales-tab.is-active {
+  color: #fff;
+  background: #0f766e;
+  border-color: #0f766e;
+}
+
+.sales-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.sales-kpis article {
+  background: #fff;
+  border: 1px solid #dfe4ea;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.sales-kpis span,
+.sales-funnel span {
+  display: block;
+  color: #6b7280;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.sales-kpis strong,
+.sales-funnel strong {
+  color: #111827;
+  font-size: 20px;
+}
+
+.sales-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 1.6fr);
+  gap: 16px;
+  align-items: start;
+  margin-top: 16px;
+}
+
+.sales-form {
+  display: grid;
+  gap: 10px;
+}
+
+.sales-form label {
+  display: grid;
+  gap: 5px;
+  color: #374151;
+  font-size: 13px;
+}
+
+.sales-form input,
+.sales-form select,
+.sales-form textarea,
+.sales-table input,
+.sales-table select {
+  width: 100%;
+  border: 1px solid #cfd6df;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #111827;
+}
+
+.sales-form textarea {
+  min-height: 84px;
+}
+
+.sales-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.sales-table th,
+.sales-table td {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 10px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.sales-table th {
+  color: #4b5563;
+  font-weight: 600;
+  background: #f9fafb;
+}
+
+.sales-list {
+  display: grid;
+  gap: 8px;
+}
+
+.sales-list a {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  color: #111827;
+  text-decoration: none;
+  border-bottom: 1px solid #edf0f3;
+  padding: 8px 0;
+}
+
+.sales-list em {
+  font-style: normal;
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.sales-funnel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.sales-funnel div {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fbfcfd;
+}
+
+.sales-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.quote-print-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.quote-document {
+  background: #fff;
+  border: 1px solid #dfe4ea;
+  border-radius: 8px;
+  padding: 28px;
+}
+
+.quote-document-header,
+.quote-document-meta {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.quote-document-header h1 {
+  margin: 4px 0 0;
+  color: #111827;
+  font-size: 30px;
+}
+
+.quote-document-header span,
+.quote-document-meta span {
+  display: block;
+  color: #6b7280;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.quote-document-header dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.quote-document-header dl div {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px;
+}
+
+.quote-document-header dt {
+  color: #6b7280;
+}
+
+.quote-document-header dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.quote-document-meta article {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 14px;
+}
+
+.quote-document-meta strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 18px;
+}
+
+.quote-document-meta p,
+.quote-notes p {
+  margin: 6px 0 0;
+  color: #4b5563;
+}
+
+.quote-lines-table tfoot th,
+.quote-lines-table tfoot td {
+  text-align: right;
+}
+
+.quote-notes,
+.quote-supports {
+  margin-top: 24px;
+}
+
+.quote-notes h2,
+.quote-supports h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+.quote-support {
+  display: grid;
+  gap: 12px;
+  break-inside: avoid;
+  border-top: 1px solid #e5e7eb;
+  padding: 14px 0;
+}
+
+.quote-support span,
+.quote-support a {
+  display: block;
+  margin-top: 4px;
+  color: #4b5563;
+}
+
+.quote-support img {
+  width: 100%;
+  max-height: 780px;
+  object-fit: contain;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.quote-upload-panel {
+  margin-top: 16px;
+}
+
+@media (max-width: 900px) {
+  .sales-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sales-list a {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-document-header,
+  .quote-document-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  html,
+  body.quote-print-page {
+    background: #fff;
+    margin: 0;
+    padding: 0;
+  }
+
+  body.quote-print-page .topbar,
+  body.quote-print-page .app-header,
+  .quote-print-toolbar,
+  .quote-upload-panel,
+  .global-dock,
+  .toast-stack {
+    display: none !important;
+  }
+
+  .quote-print-shell {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .quote-document {
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .quote-document-header,
+  .quote-document-meta,
+  .quote-lines-table,
+  .quote-notes,
+  .quote-supports {
+    break-inside: avoid;
+  }
+
+  .quote-support a {
+    color: #111827;
+    text-decoration: none;
+  }
+}

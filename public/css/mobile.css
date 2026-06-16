@@ -1,0 +1,407 @@
+/*
+  Mobile adaptation layer.
+  Loaded after the shared design-system styles so it can normalize legacy views
+  without changing each module template.
+*/
+
+html {
+  max-width: 100%;
+  overflow-x: hidden;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body.page,
+body.launcher-page {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body.page img,
+body.page svg,
+body.page canvas,
+body.page video,
+body.page iframe {
+  max-width: 100%;
+}
+
+body.page input,
+body.page select,
+body.page textarea,
+body.page button {
+  max-width: 100%;
+}
+
+body.page .container,
+.page-shell,
+.app-container,
+.app-section,
+.app-panel,
+.panel,
+.card,
+.form-section,
+.table,
+.app-table-wrap {
+  min-width: 0;
+}
+
+body.page .table,
+body.page .app-table-wrap,
+body.page .agenda-scroll,
+body.page .awb-preview-frame,
+body.page .manifest-packages,
+body.page .packages-table,
+body.page .invoice-items-table {
+  -webkit-overflow-scrolling: touch;
+}
+
+body.page .actions,
+body.page .page-actions,
+body.page .toolbar-actions,
+body.page .app-table-actions,
+body.page .section-actions,
+body.page .doctor-actions,
+body.page .master-topbar-actions {
+  min-width: 0;
+}
+
+body.page .actions .btn,
+body.page .page-actions .btn,
+body.page .toolbar-actions .btn,
+body.page .app-table-actions .btn,
+body.page .section-actions .btn,
+body.page .doctor-actions .btn {
+  white-space: normal;
+}
+
+body.page .table-row > *,
+body.page .package-row > *,
+body.page .app-table td,
+body.page .app-table th,
+body.page .stat,
+body.page .summary-item,
+body.page .detail-card,
+body.page .app-card,
+body.page .panel,
+body.page .app-panel {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  body.page {
+    background-attachment: scroll;
+  }
+
+  body.page .topbar {
+    position: sticky;
+    top: 0;
+  }
+
+  body.page .container,
+  .page-shell {
+    width: min(100% - 24px, 1240px);
+    padding-top: 20px;
+    padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-card-header,
+  .app-panel-header,
+  .app-module-header,
+  .master-hero,
+  .company-detail-hero,
+  .section-header,
+  .modal-header,
+  .doctor-row,
+  .agenda-form-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .app-card-header > *,
+  .app-panel-header > *,
+  .app-module-header > *,
+  .master-hero > *,
+  .company-detail-hero > *,
+  .section-header > *,
+  .modal-header > *,
+  .doctor-row > *,
+  .agenda-form-actions > * {
+    width: 100%;
+  }
+
+  .grid,
+  .grid-2,
+  .grid-3,
+  .detail-grid,
+  .permission-grid,
+  .filters-form,
+  .app-filter-grid,
+  .companies-option-grid,
+  .hr-summary-grid,
+  .hr-form-grid,
+  .hr-section-grid,
+  .hr-detail-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  body.page .table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  body.page .app-table {
+    min-width: 680px;
+  }
+
+  body.page .table-row {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  body.page .app-header__inner {
+    gap: 10px;
+  }
+
+  body.page .brand,
+  body.page .brand-link,
+  body.page .app-brand {
+    max-width: 100%;
+  }
+
+  body.page .brand-name {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  body.page .app-header__actions,
+  body.page .app-nav,
+  body.page .nav,
+  .master-topbar-actions,
+  .master-tabs,
+  .module-nav,
+  .subnav,
+  .module-top-tabs {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  body.page .app-nav,
+  body.page .nav,
+  .master-tabs,
+  .module-nav,
+  .subnav,
+  .module-top-tabs {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+  }
+
+  body.page .app-nav a,
+  body.page .nav a,
+  .master-tabs a,
+  .module-nav a,
+  .subnav a,
+  .module-top-tab {
+    flex: 0 0 auto;
+    min-height: 42px;
+    scroll-snap-align: start;
+    white-space: nowrap;
+  }
+
+  .page-header,
+  .module-header,
+  .app-page-header {
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  .page-header h1,
+  .module-header h1,
+  .app-page-header h1,
+  body.page main > h1:first-child {
+    font-size: clamp(1.45rem, 8vw, 2rem);
+    line-height: 1.12;
+    overflow-wrap: anywhere;
+  }
+
+  .panel,
+  .app-panel,
+  .app-module,
+  .app-section,
+  .app-card,
+  .app-container,
+  .form-section,
+  .modal-card,
+  .modal-content {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .app-toolbar,
+  .app-action-bar,
+  .app-filter-bar,
+  .filters-bar,
+  .toolbar,
+  .bulk-actions-bar,
+  .packages-quick-actions {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 14px;
+  }
+
+  .actions,
+  .page-actions,
+  .toolbar-actions,
+  .filters-actions,
+  .app-table-actions,
+  .section-actions,
+  .doctor-actions,
+  .company-detail-actions,
+  .master-hero-actions {
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .actions .btn,
+  .page-actions .btn,
+  .toolbar-actions .btn,
+  .filters-actions .btn,
+  .app-table-actions .btn,
+  .section-actions .btn,
+  .doctor-actions .btn,
+  .company-detail-actions .btn,
+  .master-hero-actions .btn {
+    flex: 1 1 148px;
+    min-height: 44px;
+  }
+
+  body.page input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  body.page select,
+  body.page textarea,
+  body.page .app-input,
+  body.page .app-select {
+    width: 100%;
+    min-width: 0;
+    font-size: 16px;
+  }
+
+  body.page input[type='file'] {
+    width: 100%;
+    min-width: 0;
+  }
+
+  body.page .table-row.header,
+  body.page .package-row.header {
+    display: none;
+  }
+
+  body.page .table-row:not(.header):not(.empty),
+  body.page .package-row:not(.header):not(.empty) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--color-border, var(--border));
+    border-radius: var(--radius-lg, 16px);
+    background: rgba(255, 255, 255, 0.78);
+  }
+
+  body.page .table-row.empty,
+  body.page .package-row.empty {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) !important;
+    padding: 18px;
+  }
+
+  body.page .table-row > div,
+  body.page .table-row > label,
+  body.page .table-row > form,
+  body.page .package-row > div {
+    width: 100%;
+  }
+
+  body.page .status-badge,
+  body.page .pill,
+  body.page .badge,
+  body.page .app-badge,
+  body.page .app-chip {
+    white-space: normal;
+  }
+
+  .modal-overlay,
+  .modal {
+    align-items: flex-start;
+    padding: 12px;
+    overflow-y: auto;
+  }
+
+  .modal-card,
+  .modal-content {
+    width: 100%;
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  body.page .topbar {
+    padding: 10px 12px;
+  }
+
+  body.page .container,
+  .page-shell {
+    width: min(100% - 18px, 1240px);
+    padding-top: 16px;
+  }
+
+  body.page .nav a,
+  body.page .app-nav a,
+  .master-tabs a,
+  .module-nav a,
+  .subnav a,
+  .module-top-tab,
+  .top-panel-button {
+    padding-inline: 12px;
+    font-size: 0.88rem;
+  }
+
+  .panel,
+  .app-panel,
+  .app-module,
+  .app-section,
+  .app-card,
+  .app-container,
+  .form-section,
+  .stat,
+  .summary-item {
+    padding: 14px;
+  }
+
+  body.page .btn,
+  body.page .app-btn,
+  body.page button.btn,
+  body.page a.btn,
+  body.page a.app-btn,
+  body.page button.app-btn {
+    min-height: 44px;
+    padding-inline: 12px;
+  }
+
+  .notification-center__dropdown {
+    position: fixed !important;
+    right: 10px !important;
+    left: 10px !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  .status-footer {
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    max-width: calc(100vw - 16px);
+  }
+}

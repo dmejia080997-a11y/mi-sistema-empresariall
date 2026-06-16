@@ -22,6 +22,34 @@
     normalizeCode,
     codeFromName
   } = deps;
+app.get('/inventory', requireAuth, requirePermission('inventory', 'view'), (req, res) => {
+  renderInventory(req, res, null);
+});
+
+app.get('/inventory/sku-preview', requireAuth, requirePermission('inventory', 'view'), (req, res) => {
+  const companyId = getCompanyId(req);
+  const name = normalizeString(req.query.name);
+  const categoryId = Number(req.query.category_id || 0);
+  const brandId = Number(req.query.brand_id || 0);
+  const codeMode = normalizeString(req.query.code_mode) || 'auto';
+  const itemCode = normalizeString(req.query.item_code);
+  if (!name || !categoryId || !brandId) {
+    return res.json({ sku: '' });
+  }
+  buildItemSku({
+    name,
+    categoryId,
+    brandId,
+    companyId,
+    codeMode,
+    itemCode,
+    excludeId: null
+  }, (err, result) => {
+    if (err || !result) return res.json({ sku: '' });
+    return res.json({ sku: result.sku, item_code: result.itemCode });
+  });
+});
+
 app.post('/inventory/add', requireAuth, requirePermission('inventory', 'create'), (req, res) => {
   const companyId = getCompanyId(req);
   const name = normalizeString(req.body.name);

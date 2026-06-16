@@ -74,7 +74,9 @@
       input: {
         document_type: normalizeDocumentType(req.body.document_type),
         document_number: normalizeString(req.body.document_number),
+        customer_type: normalizeString(req.body.customer_type),
         name: normalizeString(req.body.name),
+        legal_name: normalizeString(req.body.legal_name),
         first_name: normalizeString(req.body.first_name),
         last_name: normalizeString(req.body.last_name),
         phone: normalizeString(req.body.phone),
@@ -116,6 +118,32 @@
     'sort',
     'dir'
   ]);
+  const parseId = (value) => {
+    const id = Number(value || 0);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  };
+  const parseAddressPayload = (body) => {
+    const manualCity = normalizeString(body.city_manual);
+    const rawCity = normalizeString(body.municipality);
+    const cityName = manualCity || normalizeString(body.city_name) || (rawCity === '__other_city__' ? '' : rawCity);
+    const stateName = normalizeString(body.state_name) || normalizeString(body.department);
+    const countryName = normalizeString(body.country_name) || normalizeString(body.country);
+    const addressLine = normalizeString(body.address_line) || normalizeString(body.full_address) || normalizeString(body.address);
+    return {
+      countryId: parseId(body.country_id),
+      stateId: parseId(body.state_id),
+      cityId: manualCity ? null : parseId(body.city_id),
+      countryName,
+      stateName,
+      cityName,
+      country: countryName,
+      department: stateName,
+      municipality: cityName,
+      addressLine,
+      postalCode: normalizeString(body.postal_code),
+      reference: normalizeString(body.reference)
+    };
+  };
 app.get('/tracking', (req, res) => {
   const query = normalizeString(req.query.q);
   if (!query) {
@@ -377,35 +405,6 @@ app.get('/customer/logout', (req, res) => {
   }
   return res.redirect('/customer/login');
 });
-app.get('/inventory', requireAuth, requirePermission('inventory', 'view'), (req, res) => {
-  renderInventory(req, res, null);
-});
-
-app.get('/inventory/sku-preview', requireAuth, requirePermission('inventory', 'view'), (req, res) => {
-  const companyId = getCompanyId(req);
-  const name = normalizeString(req.query.name);
-  const categoryId = Number(req.query.category_id || 0);
-  const brandId = Number(req.query.brand_id || 0);
-  const codeMode = normalizeString(req.query.code_mode) || 'auto';
-  const itemCode = normalizeString(req.query.item_code);
-  if (!name || !categoryId || !brandId) {
-    return res.json({ sku: '' });
-  }
-  buildItemSku({
-    name,
-    categoryId,
-    brandId,
-    companyId,
-    codeMode,
-    itemCode,
-    excludeId: null
-  }, (err, result) => {
-    if (err || !result) return res.json({ sku: '' });
-    return res.json({ sku: result.sku, item_code: result.itemCode });
-  });
-});
-
-
 function parseConsignatarioPayload(req) {
   const documentType = normalizeDocumentType(req.body.document_type);
   const documentNumber = normalizeString(req.body.document_number);
@@ -413,9 +412,10 @@ function parseConsignatarioPayload(req) {
   const email = normalizeString(req.body.email);
   const phone = normalizeString(req.body.phone);
   const mobile = normalizeString(req.body.mobile);
-  const country = normalizeString(req.body.country);
-  const department = normalizeString(req.body.department);
-  const municipality = normalizeString(req.body.municipality);
+  const addressPayload = parseAddressPayload(req.body);
+  const country = addressPayload.country;
+  const department = addressPayload.department;
+  const municipality = addressPayload.municipality;
   const zone = normalizeString(req.body.zone);
   const fullAddress = normalizeString(req.body.full_address);
   const notes = normalizeString(req.body.notes);
@@ -437,6 +437,7 @@ function parseConsignatarioPayload(req) {
     country,
     department,
     municipality,
+    addressPayload,
     zone,
     fullAddress,
     notes,
@@ -454,8 +455,8 @@ app.post('/customers/:id/consignatarios/create', requireAuth, requirePermission(
   db.run(
     `INSERT INTO consignatarios
      (customer_id, company_id, document_type, document_number, name, email, phone, mobile, country, department, municipality, zone, full_address, notes,
-      sat_verified, sat_name, sat_checked_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sat_verified, sat_name, sat_checked_at, country_id, state_id, city_id, country_name, state_name, city_name, address_line, postal_code, reference)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       customerId,
       companyId,
@@ -473,7 +474,16 @@ app.post('/customers/:id/consignatarios/create', requireAuth, requirePermission(
       payload.notes || null,
       payload.satFields.sat_verified,
       payload.satFields.sat_name,
-      payload.satFields.sat_checked_at
+      payload.satFields.sat_checked_at,
+      payload.addressPayload.countryId,
+      payload.addressPayload.stateId,
+      payload.addressPayload.cityId,
+      payload.addressPayload.countryName || null,
+      payload.addressPayload.stateName || null,
+      payload.addressPayload.cityName || null,
+      payload.addressPayload.addressLine || null,
+      payload.addressPayload.postalCode || null,
+      payload.addressPayload.reference || null
     ],
     () => res.redirect(`/customers/${customerId}`)
   );
@@ -581,8 +591,8 @@ app.post('/consignatarios/create', requireAuth, requirePermission('consignatario
     db.run(
       `INSERT INTO consignatarios
        (customer_id, company_id, document_type, document_number, name, email, phone, mobile, country, department, municipality, zone, full_address, notes,
-        sat_verified, sat_name, sat_checked_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sat_verified, sat_name, sat_checked_at, country_id, state_id, city_id, country_name, state_name, city_name, address_line, postal_code, reference)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         status.id,
         companyId,
@@ -600,7 +610,16 @@ app.post('/consignatarios/create', requireAuth, requirePermission('consignatario
         payload.notes || null,
         payload.satFields.sat_verified,
         payload.satFields.sat_name,
-        payload.satFields.sat_checked_at
+        payload.satFields.sat_checked_at,
+        payload.addressPayload.countryId,
+        payload.addressPayload.stateId,
+        payload.addressPayload.cityId,
+        payload.addressPayload.countryName || null,
+        payload.addressPayload.stateName || null,
+        payload.addressPayload.cityName || null,
+        payload.addressPayload.addressLine || null,
+        payload.addressPayload.postalCode || null,
+        payload.addressPayload.reference || null
       ],
       (err) => {
         if (err) return renderConsignatarios(req, res, res.locals.t('errors.consignatario_create_failed'), { activeTab: 'manage' });
@@ -652,7 +671,8 @@ app.post('/consignatarios/:id/update', requireAuth, requirePermission('consignat
   db.run(
     `UPDATE consignatarios
      SET document_type = ?, document_number = ?, name = ?, email = ?, phone = ?, mobile = ?, country = ?, department = ?, municipality = ?, zone = ?, full_address = ?, notes = ?,
-         sat_verified = ?, sat_name = ?, sat_checked_at = ?
+         sat_verified = ?, sat_name = ?, sat_checked_at = ?, country_id = ?, state_id = ?, city_id = ?, country_name = ?, state_name = ?, city_name = ?,
+         address_line = ?, postal_code = ?, reference = ?
      WHERE id = ? AND company_id = ?`,
     [
       payload.documentType,
@@ -670,6 +690,15 @@ app.post('/consignatarios/:id/update', requireAuth, requirePermission('consignat
       payload.satFields.sat_verified,
       payload.satFields.sat_name,
       payload.satFields.sat_checked_at,
+      payload.addressPayload.countryId,
+      payload.addressPayload.stateId,
+      payload.addressPayload.cityId,
+      payload.addressPayload.countryName || null,
+      payload.addressPayload.stateName || null,
+      payload.addressPayload.cityName || null,
+      payload.addressPayload.addressLine || null,
+      payload.addressPayload.postalCode || null,
+      payload.addressPayload.reference || null,
       id,
       companyId
     ],
@@ -696,6 +725,10 @@ app.get('/customers/import', requireAuth, requirePermission('customers', 'view')
 
 app.get('/customers/create', requireAuth, requirePermission('customers', 'view'), (req, res) => {
   renderCustomers(req, res, null, { activeTab: 'create' });
+});
+
+app.get('/customers/users', requireAuth, requirePermission('customers', 'view'), (req, res) => {
+  renderCustomers(req, res, null, { activeTab: 'users' });
 });
 
 app.get('/customers/packages', requireAuth, requirePermission('customers', 'view'), (req, res) => {
@@ -939,31 +972,34 @@ app.post('/customers/import', requireAuth, requirePermission('customers', 'creat
 
 app.post('/customers/create', requireAuth, requirePermission('customers', 'create'), (req, res) => {
   const companyId = getCompanyId(req);
+  const customerType = normalizeString(req.body.customer_type) === 'company' ? 'company' : 'person';
   const documentType = normalizeDocumentType(req.body.document_type);
   const documentNumber = normalizeString(req.body.document_number);
   const firstName = normalizeString(req.body.first_name);
   const lastName = normalizeString(req.body.last_name);
+  const legalName = normalizeString(req.body.legal_name);
   let name = normalizeString(req.body.name);
-  if (!name) {
+  if (customerType === 'company') {
+    name = legalName || name;
+  } else if (!name) {
     name = [firstName, lastName].filter(Boolean).join(' ').trim();
   }
   const phone = normalizeString(req.body.phone);
   const mobile = normalizeString(req.body.mobile);
   const email = normalizeString(req.body.email);
+  const addressPayload = parseAddressPayload(req.body);
   const address = normalizeString(req.body.address);
-  const fullAddress = normalizeString(req.body.full_address);
+  const fullAddress = addressPayload.addressLine || normalizeString(req.body.full_address);
   const houseNumber = normalizeString(req.body.house_number);
   const streetNumber = normalizeString(req.body.street_number);
   const zone = normalizeString(req.body.zone);
-  const municipality = normalizeString(req.body.municipality);
-  const department = normalizeString(req.body.department);
-  const country = normalizeString(req.body.country);
+  const municipality = addressPayload.municipality;
+  const department = addressPayload.department;
+  const country = addressPayload.country;
   const paymentMethod = normalizeString(req.body.payment_method);
   const communicationType = normalizeString(req.body.communication_type);
   const advisor = normalizeString(req.body.advisor);
   const notes = normalizeString(req.body.notes);
-  const portalCodeInput = normalizeString(req.body.portal_code).toUpperCase();
-  const portalPasswordInput = normalizeString(req.body.portal_password);
 
   if (!name) {
     auditCustomerSaveFailure(req, 'customer_create_failed', {
@@ -973,6 +1009,9 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
     });
     return renderCustomers(req, res, res.locals.t('errors.customer_name_required'), { activeTab: 'create' });
   }
+  if (!country || !municipality || !fullAddress) {
+    return renderCustomers(req, res, 'Pais, ciudad y direccion exacta son obligatorios.', { activeTab: 'create' });
+  }
 
   const satFields = resolveSatFields({
     documentType,
@@ -981,23 +1020,23 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
     satCheckedAtInput: req.body.sat_checked_at
   });
 
-  const insertCustomer = (portalCode, customerCode) => {
-    const portalPasswordPlain = portalPasswordInput || generatePortalPassword();
-    const portalPasswordHash = bcrypt.hashSync(portalPasswordPlain, 10);
-    const portalResetRequired = 1;
+  const insertCustomer = (customerCode) => {
     db.run(
       `INSERT INTO customers
-       (customer_code, document_type, document_number, name, first_name, last_name, phone, mobile, email, address, full_address, house_number, street_number,
+       (customer_code, document_type, document_number, customer_type, name, legal_name, first_name, last_name, phone, mobile, email, address, full_address, house_number, street_number,
         zone, municipality, department, country, payment_method, communication_type, advisor, notes,
-        sat_verified, sat_name, sat_checked_at, portal_code, portal_password_hash, portal_password_reset_required, company_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sat_verified, sat_name, sat_checked_at, portal_code, portal_password_hash, portal_password_reset_required, company_id,
+        country_id, state_id, city_id, country_name, state_name, city_name, address_line, postal_code, reference)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         customerCode || null,
         documentType,
         documentNumber || null,
+        customerType,
         name,
-        firstName || null,
-        lastName || null,
+        customerType === 'company' ? name : null,
+        customerType === 'company' ? null : firstName || null,
+        customerType === 'company' ? null : lastName || null,
         phone || null,
         mobile || null,
         email || null,
@@ -1016,10 +1055,19 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
         satFields.sat_verified,
         satFields.sat_name,
         satFields.sat_checked_at,
-        portalCode || null,
-        portalPasswordHash,
-        portalResetRequired,
-        companyId
+        null,
+        null,
+        0,
+        companyId,
+        addressPayload.countryId,
+        addressPayload.stateId,
+        addressPayload.cityId,
+        addressPayload.countryName || null,
+        addressPayload.stateName || null,
+        addressPayload.cityName || null,
+        addressPayload.addressLine || null,
+        addressPayload.postalCode || null,
+        addressPayload.reference || null
       ],
       function (err) {
         if (err) {
@@ -1030,71 +1078,97 @@ app.post('/customers/create', requireAuth, requirePermission('customers', 'creat
           });
           return renderCustomers(req, res, formatCustomerSaveError(res, err, 'errors.customer_create_failed'), { activeTab: 'create' });
         }
-        setFlash(
-          req,
-          'info',
-          res.locals.t('customers.portal_created_flash', {
-            portal_code: portalCode || '',
-            portal_password: portalPasswordPlain
-          })
-        );
         return res.redirect('/customers/list');
       }
     );
   };
 
-  const createWithPortalCode = (portalCode) => {
-    generateCustomerCode(companyId, 0, (codeErr, customerCode) => {
-      if (codeErr) {
-        auditCustomerSaveFailure(req, 'customer_create_failed', {
-          stage: 'customer_code_generation',
-          errorCode: codeErr.code || codeErr.message,
-          errorMessage: codeErr.message || String(codeErr)
-        });
-        return renderCustomers(req, res, formatCustomerSaveError(res, codeErr, 'errors.customer_create_failed'), { activeTab: 'create' });
-      }
-      return insertCustomer(portalCode, customerCode);
-    });
-  };
-
-  if (portalCodeInput) {
-    db.get(
-      'SELECT id FROM customers WHERE portal_code = ? AND company_id = ?',
-      [portalCodeInput, companyId],
-      (dupErr, dupRow) => {
-        if (dupErr) {
-          auditCustomerSaveFailure(req, 'customer_create_failed', {
-            stage: 'portal_code_lookup',
-            errorCode: dupErr.code,
-            errorMessage: dupErr.message
-          });
-          return renderCustomers(req, res, formatCustomerSaveError(res, dupErr, 'errors.customer_create_failed'), { activeTab: 'create' });
-        }
-        if (dupRow) {
-          auditCustomerSaveFailure(req, 'customer_create_failed', {
-            stage: 'portal_code_duplicate',
-            errorCode: 'PORTAL_CODE_DUPLICATE',
-            errorMessage: res.locals.t('errors.customer_portal_code_duplicate')
-          });
-          return renderCustomers(req, res, res.locals.t('errors.customer_portal_code_duplicate'), { activeTab: 'create' });
-        }
-        return createWithPortalCode(portalCodeInput);
-      }
-    );
-    return;
-  }
-
-  generatePortalCode(companyId, 0, (codeErr, portalCode) => {
+  generateCustomerCode(companyId, 0, (codeErr, customerCode) => {
     if (codeErr) {
       auditCustomerSaveFailure(req, 'customer_create_failed', {
-        stage: 'portal_code_generation',
+        stage: 'customer_code_generation',
         errorCode: codeErr.code || codeErr.message,
         errorMessage: codeErr.message || String(codeErr)
       });
       return renderCustomers(req, res, formatCustomerSaveError(res, codeErr, 'errors.customer_create_failed'), { activeTab: 'create' });
     }
-    return createWithPortalCode(portalCode);
+    return insertCustomer(customerCode);
   });
+});
+
+app.post('/customers/:id/portal-user', requireAuth, requirePermission('customers', 'edit'), (req, res) => {
+  const companyId = getCompanyId(req);
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.redirect('/customers/users');
+
+  const requestedCode = normalizeString(req.body.portal_code).toUpperCase();
+  const requestedPassword = normalizeString(req.body.portal_password);
+
+  db.get(
+    'SELECT id, name, portal_code, portal_password_hash FROM customers WHERE id = ? AND company_id = ? AND is_voided = 0',
+    [id, companyId],
+    (loadErr, customer) => {
+      if (loadErr || !customer) {
+        setFlash(req, 'error', res.locals.t('errors.customer_update_failed'));
+        return res.redirect('/customers/users');
+      }
+
+      const savePortalUser = (portalCode) => {
+        const generatedPassword = !requestedPassword && !customer.portal_password_hash ? generatePortalPassword() : '';
+        const plainPassword = requestedPassword || generatedPassword;
+        const passwordHash = plainPassword ? bcrypt.hashSync(plainPassword, 10) : customer.portal_password_hash;
+        const resetRequired = plainPassword ? 1 : 0;
+        db.run(
+          `UPDATE customers
+           SET portal_code = ?, portal_password_hash = ?, portal_password_reset_required = ?
+           WHERE id = ? AND company_id = ?`,
+          [portalCode || null, passwordHash || null, resetRequired, id, companyId],
+          (err) => {
+            if (err) {
+              setFlash(req, 'error', formatCustomerSaveError(res, err, 'errors.customer_update_failed'));
+              return res.redirect('/customers/users');
+            }
+            setFlash(
+              req,
+              'info',
+              plainPassword
+                ? res.locals.t('customers.portal_created_flash', { portal_code: portalCode || '', portal_password: plainPassword })
+                : res.locals.t('customers.portal_user_saved')
+            );
+            return res.redirect('/customers/users');
+          }
+        );
+      };
+
+      const ensureUniqueAndSave = (portalCode) => {
+        db.get(
+          'SELECT id FROM customers WHERE portal_code = ? AND company_id = ? AND id != ?',
+          [portalCode, companyId, id],
+          (dupErr, dupRow) => {
+            if (dupErr) {
+              setFlash(req, 'error', formatCustomerSaveError(res, dupErr, 'errors.customer_update_failed'));
+              return res.redirect('/customers/users');
+            }
+            if (dupRow) {
+              setFlash(req, 'error', res.locals.t('errors.customer_portal_code_duplicate'));
+              return res.redirect('/customers/users');
+            }
+            return savePortalUser(portalCode);
+          }
+        );
+      };
+
+      if (requestedCode) return ensureUniqueAndSave(requestedCode);
+      if (customer.portal_code) return savePortalUser(customer.portal_code);
+      return generatePortalCode(companyId, 0, (codeErr, portalCode) => {
+        if (codeErr) {
+          setFlash(req, 'error', formatCustomerSaveError(res, codeErr, 'errors.customer_update_failed'));
+          return res.redirect('/customers/users');
+        }
+        return ensureUniqueAndSave(portalCode);
+      });
+    }
+  );
 });
 
 app.get('/customers/:id', requireAuth, requirePermission('customers', 'view'), (req, res) => {
@@ -1120,7 +1194,8 @@ app.get('/customers/:id', requireAuth, requirePermission('customers', 'view'), (
           flash: res.locals.flash,
           documentTypes: CUSTOMER_DOCUMENT_TYPES,
           paymentMethods: PAYMENT_METHODS,
-          communicationTypes: COMMUNICATION_TYPES
+          communicationTypes: COMMUNICATION_TYPES,
+          countries: COMPANY_COUNTRIES
         });
       }
     );
@@ -1157,29 +1232,36 @@ app.post('/customers/:id/update', requireAuth, requirePermission('customers', 'e
   const detailUrl = `/customers/${id}#editar`;
   if (!Number.isInteger(id) || id <= 0) return res.redirect('/customers');
 
+  const customerType = normalizeString(req.body.customer_type) === 'company' ? 'company' : 'person';
   const documentType = normalizeDocumentType(req.body.document_type);
   const documentNumber = normalizeString(req.body.document_number);
   const firstName = normalizeString(req.body.first_name);
   const lastName = normalizeString(req.body.last_name);
+  const legalName = normalizeString(req.body.legal_name);
   let name = normalizeString(req.body.name);
-  if (!name) {
+  if (customerType === 'company') {
+    name = legalName || name;
+  } else if (!name) {
     name = [firstName, lastName].filter(Boolean).join(' ').trim();
   }
   const phone = normalizeString(req.body.phone);
   const mobile = normalizeString(req.body.mobile);
   const email = normalizeString(req.body.email);
+  const addressPayload = parseAddressPayload(req.body);
   const address = normalizeString(req.body.address);
-  const fullAddress = normalizeString(req.body.full_address);
+  const fullAddress = addressPayload.addressLine || normalizeString(req.body.full_address);
   const houseNumber = normalizeString(req.body.house_number);
   const streetNumber = normalizeString(req.body.street_number);
   const zone = normalizeString(req.body.zone);
-  const municipality = normalizeString(req.body.municipality);
-  const department = normalizeString(req.body.department);
-  const country = normalizeString(req.body.country);
+  const municipality = addressPayload.municipality;
+  const department = addressPayload.department;
+  const country = addressPayload.country;
   const paymentMethod = normalizeString(req.body.payment_method);
   const communicationType = normalizeString(req.body.communication_type);
   const advisor = normalizeString(req.body.advisor);
   const notes = normalizeString(req.body.notes);
+  const hasPortalFields = Object.prototype.hasOwnProperty.call(req.body, 'portal_code') ||
+    Object.prototype.hasOwnProperty.call(req.body, 'portal_password');
   const portalCodeInput = normalizeString(req.body.portal_code).toUpperCase();
   const portalPassword = normalizeString(req.body.portal_password);
 
@@ -1193,6 +1275,10 @@ app.post('/customers/:id/update', requireAuth, requirePermission('customers', 'e
     setFlash(req, 'error', res.locals.t('errors.customer_name_required'));
     return res.redirect(detailUrl);
   }
+  if (!country || !municipality || !fullAddress) {
+    setFlash(req, 'error', 'Pais, ciudad y direccion exacta son obligatorios.');
+    return res.redirect(detailUrl);
+  }
 
   const satFields = resolveSatFields({
     documentType,
@@ -1202,7 +1288,7 @@ app.post('/customers/:id/update', requireAuth, requirePermission('customers', 'e
   });
 
   db.get(
-    'SELECT portal_password_hash, portal_password_reset_required FROM customers WHERE id = ? AND company_id = ?',
+    'SELECT portal_code, portal_password_hash, portal_password_reset_required FROM customers WHERE id = ? AND company_id = ?',
     [id, companyId],
     (pwErr, row) => {
     if (pwErr || !row) {
@@ -1215,22 +1301,25 @@ app.post('/customers/:id/update', requireAuth, requirePermission('customers', 'e
       setFlash(req, 'error', formatCustomerSaveError(res, pwErr, 'errors.customer_update_failed'));
       return res.redirect(detailUrl);
     }
-    const portalPasswordHash = portalPassword ? bcrypt.hashSync(portalPassword, 10) : row.portal_password_hash;
-    const portalResetRequired = portalPassword ? 1 : Number(row.portal_password_reset_required) || 0;
+    const portalPasswordHash = hasPortalFields && portalPassword ? bcrypt.hashSync(portalPassword, 10) : row.portal_password_hash;
+    const portalResetRequired = hasPortalFields && portalPassword ? 1 : Number(row.portal_password_reset_required) || 0;
 
     const updateCustomer = (portalCode) => {
       db.run(
         `UPDATE customers
-         SET document_type = ?, document_number = ?, name = ?, first_name = ?, last_name = ?, phone = ?, mobile = ?, email = ?, address = ?, full_address = ?, house_number = ?, street_number = ?,
+         SET customer_type = ?, document_type = ?, document_number = ?, name = ?, legal_name = ?, first_name = ?, last_name = ?, phone = ?, mobile = ?, email = ?, address = ?, full_address = ?, house_number = ?, street_number = ?,
              zone = ?, municipality = ?, department = ?, country = ?, payment_method = ?, communication_type = ?, advisor = ?, notes = ?,
-             sat_verified = ?, sat_name = ?, sat_checked_at = ?, portal_code = ?, portal_password_hash = ?, portal_password_reset_required = ?
+             sat_verified = ?, sat_name = ?, sat_checked_at = ?, portal_code = ?, portal_password_hash = ?, portal_password_reset_required = ?,
+             country_id = ?, state_id = ?, city_id = ?, country_name = ?, state_name = ?, city_name = ?, address_line = ?, postal_code = ?, reference = ?
          WHERE id = ? AND company_id = ?`,
         [
+          customerType,
           documentType,
           documentNumber || null,
           name,
-          firstName || null,
-          lastName || null,
+          customerType === 'company' ? name : null,
+          customerType === 'company' ? null : firstName || null,
+          customerType === 'company' ? null : lastName || null,
           phone || null,
           mobile || null,
           email || null,
@@ -1252,6 +1341,15 @@ app.post('/customers/:id/update', requireAuth, requirePermission('customers', 'e
           portalCode || null,
           portalPasswordHash,
           portalResetRequired,
+          addressPayload.countryId,
+          addressPayload.stateId,
+          addressPayload.cityId,
+          addressPayload.countryName || null,
+          addressPayload.stateName || null,
+          addressPayload.cityName || null,
+          addressPayload.addressLine || null,
+          addressPayload.postalCode || null,
+          addressPayload.reference || null,
           id,
           companyId
         ],
@@ -1271,6 +1369,7 @@ app.post('/customers/:id/update', requireAuth, requirePermission('customers', 'e
       );
     };
 
+    if (!hasPortalFields) return updateCustomer(row.portal_code);
     if (!portalCodeInput) return updateCustomer(null);
 
     db.get(

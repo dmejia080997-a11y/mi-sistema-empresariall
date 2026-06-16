@@ -1,4 +1,54 @@
-﻿function registerUserRoutes(app, deps) {
+function registerUserRoutes(app, deps) {
+  const { db, getCompanyWidePermissionSpecs } = deps;
+  const parsePermissionPairs = (values) => (
+    (Array.isArray(values) ? values : [])
+      .map((value) => String(value).split(':').map(Number))
+      .filter((pair) => Number.isInteger(pair[0]) && Number.isInteger(pair[1]))
+  );
+
+  const buildCompanyWidePermissionLookup = (allowedModules) => {
+    if (typeof getCompanyWidePermissionSpecs !== 'function') return new Set();
+    return new Set(
+      getCompanyWidePermissionSpecs(allowedModules).map(
+        (spec) => `${spec.moduleCode}:${spec.actionCode}`
+      )
+    );
+  };
+
+  const resolvePermissionAssignments = (permissionValues, allowedModules, callback) => {
+    const requestedPairs = parsePermissionPairs(permissionValues);
+    const requestedLookup = new Set(requestedPairs.map((pair) => `${pair[0]}:${pair[1]}`));
+    const inheritedLookup = buildCompanyWidePermissionLookup(allowedModules);
+    if (!requestedLookup.size && !inheritedLookup.size) {
+      return callback(null, []);
+    }
+    db.all(
+      `
+      SELECT ma.module_id, pa.id AS action_id, pm.code AS module_code, pa.code AS action_code
+      FROM module_actions ma
+      JOIN permission_modules pm ON pm.id = ma.module_id AND pm.is_active = 1
+      JOIN permission_actions pa ON pa.id = ma.action_id AND pa.is_active = 1
+      `,
+      (err, rows) => {
+        if (err) return callback(err);
+        const seen = new Set();
+        const resolved = [];
+        (rows || []).forEach((row) => {
+          const pairKey = `${row.module_id}:${row.action_id}`;
+          const codeKey = `${row.module_code}:${row.action_code}`;
+          if (!requestedLookup.has(pairKey) && !inheritedLookup.has(codeKey)) return;
+          if (seen.has(pairKey)) return;
+          seen.add(pairKey);
+          resolved.push({
+            module_id: row.module_id,
+            action_id: row.action_id
+          });
+        });
+        return callback(null, resolved);
+      }
+    );
+  };
+
   const scope = { app, ...deps };
   with (scope) {
 app.get('/users', requireAuth, requirePermission('users', 'view'), (req, res) => {
@@ -23,6 +73,7 @@ app.post('/users/create', requireAuth, requirePermission('users', 'create'), (re
   }
   const isActive = req.body.is_active ? 1 : 0;
   const permissionValues = Array.isArray(req.body.permissions) ? req.body.permissions : [];
+  const companyAllowedModules = companySettings.allowed_modules || null;
 
   if (!safeUsername) {
     return renderUsers(req, res, res.locals.t('errors.username_required'));
@@ -123,44 +174,30 @@ app.post('/users/create', requireAuth, requirePermission('users', 'create'), (re
               console.error('[users/create] default dashboard permission failed', defaultErr);
             }
 
-            if (safeRole === 'admin' || permissionValues.length === 0) {
+            if (safeRole === 'admin') {
               return finalizeCreatedUser();
             }
 
-            const pairs = permissionValues
-              .map((v) => String(v).split(':').map(Number))
-              .filter((p) => Number.isInteger(p[0]) && Number.isInteger(p[1]));
-
-            if (pairs.length === 0) {
-              return finalizeCreatedUser();
-            }
-
-            const where = pairs.map(() => '(ma.module_id = ? AND ma.action_id = ?)').join(' OR ');
-            const flat = pairs.flat();
-            db.all(
-              `
-              SELECT ma.module_id, ma.action_id
-              FROM module_actions ma
-              WHERE ${where}
-              `,
-              flat,
-              (maErr, validPairs) => {
-                if (maErr) {
-                  console.error('[users/create] permissions validate failed', maErr);
-                  return res.redirect('/users');
-                }
-
-                const stmt = db.prepare(
-                  'INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id) VALUES (?, ?, ?, ?)'
-                );
-                validPairs.forEach((p) => {
-                  stmt.run(newUserId, companyId, p.module_id, p.action_id);
-                });
-                stmt.finalize(() => {
-                  return finalizeCreatedUser();
-                });
+            resolvePermissionAssignments(permissionValues, companyAllowedModules, (permErr, validPairs) => {
+              if (permErr) {
+                console.error('[users/create] permissions validate failed', permErr);
+                return res.redirect('/users');
               }
-            );
+
+              if (!validPairs.length) {
+                return finalizeCreatedUser();
+              }
+
+              const stmt = db.prepare(
+                'INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id) VALUES (?, ?, ?, ?)'
+              );
+              validPairs.forEach((p) => {
+                stmt.run(newUserId, companyId, p.module_id, p.action_id);
+              });
+              stmt.finalize(() => {
+                return finalizeCreatedUser();
+              });
+            });
           });
         }
       );
@@ -309,10 +346,7 @@ app.post('/users/:id/permissions', requireAuth, requirePermission('users', 'assi
     return renderInvoices(req, res, res.locals.t('errors.exchange_rate_invalid'));
   }
   const permissionValues = Array.isArray(req.body.permissions) ? req.body.permissions : [];
-
-  const pairs = permissionValues
-    .map((v) => String(v).split(':').map(Number))
-    .filter((p) => Number.isInteger(p[0]) && Number.isInteger(p[1]));
+  const companyAllowedModules = companySettings.allowed_modules || null;
 
   db.get('SELECT id, role FROM users WHERE id = ? AND company_id = ?', [id, companyId], (uErr, user) => {
     if (uErr || !user) {
@@ -332,39 +366,28 @@ app.post('/users/:id/permissions', requireAuth, requirePermission('users', 'assi
             return renderUsers(req, res, res.locals.t('errors.permissions_update_failed'));
           }
 
-          if (pairs.length === 0) {
-            return commitTransaction(finish, () => res.redirect('/users'));
-          }
-
-          const where = pairs.map(() => '(ma.module_id = ? AND ma.action_id = ?)').join(' OR ');
-          const flat = pairs.flat();
-
-          db.all(
-            `
-            SELECT ma.module_id, ma.action_id
-            FROM module_actions ma
-            WHERE ${where}
-            `,
-            flat,
-            (maErr, validPairs) => {
-              if (maErr) {
-                rollbackTransaction(finish);
-                return renderUsers(req, res, res.locals.t('errors.permissions_invalid'));
-              }
-
-              const stmt = db.prepare(
-                'INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id) VALUES (?, ?, ?, ?)'
-              );
-
-              validPairs.forEach((p) => {
-                stmt.run(id, companyId, p.module_id, p.action_id);
-              });
-
-              stmt.finalize(() => {
-                commitTransaction(finish, () => res.redirect('/users'));
-              });
+          resolvePermissionAssignments(permissionValues, companyAllowedModules, (permErr, validPairs) => {
+            if (permErr) {
+              rollbackTransaction(finish);
+              return renderUsers(req, res, res.locals.t('errors.permissions_invalid'));
             }
-          );
+
+            if (!validPairs.length) {
+              return commitTransaction(finish, () => res.redirect('/users'));
+            }
+
+            const stmt = db.prepare(
+              'INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id) VALUES (?, ?, ?, ?)'
+            );
+
+            validPairs.forEach((p) => {
+              stmt.run(id, companyId, p.module_id, p.action_id);
+            });
+
+            stmt.finalize(() => {
+              commitTransaction(finish, () => res.redirect('/users'));
+            });
+          });
         });
       });
     });
@@ -378,4 +401,3 @@ app.post('/users/:id/permissions', requireAuth, requirePermission('users', 'assi
 module.exports = {
   registerUserRoutes
 };
-

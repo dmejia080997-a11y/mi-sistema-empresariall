@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= formTitle %></title>
+  <%- include('partials/head-assets') %>
+  <link rel="stylesheet" href="/css/floating-investments.css" />
+</head>
+<body class="page floating-investments-page">
+  <%- include('partials/header', {
+    moduleTabs: [
+      { key: 'list', label: 'Inversion flotante', href: '/floating-investments' },
+      { key: 'new', label: 'Nueva inversion', href: '/floating-investments/new' }
+    ],
+    activeTab: formAction.includes('/create') ? 'new' : 'list',
+    currentModule: 'floating_investments'
+  }) %>
+
+  <main class="container floating-investments-shell">
+    <%- include('partials/page-shell', {
+      pageTitle: formTitle,
+      pageSubtitle: 'Registra cada desembolso como linea con proveedor, centro de costo y ganancia esperada.'
+    }) %>
+    <%- include('partials/toasts', { flash }) %>
+
+    <section class="panel app-panel floating-form-panel">
+      <form method="POST" action="<%= formAction %>" class="floating-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+        <label>
+          <span>Cliente</span>
+          <select name="customer_id" required>
+            <option value="">Seleccionar cliente</option>
+            <% customers.forEach((customer) => { %>
+              <option value="<%= customer.id %>" <%= Number(investment.customer_id || 0) === Number(customer.id) ? 'selected' : '' %>>
+                <%= customer.name %><%= customer.customer_code ? ` - ${customer.customer_code}` : '' %>
+              </option>
+            <% }) %>
+          </select>
+        </label>
+
+        <label>
+          <span>Moneda</span>
+          <input name="currency" value="<%= investment.currency || 'GTQ' %>" maxlength="8" />
+        </label>
+
+        <label>
+          <span>Fecha de recuperacion</span>
+          <input type="date" name="recovery_date" value="<%= investment.recovery_date || '' %>" required />
+        </label>
+
+        <label>
+          <span>Estado</span>
+          <select name="status">
+            <% statuses.forEach((status) => { %>
+              <option value="<%= status.key %>" <%= (investment.status || 'active') === status.key ? 'selected' : '' %>><%= status.label %></option>
+            <% }) %>
+          </select>
+        </label>
+
+        <label class="full-row">
+          <span>Descripcion</span>
+          <input name="description" value="<%= investment.description || '' %>" placeholder="Operacion, anticipo, compra financiada o referencia" />
+        </label>
+
+        <section class="floating-lines full-row" data-floating-lines>
+          <div class="floating-lines__header">
+            <div>
+              <h2>Lineas de inversion</h2>
+              <p class="muted">Cada linea funciona como una cotizacion interna: proveedor, centro de costo, monto invertido y ganancia.</p>
+            </div>
+            <button class="btn app-btn app-btn-small" type="button" data-add-line>Agregar linea</button>
+          </div>
+          <div class="floating-lines__scroll">
+            <div class="floating-line floating-line--head" aria-hidden="true">
+              <span>Proveedor</span>
+              <span>Proveedor libre</span>
+              <span>Centro de costo</span>
+              <span>Concepto</span>
+              <span>Inversion</span>
+              <span>Ganancia</span>
+              <span></span>
+            </div>
+            <div data-lines-list>
+              <% (lines && lines.length ? lines : [{}]).forEach((line) => { %>
+                <div class="floating-line" data-line>
+                  <label>
+                    <span>Proveedor</span>
+                    <select name="line_supplier_id">
+                      <option value="">Proveedor libre</option>
+                      <% suppliers.forEach((supplier) => { %>
+                        <option value="<%= supplier.id %>" <%= Number(line.supplier_id || 0) === Number(supplier.id) ? 'selected' : '' %>>
+                          <%= supplier.code ? `${supplier.code} - ` : '' %><%= supplier.trade_name %>
+                        </option>
+                      <% }) %>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Proveedor libre</span>
+                    <input name="line_supplier_name" value="<%= line.supplier_name || '' %>" placeholder="Nombre si no esta en proveedores" />
+                  </label>
+                  <label>
+                    <span>Centro de costo</span>
+                    <input name="line_cost_center" value="<%= line.cost_center || '' %>" placeholder="Ej. Logistica, compras, proyecto A" required />
+                  </label>
+                  <label>
+                    <span>Concepto</span>
+                    <input name="line_description" value="<%= line.description || '' %>" placeholder="En que se invirtio" />
+                  </label>
+                  <label>
+                    <span>Inversion</span>
+                    <input type="number" min="0.01" step="0.01" name="line_investment_value" value="<%= line.investment_value || '' %>" required />
+                  </label>
+                  <label>
+                    <span>Ganancia</span>
+                    <input type="number" min="0" step="0.01" name="line_expected_profit" value="<%= line.expected_profit || '' %>" />
+                  </label>
+                  <button class="btn ghost app-btn app-btn-small" type="button" data-remove-line>Quitar</button>
+                </div>
+              <% }) %>
+            </div>
+          </div>
+          <div class="floating-line-totals" data-line-totals>
+            <strong>Total invertido: <span data-total-investment>0.00</span></strong>
+            <strong>Ganancia esperada: <span data-total-profit>0.00</span></strong>
+          </div>
+        </section>
+
+        <label class="full-row">
+          <span>Notas</span>
+          <textarea name="notes" rows="4"><%= investment.notes || '' %></textarea>
+        </label>
+
+        <div class="floating-actions full-row">
+          <button class="btn primary" type="submit">Guardar</button>
+          <a class="btn ghost" href="/floating-investments">Cancelar</a>
+        </div>
+      </form>
+    </section>
+  </main>
+  <script>
+    (function () {
+      const container = document.querySelector('[data-floating-lines]');
+      if (!container) return;
+      const list = container.querySelector('[data-lines-list]');
+      const addButton = container.querySelector('[data-add-line]');
+      const totalInvestment = container.querySelector('[data-total-investment]');
+      const totalProfit = container.querySelector('[data-total-profit]');
+
+      const numberValue = (input) => {
+        const value = Number(input && input.value);
+        return Number.isFinite(value) && value > 0 ? value : 0;
+      };
+
+      const updateTotals = () => {
+        let investment = 0;
+        let profit = 0;
+        list.querySelectorAll('[data-line]').forEach((line) => {
+          investment += numberValue(line.querySelector('[name="line_investment_value"]'));
+          profit += numberValue(line.querySelector('[name="line_expected_profit"]'));
+        });
+        if (totalInvestment) totalInvestment.textContent = investment.toFixed(2);
+        if (totalProfit) totalProfit.textContent = profit.toFixed(2);
+      };
+
+      const bindLine = (line) => {
+        if (!line || line.dataset.bound === '1') return;
+        line.dataset.bound = '1';
+        line.querySelectorAll('input, select').forEach((input) => input.addEventListener('input', updateTotals));
+        const removeButton = line.querySelector('[data-remove-line]');
+        if (removeButton) {
+          removeButton.addEventListener('click', () => {
+            const rows = list.querySelectorAll('[data-line]');
+            if (rows.length === 1) {
+              line.querySelectorAll('input').forEach((input) => { input.value = ''; });
+              line.querySelectorAll('select').forEach((select) => { select.selectedIndex = 0; });
+            } else {
+              line.remove();
+            }
+            updateTotals();
+          });
+        }
+      };
+
+      list.querySelectorAll('[data-line]').forEach(bindLine);
+      if (addButton) {
+        addButton.addEventListener('click', () => {
+          const first = list.querySelector('[data-line]');
+          if (!first) return;
+          const clone = first.cloneNode(true);
+          clone.dataset.bound = '';
+          clone.querySelectorAll('input').forEach((input) => { input.value = ''; });
+          clone.querySelectorAll('select').forEach((select) => { select.selectedIndex = 0; });
+          list.appendChild(clone);
+          bindLine(clone);
+          updateTotals();
+        });
+      }
+      updateTotals();
+    })();
+  </script>
+</body>
+</html>
