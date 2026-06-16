@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS items (
   warehouse_location TEXT NULL,
   barcode TEXT NULL,
   price REAL NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'GTQ',
   production_type TEXT NOT NULL DEFAULT 'supply',
   average_cost REAL NOT NULL DEFAULT 0,
   last_cost REAL NOT NULL DEFAULT 0,

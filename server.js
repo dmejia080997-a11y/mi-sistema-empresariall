@@ -11332,7 +11332,8 @@ registerProductionRoutes(app, {
   requirePermission,
   getCompanyId,
   normalizeString,
-  logAction
+  logAction,
+  buildFileUrl
 });
 
 registerSalesRoutes(app, {

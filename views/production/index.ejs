@@ -18,7 +18,7 @@
   <%- include('../partials/page-shell', {
     pageTitle: 'Produccion y Manufactura',
     pageSubtitle: 'Ordenes, formulas, consumo de materiales, mano de obra, CIF y producto terminado.',
-    pageActions: can('production', 'create_order') ? '<a class="btn primary app-btn app-btn-primary" href="/production/orders/new">Nueva orden</a><a class="btn app-btn" href="/production/bom/new">Nueva BOM</a>' : ''
+    pageActions: ''
   }) %>
 
   <% if (error) { %>
@@ -30,6 +30,10 @@
   <% const statusText = (value) => statusLabels[value] || value || 'Sin estado'; %>
   <% const typeText = (value) => productTypeLabels[value] || value || 'Insumo'; %>
   <% const costStyle = showCosts ? '' : 'display:none'; %>
+  <% const currencyLabel = baseCurrency || 'GTQ'; %>
+  <% const productCurrencyOptions = Array.isArray(currencyOptions) && currencyOptions.length ? currencyOptions : ['GTQ', 'USD']; %>
+  <% const unitsList = Array.isArray(productionUnits) && productionUnits.length ? productionUnits : ['Litro', 'Tabla', 'Regla', 'Hoja']; %>
+  <% const isKnownUnit = (value) => unitsList.some((unit) => String(unit).toLowerCase() === String(value || '').toLowerCase()); %>
 
   <% if (activeTab === 'dashboard') { %>
     <section class="production-kpis">
@@ -42,24 +46,85 @@
       <article class="metric-card" style="<%= costStyle %>"><span>Costo producido del mes</span><strong><%= money(dashboard.monthCost) %></strong></article>
       <article class="metric-card" style="<%= costStyle %>"><span>Rentabilidad estimada</span><strong><%= money(dashboard.estimatedProfit) %></strong></article>
     </section>
-    <%- include('partials/orders-table', { orders, statusText, money, qty, showCosts }) %>
+    <section class="panel app-panel production-dashboard-products">
+      <div class="panel-header app-panel-header">
+        <h2>Productos de manufactura</h2>
+        <a class="btn app-btn" href="/production/products">Ver productos</a>
+      </div>
+      <% if (!dashboard.products || dashboard.products.length === 0) { %>
+        <div class="app-empty-state">Sin productos de manufactura.</div>
+      <% } else { %>
+        <div class="production-product-card-grid">
+          <% dashboard.products.forEach((product) => { %>
+            <% const dashboardProductPhotoUrl = buildFileUrl && product.production_photo_path ? buildFileUrl(product.production_photo_path) : null; %>
+            <a class="production-product-card" href="/production/products#production-product-<%= product.id %>">
+              <% if (dashboardProductPhotoUrl) { %>
+                <img src="<%= dashboardProductPhotoUrl %>" alt="Foto de <%= product.name %>" />
+              <% } else { %>
+                <span class="production-product-card-placeholder">Sin foto</span>
+              <% } %>
+              <span>
+                <strong><%= product.name %></strong>
+                <small><%= product.sku || product.item_code || 'Sin codigo' %></small>
+              </span>
+            </a>
+          <% }) %>
+        </div>
+      <% } %>
+    </section>
+    <section class="production-two-col production-dashboard-summary">
+      <div class="panel app-panel">
+        <div class="panel-header app-panel-header"><h2>Resumen de manufactura</h2></div>
+        <div class="production-summary-grid">
+          <div><span>Productos activos</span><strong><%= dashboard.activeProducts %></strong></div>
+          <div><span>BOM activas</span><strong><%= dashboard.activeBoms %></strong></div>
+          <div><span>Materia prima activa</span><strong><%= dashboard.activeMaterials %></strong></div>
+          <div><span>Bajo stock</span><strong><%= dashboard.lowStock %></strong></div>
+          <div><span>Lineas con faltante</span><strong><%= dashboard.shortageLines %></strong></div>
+          <div style="<%= costStyle %>"><span>Costo material abierto</span><strong><%= money(dashboard.openMaterialCost) %></strong></div>
+        </div>
+      </div>
+      <div class="panel app-panel">
+        <div class="panel-header app-panel-header"><h2>Ordenes recientes</h2><a class="btn app-btn" href="/production/orders">Ver ordenes</a></div>
+        <%- include('partials/orders-table', { orders, statusText, money, qty, showCosts }) %>
+      </div>
+    </section>
   <% } %>
 
   <% if (activeTab === 'orders') { %>
     <section class="panel app-panel">
-      <div class="panel-header app-panel-header"><h2>Ordenes de produccion</h2></div>
+      <div class="panel-header app-panel-header">
+        <h2>Ordenes de produccion</h2>
+        <% if (can('production', 'create_order')) { %>
+          <a class="btn primary app-btn app-btn-primary" href="/production/orders/new">Nueva orden</a>
+        <% } %>
+      </div>
       <form method="GET" action="/production/orders" class="form app-filter-bar production-filter-grid">
         <input type="date" name="date_from" value="<%= filters.date_from || '' %>" />
         <input type="date" name="date_to" value="<%= filters.date_to || '' %>" />
         <select name="product_id"><option value="">Producto</option><% products.forEach((p) => { %><option value="<%= p.id %>" <%= String(filters.product_id || '') === String(p.id) ? 'selected' : '' %>><%= p.name %></option><% }) %></select>
-        <select name="status"><option value="">Estado</option><% Object.keys(statusLabels).forEach((key) => { %><option value="<%= key %>" <%= filters.status === key ? 'selected' : '' %>><%= statusLabels[key] %></option><% }) %></select>
+        <select name="status"><option value="">Estado</option><% ['draft','pending','paused'].forEach((key) => { %><option value="<%= key %>" <%= filters.status === key ? 'selected' : '' %>><%= statusLabels[key] %></option><% }) %></select>
         <select name="user_id"><option value="">Usuario</option><% users.forEach((u) => { %><option value="<%= u.id %>" <%= String(filters.user_id || '') === String(u.id) ? 'selected' : '' %>><%= u.username %></option><% }) %></select>
         <input type="text" name="order" placeholder="Orden" value="<%= filters.order || '' %>" />
         <input type="number" step="0.01" name="cost_min" placeholder="Costo min" value="<%= filters.cost_min || '' %>" style="<%= costStyle %>" />
         <input type="number" step="0.01" name="cost_max" placeholder="Costo max" value="<%= filters.cost_max || '' %>" style="<%= costStyle %>" />
         <div class="actions"><button class="btn app-btn" type="submit">Filtrar</button><a class="btn app-btn" href="/production/orders">Limpiar</a></div>
       </form>
-      <%- include('partials/orders-table', { orders, statusText, money, qty, showCosts }) %>
+      <form method="POST" action="/production/orders/bulk-status" class="production-bulk-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <input type="hidden" name="return_to" value="orders" />
+        <div class="production-bulk-actions">
+          <select name="status" required>
+            <option value="">Accion multiple</option>
+            <option value="cancelled">Cancelado</option>
+            <option value="in_production">En proceso</option>
+            <option value="paused">Pausado</option>
+            <option value="finished">Terminado</option>
+          </select>
+          <button class="btn app-btn" type="submit">Aplicar</button>
+        </div>
+        <%- include('partials/orders-table', { orders, statusText, money, qty, showCosts, selectable: true }) %>
+      </form>
     </section>
   <% } %>
 
@@ -69,19 +134,30 @@
       <form method="POST" action="<%= order ? `/production/orders/${order.id}/update` : '/production/orders/create' %>" class="form grid-2 app-form-grid">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
         <% if (!order) { %>
-          <label>Producto a fabricar
-            <select name="product_id" required>
-              <option value="">Seleccionar</option>
-              <% products.forEach((p) => { %><option value="<%= p.id %>"><%= p.name %> - <%= p.sku %></option><% }) %>
-            </select>
-          </label>
-          <label>BOM utilizada
-            <select name="bom_id" required>
-              <option value="">Seleccionar</option>
-              <% boms.forEach((b) => { %><option value="<%= b.id %>"><%= b.code %> - <%= b.name %> (<%= b.product_name %>)</option><% }) %>
-            </select>
-          </label>
-          <label>Cantidad a fabricar <input type="number" step="0.0001" min="0.0001" name="quantity_planned" required /></label>
+          <div class="full-row">
+            <h3>Formulas BOM a producir</h3>
+            <div class="production-order-bom-lines" data-order-bom-lines>
+              <div class="production-order-bom-line" data-order-bom-line>
+                <select name="bom_id">
+                  <option value="">Seleccionar BOM</option>
+                  <% boms.forEach((b) => { %><option value="<%= b.id %>"><%= b.code %> - <%= b.name %> (<%= b.product_name %>)</option><% }) %>
+                </select>
+                <input type="number" step="0.0001" min="0" name="quantity_planned" placeholder="Cantidad a fabricar" />
+                <button class="btn app-btn production-line-remove" type="button" data-remove-order-bom-line aria-label="Quitar linea">-</button>
+              </div>
+            </div>
+            <button class="btn app-btn production-add-line" type="button" data-add-order-bom-line>Agregar linea</button>
+            <template data-order-bom-template>
+              <div class="production-order-bom-line" data-order-bom-line>
+                <select name="bom_id">
+                  <option value="">Seleccionar BOM</option>
+                  <% boms.forEach((b) => { %><option value="<%= b.id %>"><%= b.code %> - <%= b.name %> (<%= b.product_name %>)</option><% }) %>
+                </select>
+                <input type="number" step="0.0001" min="0" name="quantity_planned" placeholder="Cantidad a fabricar" />
+                <button class="btn app-btn production-line-remove" type="button" data-remove-order-bom-line aria-label="Quitar linea">-</button>
+              </div>
+            </template>
+          </div>
         <% } else { %>
           <div><strong><%= order.order_number %></strong><p class="muted"><%= order.status %></p></div>
         <% } %>
@@ -98,7 +174,7 @@
       <div class="production-detail-head">
         <div>
           <p class="app-page-eyebrow"><%= order.order_number %></p>
-          <h2><%= order.product_name %></h2>
+          <h2><%= orderBoms && orderBoms.length > 1 ? 'Orden multiproducto' : order.product_name %></h2>
           <span class="status-pill status-<%= order.status %>"><%= statusText(order.status) %></span>
         </div>
         <div class="actions">
@@ -116,6 +192,22 @@
         <div><span>Avance</span><strong><%= Math.min(100, Math.round((Number(order.quantity_finished || 0) / Math.max(Number(order.quantity_planned || 1), 1)) * 100)) %>%</strong></div>
       </div>
 
+      <% if (orderBoms && orderBoms.length) { %>
+        <div class="table app-table-wrap production-table production-order-boms-table">
+          <div class="table-row header production-order-bom-row"><div>BOM</div><div>Producto terminado</div><div>Planificado</div><div>Finalizado</div><div>Avance</div><div style="<%= costStyle %>">Costo est.</div></div>
+          <% orderBoms.forEach((line) => { const lineProgress = Math.min(100, Math.round((Number(line.quantity_finished || 0) / Math.max(Number(line.quantity_planned || 1), 1)) * 100)); %>
+            <div class="table-row production-order-bom-row">
+              <div><strong><%= line.bom_code %></strong><p class="muted"><%= line.bom_name %></p></div>
+              <div><%= line.product_name %><p class="muted"><%= line.sku || '' %></p></div>
+              <div><%= qty(line.quantity_planned) %></div>
+              <div><%= qty(line.quantity_finished) %></div>
+              <div><%= lineProgress %>%</div>
+              <div style="<%= costStyle %>"><%= money(line.estimated_cost) %></div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+
       <% if (activeTab === 'order_start') { %>
         <form method="POST" action="/production/orders/<%= order.id %>/start" class="production-action-box">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
@@ -127,7 +219,18 @@
       <% if (activeTab === 'order_finish') { %>
         <form method="POST" action="/production/orders/<%= order.id %>/finish" class="production-action-box">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-          <label>Cantidad producida ahora <input type="number" step="0.0001" min="0.0001" name="quantity_finished" required /></label>
+          <% if (orderBoms && orderBoms.length) { %>
+            <div class="production-finish-lines">
+              <% orderBoms.forEach((line) => { %>
+                <label><%= line.product_name %> / <%= line.bom_code %>
+                  <input type="hidden" name="order_bom_id" value="<%= line.id %>" />
+                  <input type="number" step="0.0001" min="0" name="quantity_finished" placeholder="Cantidad producida ahora" />
+                </label>
+              <% }) %>
+            </div>
+          <% } else { %>
+            <label>Cantidad producida ahora <input type="number" step="0.0001" min="0.0001" name="quantity_finished" required /></label>
+          <% } %>
           <p class="muted">Permite finalizacion parcial. El sistema ingresa producto terminado al inventario con costo real unitario.</p>
           <button class="btn primary app-btn app-btn-primary" type="submit">Registrar entrada de produccion</button>
         </form>
@@ -204,11 +307,142 @@
 
   <% if (activeTab === 'bom') { %>
     <section class="panel app-panel">
-      <div class="panel-header app-panel-header"><h2>Formulas o BOM</h2></div>
+      <div class="panel-header app-panel-header">
+        <h2>BOM</h2>
+        <% if (can('production', 'create_order')) { %>
+          <a class="btn primary app-btn app-btn-primary" href="/production/bom/new">Nueva BOM</a>
+        <% } %>
+      </div>
       <div class="table app-table-wrap production-table">
         <div class="table-row header production-bom-row"><div>Codigo</div><div>Formula</div><div>Producto terminado</div><div>Version</div><div>Estado</div><div>Base</div><div>Acciones</div></div>
         <% boms.forEach((b) => { %><div class="table-row production-bom-row"><div><%= b.code %></div><div><strong><%= b.name %></strong></div><div><%= b.product_name %></div><div><%= b.version %></div><div><%= b.status %></div><div><%= qty(b.base_quantity) %> <%= b.unit || '' %></div><div><a class="btn app-btn" href="/production/bom/<%= b.id %>/edit">Editar</a></div></div><% }) %>
       </div>
+    </section>
+  <% } %>
+
+  <% if (activeTab === 'products') { %>
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header">
+        <h2>Productos</h2>
+        <% if (can('production', 'edit_order')) { %>
+          <a class="btn primary app-btn app-btn-primary" href="/production/products/new">Nuevo producto</a>
+        <% } %>
+      </div>
+      <div class="table app-table-wrap production-table production-products-table">
+        <div class="table-row header production-products-row"><div>Producto</div><div>Foto</div><div>BOM</div><div>Materia prima</div><div style="<%= costStyle %>">Mano de obra</div><div>Dias</div><div>Estado</div><div>Observaciones</div><div>Soporte</div><div>Acciones</div></div>
+        <% if (!products || products.length === 0) { %><div class="table-row empty app-empty-state">Sin productos de produccion.</div><% } %>
+        <% (products || []).forEach((p) => { %>
+          <% const productPhotoUrl = buildFileUrl && p.production_photo_path ? buildFileUrl(p.production_photo_path) : null; %>
+          <% const productSupportUrl = buildFileUrl && p.production_support_path ? buildFileUrl(p.production_support_path) : null; %>
+          <form id="production-product-<%= p.id %>" method="POST" action="/production/products/<%= p.id %>/update" enctype="multipart/form-data" class="table-row production-products-row production-product-edit-form" data-production-product-form>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <div data-label="Producto"><strong><%= p.name %></strong><p class="muted"><%= p.sku || p.item_code || '' %></p></div>
+            <div class="production-product-media" data-label="Foto">
+              <% if (productPhotoUrl) { %>
+                <img src="<%= productPhotoUrl %>" alt="Foto de <%= p.name %>" />
+              <% } else { %>
+                <span class="production-product-placeholder">Sin foto</span>
+              <% } %>
+              <label class="production-file-picker">
+                <input type="file" name="product_photo" accept="image/*" data-production-edit-field disabled />
+                <span><%= productPhotoUrl ? 'Cambiar foto' : 'Agregar foto' %></span>
+              </label>
+            </div>
+            <div data-label="BOM"><%= p.bom_count %><p class="muted"><%= p.first_bom_code || 'Sin BOM' %></p></div>
+            <div data-label="Materia prima"><%= p.material_count %><p class="muted"><%= p.material_names || 'Sin materia prima' %></p></div>
+            <div data-label="Mano de obra" style="<%= costStyle %>"><span class="production-money-field"><span><%= p.currency || currencyLabel %></span><input type="number" step="0.01" min="0" name="production_labor_cost" value="<%= p.production_labor_cost || 0 %>" data-production-edit-field disabled /></span></div>
+            <div data-label="Dias"><input type="number" step="0.01" min="0" name="production_days" value="<%= p.production_days || 0 %>" data-production-edit-field disabled /></div>
+            <label class="inline-check" data-label="Estado"><input type="checkbox" name="is_active" value="1" <%= Number(p.is_production_active) === 1 ? 'checked' : '' %> data-production-edit-field disabled /> Activo</label>
+            <div data-label="Observaciones"><span class="production-notes-readonly"><%= p.production_notes || 'Sin observaciones' %></span></div>
+            <div class="production-product-support" data-label="Soporte">
+              <% if (productSupportUrl) { %><button class="btn app-btn" type="button" data-production-support-open data-support-url="<%= productSupportUrl %>" data-support-title="Soporte de <%= p.name %>">Ver soporte</button><% } else { %><span class="muted">Sin soporte</span><% } %>
+            </div>
+            <div class="production-product-actions" data-label="Acciones">
+              <% if (can('production', 'edit_order')) { %>
+                <button class="btn app-btn" type="button" data-production-product-edit>Editar</button>
+                <button class="btn danger app-btn app-btn-danger" type="button" data-production-product-delete>Borrar</button>
+              <% } else { %>
+                <span class="muted">Sin acciones</span>
+              <% } %>
+            </div>
+          </form>
+          <% if (can('production', 'edit_order')) { %>
+            <form method="POST" action="/production/products/<%= p.id %>/delete" class="production-product-delete-form" data-production-product-delete-form>
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            </form>
+          <% } %>
+        <% }) %>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (activeTab === 'product_new') { %>
+    <% const selectedProductCurrency = String(product.currency || currencyLabel || 'GTQ').toUpperCase(); %>
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header"><h2>Nuevo producto</h2></div>
+      <form method="POST" action="/production/products/create" enctype="multipart/form-data" class="form grid-2 app-form-grid">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <label>Nombre del producto <input type="text" name="name" value="<%= product.name || '' %>" data-product-name-input required /></label>
+        <label>SKU <input type="text" name="sku" value="<%= product.sku || suggestedSku || '' %>" /></label>
+        <label>Codigo de producto <input type="text" name="item_code" value="<%= product.item_code || '' %>" placeholder="Ej. PRO-001" data-product-code-input /></label>
+        <label>Moneda
+          <select name="currency" data-product-currency-select>
+            <% productCurrencyOptions.forEach((currency) => { %>
+              <option value="<%= currency %>" <%= selectedProductCurrency === currency ? 'selected' : '' %>><%= currency %></option>
+            <% }) %>
+          </select>
+        </label>
+        <label>Precio de venta <span class="production-money-field"><span data-product-currency-label><%= selectedProductCurrency %></span><input type="number" step="0.01" min="0" name="price" value="<%= product.price || 0 %>" /></span></label>
+        <label>Costo de mano de obra <span class="production-money-field"><span data-product-currency-label><%= selectedProductCurrency %></span><input type="number" step="0.01" min="0" name="production_labor_cost" value="<%= product.production_labor_cost || 0 %>" /></span></label>
+        <label>Dias para fabricar <input type="number" step="0.01" min="0" name="production_days" value="<%= product.production_days || 0 %>" /></label>
+        <label>Foto del producto
+          <span class="production-file-picker production-file-picker-form">
+            <input type="file" name="product_photo" accept="image/*" />
+            <span>Agregar foto</span>
+          </span>
+        </label>
+        <label class="full-row">Observaciones <textarea name="production_notes" rows="3"><%= product.production_notes || '' %></textarea></label>
+        <div class="full-row">
+          <h3>Materia prima para BOM inicial</h3>
+          <div class="production-bom-lines" data-production-bom-lines>
+            <div class="production-bom-line" data-production-bom-line>
+              <select name="material_product_id"><option value="">Materia prima</option><% materials.forEach((m) => { %><option value="<%= m.id %>"><%= m.name %></option><% }) %></select>
+              <input type="number" step="0.0001" name="quantity" placeholder="Cantidad" />
+              <span class="production-unit-field" data-production-unit-field>
+                <select name="unit_item" data-production-unit-select>
+                  <option value="">Unidad</option>
+                  <% unitsList.forEach((unit) => { %><option value="<%= unit %>"><%= unit %></option><% }) %>
+                  <option value="__other">Otros</option>
+                </select>
+                <input type="text" name="unit_item_other" placeholder="Escribir unidad" data-production-unit-custom hidden />
+              </span>
+              <input type="number" step="0.01" name="waste_percentage" placeholder="% merma" />
+              <button class="btn app-btn production-line-remove" type="button" data-remove-production-bom-line aria-label="Quitar linea">-</button>
+            </div>
+          </div>
+          <button class="btn app-btn production-add-line" type="button" data-add-production-bom-line>Agregar linea</button>
+          <template data-production-bom-template>
+            <div class="production-bom-line" data-production-bom-line>
+              <select name="material_product_id"><option value="">Materia prima</option><% materials.forEach((m) => { %><option value="<%= m.id %>"><%= m.name %></option><% }) %></select>
+              <input type="number" step="0.0001" name="quantity" placeholder="Cantidad" />
+              <span class="production-unit-field" data-production-unit-field>
+                <select name="unit_item" data-production-unit-select>
+                  <option value="">Unidad</option>
+                  <% unitsList.forEach((unit) => { %><option value="<%= unit %>"><%= unit %></option><% }) %>
+                  <option value="__other">Otros</option>
+                </select>
+                <input type="text" name="unit_item_other" placeholder="Escribir unidad" data-production-unit-custom hidden />
+              </span>
+              <input type="number" step="0.01" name="waste_percentage" placeholder="% merma" />
+              <button class="btn app-btn production-line-remove" type="button" data-remove-production-bom-line aria-label="Quitar linea">-</button>
+            </div>
+          </template>
+        </div>
+        <label class="full-row production-product-support-field">Soporte del producto
+          <input type="file" name="product_support" accept="application/pdf,image/*" />
+        </label>
+        <div class="actions full-row"><button class="btn primary app-btn app-btn-primary" type="submit">Guardar producto</button><a class="btn app-btn" href="/production/products">Cancelar</a></div>
+      </form>
     </section>
   <% } %>
 
@@ -218,27 +452,65 @@
       <form method="POST" action="<%= bom ? `/production/bom/${bom.id}/save` : '/production/bom/save' %>" class="form app-form-grid">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
         <div class="grid-2">
-          <label>Producto terminado <select name="finished_product_id" required><option value="">Seleccionar</option><% products.forEach((p) => { %><option value="<%= p.id %>" <%= bom && String(bom.finished_product_id) === String(p.id) ? 'selected' : '' %>><%= p.name %></option><% }) %></select></label>
-          <label>Codigo de formula <input type="text" name="code" value="<%= bom ? bom.code : '' %>" required /></label>
-          <label>Nombre <input type="text" name="name" value="<%= bom ? bom.name : '' %>" required /></label>
+          <label>Producto terminado <select name="finished_product_id" data-bom-finished-product required><option value="">Seleccionar</option><% products.forEach((p) => { %><option value="<%= p.id %>" <%= bom && String(bom.finished_product_id) === String(p.id) ? 'selected' : '' %>><%= p.name %></option><% }) %></select></label>
+          <label>Codigo de formula <input type="text" name="code" value="<%= bom ? bom.code : '' %>" data-bom-code-input required /></label>
+          <label>Nombre <input type="text" name="name" value="<%= bom ? bom.name : '' %>" data-bom-name-input required /></label>
           <label>Version <input type="text" name="version" value="<%= bom ? bom.version || '1' : '1' %>" /></label>
           <label>Cantidad base <input type="number" step="0.0001" name="base_quantity" value="<%= bom ? bom.base_quantity : 1 %>" /></label>
-          <label>Unidad <input type="text" name="unit" value="<%= bom ? bom.unit || 'unidad' : 'unidad' %>" /></label>
+          <label>Unidad
+            <% const bomUnit = bom ? bom.unit || '' : 'Litro'; %>
+            <% const bomUnitIsOther = bomUnit && !isKnownUnit(bomUnit); %>
+            <span class="production-unit-field" data-production-unit-field>
+              <select name="unit" data-production-unit-select>
+                <option value="">Unidad</option>
+                <% unitsList.forEach((unit) => { %><option value="<%= unit %>" <%= !bomUnitIsOther && String(bomUnit).toLowerCase() === String(unit).toLowerCase() ? 'selected' : '' %>><%= unit %></option><% }) %>
+                <option value="__other" <%= bomUnitIsOther ? 'selected' : '' %>>Otros</option>
+              </select>
+              <input type="text" name="unit_other" placeholder="Escribir unidad" value="<%= bomUnitIsOther ? bomUnit : '' %>" data-production-unit-custom <%= bomUnitIsOther ? '' : 'hidden' %> />
+            </span>
+          </label>
           <label>Estado <select name="status"><option value="active" <%= !bom || bom.status === 'active' ? 'selected' : '' %>>Activa</option><option value="inactive" <%= bom && bom.status === 'inactive' ? 'selected' : '' %>>Inactiva</option></select></label>
           <label>Observaciones <input type="text" name="notes" value="<%= bom ? bom.notes || '' : '' %>" /></label>
         </div>
         <h3>Detalle de materiales</h3>
-        <div class="production-bom-lines">
-          <% const lineCount = Math.max((bomItems || []).length + 3, 6); %>
+        <div class="production-bom-lines" data-production-bom-lines>
+          <% const lineCount = Math.max((bomItems || []).length, 1); %>
           <% for (let i = 0; i < lineCount; i += 1) { const line = (bomItems || [])[i] || {}; %>
-            <div class="production-bom-line">
+            <div class="production-bom-line" data-production-bom-line>
               <select name="material_product_id"><option value="">Materia prima</option><% products.forEach((p) => { %><option value="<%= p.id %>" <%= String(line.material_product_id || '') === String(p.id) ? 'selected' : '' %>><%= p.name %></option><% }) %></select>
               <input type="number" step="0.0001" name="quantity" placeholder="Cantidad" value="<%= line.quantity || '' %>" />
-              <input type="text" name="unit_item" placeholder="Unidad" value="<%= line.unit || '' %>" />
+              <% const lineUnit = line.unit || ''; %>
+              <% const lineUnitIsOther = lineUnit && !isKnownUnit(lineUnit); %>
+              <span class="production-unit-field" data-production-unit-field>
+                <select name="unit_item" data-production-unit-select>
+                  <option value="">Unidad</option>
+                  <% unitsList.forEach((unit) => { %><option value="<%= unit %>" <%= !lineUnitIsOther && String(lineUnit).toLowerCase() === String(unit).toLowerCase() ? 'selected' : '' %>><%= unit %></option><% }) %>
+                  <option value="__other" <%= lineUnitIsOther ? 'selected' : '' %>>Otros</option>
+                </select>
+                <input type="text" name="unit_item_other" placeholder="Escribir unidad" value="<%= lineUnitIsOther ? lineUnit : '' %>" data-production-unit-custom <%= lineUnitIsOther ? '' : 'hidden' %> />
+              </span>
               <input type="number" step="0.01" name="waste_percentage" placeholder="% merma" value="<%= line.waste_percentage || '' %>" />
+              <button class="btn app-btn production-line-remove" type="button" data-remove-production-bom-line aria-label="Quitar linea">-</button>
             </div>
           <% } %>
         </div>
+        <button class="btn app-btn production-add-line" type="button" data-add-production-bom-line>Agregar linea</button>
+        <template data-production-bom-template>
+          <div class="production-bom-line" data-production-bom-line>
+            <select name="material_product_id"><option value="">Materia prima</option><% products.forEach((p) => { %><option value="<%= p.id %>"><%= p.name %></option><% }) %></select>
+            <input type="number" step="0.0001" name="quantity" placeholder="Cantidad" />
+            <span class="production-unit-field" data-production-unit-field>
+              <select name="unit_item" data-production-unit-select>
+                <option value="">Unidad</option>
+                <% unitsList.forEach((unit) => { %><option value="<%= unit %>"><%= unit %></option><% }) %>
+                <option value="__other">Otros</option>
+              </select>
+              <input type="text" name="unit_item_other" placeholder="Escribir unidad" data-production-unit-custom hidden />
+            </span>
+            <input type="number" step="0.01" name="waste_percentage" placeholder="% merma" />
+            <button class="btn app-btn production-line-remove" type="button" data-remove-production-bom-line aria-label="Quitar linea">-</button>
+          </div>
+        </template>
         <div class="actions"><button class="btn primary app-btn app-btn-primary" type="submit">Guardar BOM</button><a class="btn app-btn" href="/production/bom">Cancelar</a></div>
       </form>
     </section>
@@ -246,7 +518,12 @@
 
   <% if (activeTab === 'materials') { %>
     <section class="panel app-panel">
-      <div class="panel-header app-panel-header"><h2>Catalogo de materia prima</h2></div>
+      <div class="panel-header app-panel-header">
+        <h2>Catalogo de materia prima</h2>
+        <% if (can('production', 'edit_order')) { %>
+          <a class="btn primary app-btn app-btn-primary" href="/production/materials/new">Ingreso materia prima</a>
+        <% } %>
+      </div>
       <form method="GET" action="/production/materials" class="form app-filter-bar production-filter-grid">
         <input type="text" name="q" placeholder="Buscar producto" value="<%= filters.q || '' %>" />
         <select name="category"><option value="">Todas las categorias</option><% productTypes.forEach((key) => { %><option value="<%= key %>" <%= filters.category === key ? 'selected' : '' %>><%= typeText(key) %></option><% }) %></select>
@@ -265,17 +542,91 @@
     </section>
   <% } %>
 
+  <% if (activeTab === 'material_new') { %>
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header">
+        <div>
+          <h2>Ingreso de materia prima</h2>
+          <p class="muted">Registra la materia prima en inventario y la deja disponible para formulas BOM.</p>
+        </div>
+      </div>
+      <form method="POST" action="/production/materials/create" class="form grid-2 app-form-grid production-material-entry-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <label>Nombre de materia prima
+          <input type="text" name="name" value="<%= material.name || '' %>" required />
+        </label>
+        <label>Codigo SKU
+          <input type="text" name="sku" value="<%= material.sku || suggestedSku || '' %>" />
+        </label>
+        <label>Codigo interno
+          <input type="text" name="item_code" value="<%= material.item_code || suggestedSku || '' %>" />
+        </label>
+        <label>Categoria
+          <select name="category_id">
+            <option value="">Sin categoria</option>
+            <% categories.forEach((category) => { %>
+              <option value="<%= category.id %>" <%= String(material.category_id || '') === String(category.id) ? 'selected' : '' %>><%= category.name %></option>
+            <% }) %>
+          </select>
+        </label>
+        <label>Marca / proveedor
+          <select name="brand_id">
+            <option value="">Sin marca</option>
+            <% brands.forEach((brand) => { %>
+              <option value="<%= brand.id %>" <%= String(material.brand_id || '') === String(brand.id) ? 'selected' : '' %>><%= brand.name %></option>
+            <% }) %>
+          </select>
+        </label>
+        <label>Cantidad inicial
+          <input type="number" step="0.0001" min="0" name="qty" value="<%= material.qty || 0 %>" />
+        </label>
+        <label>Costo unitario
+          <input type="number" step="0.01" min="0" name="unit_cost" value="<%= material.unit_cost || 0 %>" />
+        </label>
+        <label>Stock minimo
+          <input type="number" step="0.0001" min="0" name="min_stock" value="<%= material.min_stock || 0 %>" />
+        </label>
+        <label>Ubicacion en bodega
+          <input type="text" name="warehouse_location" value="<%= material.warehouse_location || '' %>" />
+        </label>
+        <label>Codigo de barras
+          <input type="text" name="barcode" value="<%= material.barcode || '' %>" />
+        </label>
+        <label class="full-row">Notas de ingreso
+          <textarea name="notes" rows="3"><%= material.notes || '' %></textarea>
+        </label>
+        <div class="actions full-row">
+          <button class="btn primary app-btn app-btn-primary" type="submit">Guardar ingreso</button>
+          <a class="btn app-btn" href="/production/materials">Cancelar</a>
+        </div>
+      </form>
+    </section>
+  <% } %>
+
   <% if (activeTab === 'wip') { %>
-    <section class="panel app-panel"><div class="panel-header app-panel-header"><h2>Producto en proceso</h2></div><%- include('partials/orders-table', { orders, statusText, money, qty, showCosts }) %></section>
+    <section class="panel app-panel">
+      <div class="panel-header app-panel-header"><h2>Procesos</h2></div>
+      <form method="POST" action="/production/orders/bulk-status" class="production-bulk-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <input type="hidden" name="return_to" value="wip" />
+        <div class="production-bulk-actions">
+          <select name="status" required>
+            <option value="">Accion multiple</option>
+            <option value="paused">Pausado</option>
+            <option value="finished">Terminado</option>
+            <option value="cancelled">Cancelado</option>
+          </select>
+          <button class="btn app-btn" type="submit">Aplicar</button>
+        </div>
+        <%- include('partials/orders-table', { orders, statusText, money, qty, showCosts, selectable: true }) %>
+      </form>
+    </section>
   <% } %>
 
   <% if (activeTab === 'finished_goods') { %>
     <section class="panel app-panel">
-      <div class="panel-header app-panel-header"><h2>Producto terminado</h2></div>
-      <div class="table app-table-wrap production-table">
-        <div class="table-row header production-finished-row"><div>Producto</div><div>SKU</div><div>Existencia</div><div>Fabricado</div><div style="<%= costStyle %>">Costo produccion</div><div style="<%= costStyle %>">Precio venta</div></div>
-        <% goods.forEach((g) => { %><div class="table-row production-finished-row"><div><strong><%= g.name %></strong></div><div><%= g.sku %></div><div><%= qty(g.qty) %></div><div><%= qty(g.produced_qty) %></div><div style="<%= costStyle %>"><%= money(g.production_cost) %></div><div style="<%= costStyle %>"><%= money(g.price) %></div></div><% }) %>
-      </div>
+      <div class="panel-header app-panel-header"><h2>Terminados</h2></div>
+      <%- include('partials/orders-table', { orders, statusText, money, qty, showCosts }) %>
     </section>
   <% } %>
 
@@ -295,6 +646,292 @@
     </section>
   <% } %>
 </main>
+<div class="modal-overlay hidden production-support-modal" data-production-support-modal aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="production-support-title">
+    <div class="modal-header">
+      <h2 id="production-support-title" data-production-support-title>Soporte</h2>
+      <button class="btn app-btn production-support-close" type="button" data-production-support-close aria-label="Cerrar">X</button>
+    </div>
+    <iframe title="Vista de soporte" data-production-support-frame></iframe>
+  </div>
+</div>
+<div class="modal-overlay hidden production-confirm-modal" data-production-confirm-modal aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="production-confirm-title">
+    <div class="modal-header">
+      <h2 id="production-confirm-title">Eliminar linea</h2>
+    </div>
+    <p>Esta seguro de eliminar la linea?</p>
+    <div class="actions">
+      <button class="btn danger app-btn app-btn-danger" type="button" data-production-confirm-accept>Aceptar</button>
+      <button class="btn app-btn" type="button" data-production-confirm-cancel>Cancelar</button>
+    </div>
+  </div>
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const confirmModal = document.querySelector('[data-production-confirm-modal]');
+    const confirmAcceptButton = document.querySelector('[data-production-confirm-accept]');
+    const confirmCancelButton = document.querySelector('[data-production-confirm-cancel]');
+    const supportModal = document.querySelector('[data-production-support-modal]');
+    const supportFrame = document.querySelector('[data-production-support-frame]');
+    const supportTitle = document.querySelector('[data-production-support-title]');
+    const supportCloseButton = document.querySelector('[data-production-support-close]');
+    let pendingRemoveLine = null;
+    let pendingSyncRemoveButtons = null;
+
+    const openRemoveConfirm = (line, syncRemoveButtons) => {
+      pendingRemoveLine = line;
+      pendingSyncRemoveButtons = syncRemoveButtons;
+      if (!confirmModal) return;
+      confirmModal.classList.remove('hidden');
+      confirmModal.setAttribute('aria-hidden', 'false');
+      if (confirmAcceptButton) confirmAcceptButton.focus();
+    };
+
+    const closeRemoveConfirm = () => {
+      pendingRemoveLine = null;
+      pendingSyncRemoveButtons = null;
+      if (!confirmModal) return;
+      confirmModal.classList.add('hidden');
+      confirmModal.setAttribute('aria-hidden', 'true');
+    };
+
+    if (confirmAcceptButton) {
+      confirmAcceptButton.addEventListener('click', () => {
+        if (pendingRemoveLine) pendingRemoveLine.remove();
+        if (typeof pendingSyncRemoveButtons === 'function') pendingSyncRemoveButtons();
+        closeRemoveConfirm();
+      });
+    }
+
+    if (confirmCancelButton) confirmCancelButton.addEventListener('click', closeRemoveConfirm);
+    if (confirmModal) {
+      confirmModal.addEventListener('click', (event) => {
+        if (event.target === confirmModal) closeRemoveConfirm();
+      });
+    }
+
+    const closeSupportModal = () => {
+      if (!supportModal) return;
+      supportModal.classList.add('hidden');
+      supportModal.setAttribute('aria-hidden', 'true');
+      if (supportFrame) supportFrame.src = 'about:blank';
+    };
+
+    document.querySelectorAll('[data-production-support-open]').forEach((button) => {
+      button.addEventListener('click', () => {
+        if (!supportModal || !supportFrame) return;
+        if (supportTitle) supportTitle.textContent = button.dataset.supportTitle || 'Soporte';
+        supportFrame.src = button.dataset.supportUrl || 'about:blank';
+        supportModal.classList.remove('hidden');
+        supportModal.setAttribute('aria-hidden', 'false');
+        if (supportCloseButton) supportCloseButton.focus();
+      });
+    });
+
+    if (supportCloseButton) supportCloseButton.addEventListener('click', closeSupportModal);
+    if (supportModal) {
+      supportModal.addEventListener('click', (event) => {
+        if (event.target === supportModal) closeSupportModal();
+      });
+    }
+
+    document.querySelectorAll('[data-production-product-form]').forEach((form) => {
+      const deleteForm = form.nextElementSibling && form.nextElementSibling.matches('[data-production-product-delete-form]')
+        ? form.nextElementSibling
+        : null;
+      const editButton = form.querySelector('[data-production-product-edit]');
+      const deleteButton = form.querySelector('[data-production-product-delete]');
+      const editFields = Array.from(form.querySelectorAll('[data-production-edit-field]'));
+
+      if (editButton) {
+        editButton.addEventListener('click', () => {
+          if (!form.classList.contains('is-editing')) {
+            form.classList.add('is-editing');
+            editFields.forEach((field) => { field.disabled = false; });
+            editButton.textContent = 'Guardar';
+            editButton.classList.add('primary', 'app-btn-primary');
+            const firstField = editFields.find((field) => field.type !== 'file');
+            if (firstField) firstField.focus();
+            return;
+          }
+          form.requestSubmit();
+        });
+      }
+
+      if (deleteButton && deleteForm) {
+        deleteButton.addEventListener('click', () => {
+          if (window.confirm('Esta seguro que desea eliminar este producto de manufactura?')) {
+            deleteForm.submit();
+          }
+        });
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        closeSupportModal();
+      }
+    });
+
+    const initUnitField = (field) => {
+      const select = field.querySelector('[data-production-unit-select]');
+      const custom = field.querySelector('[data-production-unit-custom]');
+      if (!select || !custom || field.dataset.productionUnitReady === '1') return;
+      field.dataset.productionUnitReady = '1';
+      const syncUnitCustom = () => {
+        const isOther = select.value === '__other';
+        custom.hidden = !isOther;
+        custom.required = isOther;
+        if (!isOther) custom.value = '';
+      };
+      select.addEventListener('change', syncUnitCustom);
+      syncUnitCustom();
+    };
+
+    const productNameInput = document.querySelector('[data-product-name-input]');
+    const productCodeInput = document.querySelector('[data-product-code-input]');
+    const productCurrencySelect = document.querySelector('[data-product-currency-select]');
+    if (productCurrencySelect) {
+      const syncProductCurrencyLabels = () => {
+        document.querySelectorAll('[data-product-currency-label]').forEach((label) => {
+          label.textContent = productCurrencySelect.value || 'GTQ';
+        });
+      };
+      productCurrencySelect.addEventListener('change', syncProductCurrencyLabels);
+      syncProductCurrencyLabels();
+    }
+
+    if (productNameInput && productCodeInput) {
+      const buildProductPrefix = (value) => String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 3);
+
+      const normalizeProductCode = (value) => String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9-]/g, '')
+        .slice(0, 40);
+
+      const syncProductCodePrefix = () => {
+        const previousPrefix = productCodeInput.dataset.productPrefix || '';
+        const nextPrefix = buildProductPrefix(productNameInput.value);
+        const currentCode = normalizeProductCode(productCodeInput.value);
+        let suffix = currentCode;
+        if (previousPrefix && currentCode.startsWith(previousPrefix)) {
+          suffix = currentCode.slice(previousPrefix.length);
+        } else if (nextPrefix && currentCode.startsWith(nextPrefix)) {
+          suffix = currentCode.slice(nextPrefix.length);
+        }
+        productCodeInput.dataset.productPrefix = nextPrefix;
+        if (nextPrefix) productCodeInput.value = `${nextPrefix}${suffix}`.slice(0, 40);
+      };
+
+      productNameInput.addEventListener('input', syncProductCodePrefix);
+      productCodeInput.addEventListener('input', () => {
+        const prefix = productCodeInput.dataset.productPrefix || buildProductPrefix(productNameInput.value);
+        const code = normalizeProductCode(productCodeInput.value);
+        productCodeInput.value = prefix && !code.startsWith(prefix) ? `${prefix}${code}`.slice(0, 40) : code;
+      });
+      syncProductCodePrefix();
+    }
+
+    const bomFinishedProductSelect = document.querySelector('[data-bom-finished-product]');
+    const bomCodeInput = document.querySelector('[data-bom-code-input]');
+    const bomNameInput = document.querySelector('[data-bom-name-input]');
+    if (bomFinishedProductSelect && bomCodeInput && bomNameInput) {
+      const productNameFromSelect = () => {
+        const option = bomFinishedProductSelect.options[bomFinishedProductSelect.selectedIndex];
+        return option && option.value ? option.textContent.trim() : '';
+      };
+
+      const buildBomName = () => [bomCodeInput.value.trim(), productNameFromSelect()].filter(Boolean).join(' - ');
+      const shouldSyncBomName = () => {
+        const current = bomNameInput.value.trim();
+        const previous = bomNameInput.dataset.generatedName || '';
+        return !current || current === previous;
+      };
+      const syncBomName = () => {
+        if (!shouldSyncBomName()) return;
+        const generated = buildBomName();
+        bomNameInput.dataset.generatedName = generated;
+        bomNameInput.value = generated;
+      };
+
+      bomCodeInput.addEventListener('input', syncBomName);
+      bomFinishedProductSelect.addEventListener('change', syncBomName);
+      bomNameInput.dataset.generatedName = buildBomName();
+      syncBomName();
+    }
+
+    const linesContainer = document.querySelector('[data-order-bom-lines]');
+    const addButton = document.querySelector('[data-add-order-bom-line]');
+    const template = document.querySelector('[data-order-bom-template]');
+    if (linesContainer && addButton && template) {
+      const syncRemoveButtons = () => {
+        const lines = linesContainer.querySelectorAll('[data-order-bom-line]');
+        lines.forEach((line) => {
+          const removeButton = line.querySelector('[data-remove-order-bom-line]');
+          if (removeButton) removeButton.disabled = lines.length <= 1;
+        });
+      };
+
+      addButton.addEventListener('click', () => {
+        const fragment = template.content.cloneNode(true);
+        linesContainer.appendChild(fragment);
+        syncRemoveButtons();
+      });
+
+      linesContainer.addEventListener('click', (event) => {
+        const removeButton = event.target.closest('[data-remove-order-bom-line]');
+        if (!removeButton) return;
+        const lines = linesContainer.querySelectorAll('[data-order-bom-line]');
+        if (lines.length <= 1) return;
+        openRemoveConfirm(removeButton.closest('[data-order-bom-line]'), syncRemoveButtons);
+      });
+
+      syncRemoveButtons();
+    }
+
+    document.querySelectorAll('[data-production-bom-lines]').forEach((bomLinesContainer) => {
+      const bomAddButton = bomLinesContainer.parentElement.querySelector('[data-add-production-bom-line]');
+      const bomTemplate = bomLinesContainer.parentElement.querySelector('[data-production-bom-template]');
+
+      const syncRemoveButtons = () => {
+        const lines = bomLinesContainer.querySelectorAll('[data-production-bom-line]');
+        lines.forEach((line) => {
+          const removeButton = line.querySelector('[data-remove-production-bom-line]');
+          if (removeButton) removeButton.disabled = lines.length <= 1;
+        });
+      };
+
+      if (bomAddButton && bomTemplate) {
+        bomAddButton.addEventListener('click', () => {
+          const fragment = bomTemplate.content.cloneNode(true);
+          fragment.querySelectorAll('[data-production-unit-field]').forEach(initUnitField);
+          bomLinesContainer.appendChild(fragment);
+          syncRemoveButtons();
+        });
+      }
+
+      bomLinesContainer.addEventListener('click', (event) => {
+        const removeButton = event.target.closest('[data-remove-production-bom-line]');
+        if (!removeButton) return;
+        const lines = bomLinesContainer.querySelectorAll('[data-production-bom-line]');
+        if (lines.length <= 1) return;
+        openRemoveConfirm(removeButton.closest('[data-production-bom-line]'), syncRemoveButtons);
+      });
+
+      syncRemoveButtons();
+    });
+
+    document.querySelectorAll('[data-production-unit-field]').forEach(initUnitField);
+  });
+</script>
 <script src="/status-footer.js" defer></script>
 </body>
 </html>

@@ -1,7 +1,51 @@
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+const multer = require('multer');
+
 const PRODUCTION_STATUSES = ['draft', 'pending', 'in_production', 'paused', 'finished', 'cancelled'];
 const PRODUCT_TYPES = ['raw_material', 'supply', 'packaging', 'work_in_process', 'finished_good'];
 const WASTE_REASONS = ['Corte incorrecto', 'Dano de material', 'Producto defectuoso', 'Ajuste normal', 'Otro'];
 const OVERHEAD_METHODS = ['order', 'unit', 'percentage', 'manual'];
+const DEFAULT_PRODUCTION_UNITS = ['Litro', 'Tabla', 'Regla', 'Hoja'];
+const PRODUCTION_UPLOAD_DIR = path.join(process.cwd(), 'data', 'uploads', 'production', 'products');
+const PRODUCT_ATTACHMENT_FIELDS = [
+  { name: 'product_photo', maxCount: 1 },
+  { name: 'product_support', maxCount: 1 }
+];
+
+function ensureProductionUploadDir() {
+  if (!fs.existsSync(PRODUCTION_UPLOAD_DIR)) {
+    fs.mkdirSync(PRODUCTION_UPLOAD_DIR, { recursive: true });
+  }
+}
+
+const productionProductUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      ensureProductionUploadDir();
+      cb(null, PRODUCTION_UPLOAD_DIR);
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      const token = crypto.randomBytes(8).toString('hex');
+      cb(null, `${Date.now()}-${token}${ext}`);
+    }
+  }),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname === 'product_photo') {
+      return cb(null, Boolean(file.mimetype && file.mimetype.startsWith('image/')));
+    }
+    if (file.fieldname === 'product_support') {
+      const allowed = (file.mimetype && file.mimetype.startsWith('image/')) || file.mimetype === 'application/pdf';
+      return cb(null, Boolean(allowed));
+    }
+    return cb(null, false);
+  }
+});
+
+let productionBuildFileUrl = null;
 
 function registerProductionRoutes(app, deps) {
   const {
@@ -10,8 +54,10 @@ function registerProductionRoutes(app, deps) {
     requirePermission,
     getCompanyId,
     normalizeString,
-    logAction
+    logAction,
+    buildFileUrl
   } = deps;
+  productionBuildFileUrl = typeof buildFileUrl === 'function' ? buildFileUrl : null;
 
   app.set('db', db);
   ensureProductionSchema(db).catch((err) => console.error('[production] schema initialization failed', err));
@@ -28,10 +74,24 @@ function registerProductionRoutes(app, deps) {
   app.get('/production/orders', requireAuth, requirePermission('production', 'view'), asyncRoute(async (req, res) => {
     const companyId = getCompanyId(req);
     const filters = normalizeOrderFilters(req.query);
+    if (!filters.status) filters.statuses = ['draft', 'pending', 'paused'];
     const orders = await getOrders(db, companyId, filters, 300);
     const products = await getProducts(db, companyId);
     const users = await allDb(db, 'SELECT id, username FROM users WHERE company_id = ? ORDER BY username', [companyId]);
     res.render('production/index', baseView(req, 'orders', { orders, filters, products, users }));
+  }));
+
+  app.post('/production/orders/bulk-status', requireAuth, requirePermission('production', 'edit_order'), asyncRoute(async (req, res) => {
+    const companyId = getCompanyId(req);
+    const ids = arrayOf(req.body.order_id).map(toId).filter(Boolean);
+    const status = enumValue(req.body.status, ['cancelled', 'in_production', 'paused', 'finished'], '');
+    if (ids.length && status) {
+      await updateOrdersBulkStatus(db, req, companyId, ids, status);
+    }
+    const returnTo = clean(req.body.return_to);
+    if (returnTo === 'wip') return res.redirect('/production/work-in-process');
+    if (returnTo === 'finished') return res.redirect('/production/finished-goods');
+    return res.redirect('/production/orders');
   }));
 
   app.get('/production/orders/new', requireAuth, requirePermission('production', 'create_order'), asyncRoute(async (req, res) => {
@@ -41,42 +101,40 @@ function registerProductionRoutes(app, deps) {
   app.post('/production/orders/create', requireAuth, requirePermission('production', 'create_order'), asyncRoute(async (req, res) => {
     const companyId = getCompanyId(req);
     const userId = currentUserId(req);
-    const productId = toId(req.body.product_id);
-    const bomId = toId(req.body.bom_id);
-    const qty = positiveNumber(req.body.quantity_planned);
-    if (!productId || !bomId || qty <= 0) return res.render('production/index', await orderFormView(req, null, 'Producto, BOM y cantidad son obligatorios.'));
-    const bom = await getDb(db, 'SELECT * FROM production_boms WHERE id = ? AND company_id = ? AND finished_product_id = ?', [bomId, companyId, productId]);
-    if (!bom) return res.render('production/index', await orderFormView(req, null, 'La formula seleccionada no corresponde al producto terminado.'));
-    const items = await allDb(db, 'SELECT * FROM production_bom_items WHERE bom_id = ? AND company_id = ?', [bomId, companyId]);
-    if (!items.length) return res.render('production/index', await orderFormView(req, null, 'La formula no tiene materiales.'));
+    const lines = await parseOrderBomLines(db, companyId, req.body);
+    if (!lines.length) return res.render('production/index', await orderFormView(req, null, 'Debe agregar al menos una BOM con cantidad mayor a cero.'));
+    if (lines.some((line) => !line.items.length)) return res.render('production/index', await orderFormView(req, null, 'Todas las BOM seleccionadas deben tener materiales.'));
     const orderNumber = await nextOrderNumber(db, companyId);
-    const estimatedCost = items.reduce((sum, item) => {
-      const scale = qty / Math.max(Number(bom.base_quantity || 1), 1);
-      const required = Number(item.quantity || 0) * scale;
-      const waste = required * (Number(item.waste_percentage || 0) / 100);
-      return sum + (required + waste) * Number(item.unit_cost || 0);
-    }, 0);
+    const estimatedCost = lines.reduce((sum, line) => sum + line.estimatedCost, 0);
+    const firstLine = lines[0];
+    const totalPlanned = lines.reduce((sum, line) => sum + line.quantity, 0);
     const inserted = await runDb(
       db,
       `INSERT INTO production_orders
        (company_id, order_number, product_id, bom_id, quantity_planned, quantity_finished, status, estimated_start_date, estimated_end_date, estimated_cost, notes, created_by, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, 0, 'draft', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [companyId, orderNumber, productId, bomId, qty, cleanDate(req.body.estimated_start_date), cleanDate(req.body.estimated_end_date), estimatedCost, normalizeString(req.body.notes), userId]
+      [companyId, orderNumber, firstLine.bom.finished_product_id, firstLine.bom.id, totalPlanned, cleanDate(req.body.estimated_start_date), cleanDate(req.body.estimated_end_date), estimatedCost, normalizeString(req.body.notes), userId]
     );
-    for (const item of items) {
-      const scale = qty / Math.max(Number(bom.base_quantity || 1), 1);
-      const required = Number(item.quantity || 0) * scale;
-      const wasteQty = required * (Number(item.waste_percentage || 0) / 100);
-      const total = (required + wasteQty) * Number(item.unit_cost || 0);
+    const materials = buildOrderMaterials(lines);
+    for (const line of lines) {
+      await runDb(
+        db,
+        `INSERT INTO production_order_boms
+         (company_id, production_order_id, bom_id, product_id, quantity_planned, quantity_finished, estimated_cost, created_at)
+         VALUES (?, ?, ?, ?, ?, 0, ?, CURRENT_TIMESTAMP)`,
+        [companyId, inserted.lastID, line.bom.id, line.bom.finished_product_id, line.quantity, line.estimatedCost]
+      );
+    }
+    for (const material of materials) {
       await runDb(
         db,
         `INSERT INTO production_order_materials
          (company_id, production_order_id, product_id, quantity_required, quantity_reserved, quantity_consumed, unit_cost, total_cost, waste_percentage, created_at)
          VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, CURRENT_TIMESTAMP)`,
-        [companyId, inserted.lastID, item.material_product_id, required, Number(item.unit_cost || 0), total, Number(item.waste_percentage || 0)]
+        [companyId, inserted.lastID, material.productId, material.quantityRequired, material.unitCost, material.totalCost, material.wastePercentage]
       );
     }
-    await auditProduction(db, req, 'create_order', 'production_orders', inserted.lastID, null, { order_number: orderNumber, quantity_planned: qty });
+    await auditProduction(db, req, 'create_order', 'production_orders', inserted.lastID, null, { order_number: orderNumber, boms: lines.map((line) => ({ bom_id: line.bom.id, quantity: line.quantity })) });
     logAction(userId, 'production.create_order', orderNumber, companyId);
     res.redirect(`/production/orders/${inserted.lastID}`);
   }));
@@ -227,10 +285,56 @@ function registerProductionRoutes(app, deps) {
   app.post('/production/orders/:id/finish', requireAuth, requirePermission('production', 'finish_production'), asyncRoute(async (req, res) => {
     const companyId = getCompanyId(req);
     const id = toId(req.params.id);
-    const produced = positiveNumber(req.body.quantity_finished);
-    if (produced <= 0) return res.render('production/index', baseView(req, 'order_finish', { ...(await orderDetailData(req, db)), error: 'Debe ingresar una cantidad producida mayor a cero.' }));
     const order = await getDb(db, 'SELECT * FROM production_orders WHERE id = ? AND company_id = ?', [id, companyId]);
     if (!order || !['in_production', 'paused', 'pending'].includes(order.status)) return res.redirect(`/production/orders/${id}`);
+    const orderBoms = await getOrderBomLines(db, companyId, id);
+    if (orderBoms.length) {
+      const submittedLineIds = arrayOf(req.body.order_bom_id);
+      const submittedQuantities = arrayOf(req.body.quantity_finished);
+      const producedByLine = new Map();
+      submittedLineIds.forEach((lineId, index) => {
+        const parsedId = toId(lineId);
+        const produced = positiveNumber(submittedQuantities[index]);
+        if (parsedId && produced > 0) producedByLine.set(parsedId, produced);
+      });
+      if (!producedByLine.size) return res.render('production/index', baseView(req, 'order_finish', { ...(await orderDetailData(req, db)), error: 'Debe ingresar al menos una cantidad producida mayor a cero.' }));
+
+      const totals = await productionTotals(db, companyId, id);
+      const totalEstimated = orderBoms.reduce((sum, line) => sum + Number(line.estimated_cost || 0), 0);
+      let producedTotal = 0;
+      for (const line of orderBoms) {
+        const produced = producedByLine.get(line.id) || 0;
+        if (produced <= 0) continue;
+        producedTotal += produced;
+        const lineShare = totalEstimated > 0 ? Number(line.estimated_cost || 0) / totalEstimated : 1 / orderBoms.length;
+        const lineCost = totals.total * lineShare;
+        const newFinishedLine = Number(line.quantity_finished || 0) + produced;
+        const unitCost = lineCost / Math.max(newFinishedLine, produced, 1);
+        const item = await getDb(db, 'SELECT qty, average_cost, last_cost FROM items WHERE id = ? AND company_id = ?', [line.product_id, companyId]);
+        const before = Number(item ? item.qty : 0);
+        const after = before + produced;
+        const averageCost = after > 0 ? (((before * Number(item.average_cost || item.last_cost || 0)) + (produced * unitCost)) / after) : unitCost;
+        await runDb(db, 'UPDATE items SET qty = ?, average_cost = ?, last_cost = ?, production_type = ? WHERE id = ? AND company_id = ?', [after, averageCost, unitCost, 'finished_good', line.product_id, companyId]);
+        await insertMovement(db, req, 'production_finish', line.product_id, produced, before, after, `Entrada produccion ${order.order_number} - ${line.bom_code}`, id, unitCost);
+        await runDb(db, 'UPDATE production_order_boms SET quantity_finished = ?, unit_cost = ? WHERE id = ? AND company_id = ?', [newFinishedLine, unitCost, line.id, companyId]);
+      }
+      const refreshedLines = await getOrderBomLines(db, companyId, id);
+      const newFinished = refreshedLines.reduce((sum, line) => sum + Number(line.quantity_finished || 0), 0);
+      const isComplete = refreshedLines.every((line) => Number(line.quantity_finished || 0) >= Number(line.quantity_planned || 0));
+      const orderUnitCost = totals.total / Math.max(newFinished, 1);
+      await runDb(
+        db,
+        `UPDATE production_orders
+         SET quantity_finished = ?, status = ?, real_end_date = CASE WHEN ? = 1 THEN DATE('now') ELSE real_end_date END, real_cost = ?, unit_cost = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND company_id = ?`,
+        [newFinished, isComplete ? 'finished' : 'in_production', isComplete ? 1 : 0, totals.total, orderUnitCost, id, companyId]
+      );
+      await auditProduction(db, req, isComplete ? 'finish_order' : 'partial_finish', 'production_orders', id, order, { quantity_finished: newFinished, produced: producedTotal });
+      return res.redirect(`/production/orders/${id}`);
+    }
+
+    const produced = positiveNumber(req.body.quantity_finished);
+    if (produced <= 0) return res.render('production/index', baseView(req, 'order_finish', { ...(await orderDetailData(req, db)), error: 'Debe ingresar una cantidad producida mayor a cero.' }));
     const totals = await productionTotals(db, companyId, id);
     const newFinished = Number(order.quantity_finished || 0) + produced;
     const isComplete = newFinished >= Number(order.quantity_planned || 0);
@@ -283,6 +387,81 @@ function registerProductionRoutes(app, deps) {
   app.post('/production/bom/save', requireAuth, requirePermission('production', 'create_order'), asyncRoute(async (req, res) => saveBom(req, res, db, null)));
   app.post('/production/bom/:id/save', requireAuth, requirePermission('production', 'edit_order'), asyncRoute(async (req, res) => saveBom(req, res, db, toId(req.params.id))));
 
+  app.get('/production/products', requireAuth, requirePermission('production', 'view'), asyncRoute(async (req, res) => {
+    const companyId = getCompanyId(req);
+    const products = await getProductionProducts(db, companyId);
+    res.render('production/index', baseView(req, 'products', { products }));
+  }));
+
+  app.get('/production/products/new', requireAuth, requirePermission('production', 'edit_order'), asyncRoute(async (req, res) => {
+    res.render('production/index', await productFormView(req, {}, null));
+  }));
+
+  app.post('/production/products/create', requireAuth, requirePermission('production', 'edit_order'), productionProductUpload.fields(PRODUCT_ATTACHMENT_FIELDS), asyncRoute(async (req, res) => {
+    const companyId = getCompanyId(req);
+    const name = clean(req.body.name);
+    const sku = normalizeProductSku(req.body.sku) || await nextProductSku(db, companyId);
+    const itemCode = normalizeProductCodeForName(req.body.item_code, name) || sku;
+    const price = nonNegativeNumber(req.body.price);
+    const laborCost = nonNegativeNumber(req.body.production_labor_cost);
+    const days = nonNegativeNumber(req.body.production_days);
+    const notes = clean(req.body.production_notes);
+    const currency = resolveProductionCurrency(req, req.body.currency);
+
+    if (!name) return res.render('production/index', await productFormView(req, req.body, 'El nombre del producto es obligatorio.'));
+    const duplicate = await getDb(db, 'SELECT id FROM items WHERE sku = ? AND company_id = ?', [sku, companyId]);
+    if (duplicate) return res.render('production/index', await productFormView(req, req.body, 'Ya existe un producto con ese SKU.'));
+
+    const inserted = await runDb(
+      db,
+      `INSERT INTO items
+       (name, sku, item_code, code_manual, qty, min_stock, price, currency, production_type, average_cost, last_cost, is_production_active, production_labor_cost, production_days, production_notes, production_photo_path, production_support_path, company_id)
+       VALUES (?, ?, ?, 1, 0, 0, ?, ?, 'finished_good', 0, 0, 1, ?, ?, ?, ?, ?, ?)`,
+      [name, sku, itemCode, price, currency, laborCost, days, notes, uploadedPath(req, 'product_photo'), uploadedPath(req, 'product_support'), companyId]
+    );
+
+    const bomId = await createBomFromProductForm(db, req, inserted.lastID, name, sku);
+    await auditProduction(db, req, 'create_production_product', 'items', inserted.lastID, null, { name, sku, currency, bom_id: bomId, labor_cost: laborCost, days });
+    res.redirect('/production/products');
+  }));
+
+  app.post('/production/products/:id/update', requireAuth, requirePermission('production', 'edit_order'), productionProductUpload.fields(PRODUCT_ATTACHMENT_FIELDS), asyncRoute(async (req, res) => {
+    const companyId = getCompanyId(req);
+    const id = toId(req.params.id);
+    const product = await getDb(db, 'SELECT * FROM items WHERE id = ? AND company_id = ?', [id, companyId]);
+    if (!product) return res.status(404).send('Producto no encontrado');
+    const photoPath = uploadedPath(req, 'product_photo') || product.production_photo_path || null;
+    const supportPath = uploadedPath(req, 'product_support') || product.production_support_path || null;
+    const notes = Object.prototype.hasOwnProperty.call(req.body, 'production_notes')
+      ? clean(req.body.production_notes)
+      : product.production_notes;
+    await runDb(
+      db,
+      `UPDATE items
+       SET production_labor_cost = ?, production_days = ?, production_notes = ?, is_production_active = ?, production_photo_path = ?, production_support_path = ?
+       WHERE id = ? AND company_id = ?`,
+      [nonNegativeNumber(req.body.production_labor_cost), nonNegativeNumber(req.body.production_days), notes, req.body.is_active ? 1 : 0, photoPath, supportPath, id, companyId]
+    );
+    await auditProduction(db, req, 'update_production_product', 'items', id, product, req.body);
+    res.redirect('/production/products');
+  }));
+
+  app.post('/production/products/:id/delete', requireAuth, requirePermission('production', 'edit_order'), asyncRoute(async (req, res) => {
+    const companyId = getCompanyId(req);
+    const id = toId(req.params.id);
+    const product = await getDb(db, 'SELECT * FROM items WHERE id = ? AND company_id = ?', [id, companyId]);
+    if (!product) return res.status(404).send('Producto no encontrado');
+    await runDb(
+      db,
+      `UPDATE items
+       SET production_type = 'supply', is_production_active = 0
+       WHERE id = ? AND company_id = ?`,
+      [id, companyId]
+    );
+    await auditProduction(db, req, 'delete_production_product', 'items', id, product, { production_type: 'supply', is_production_active: 0 });
+    res.redirect('/production/products');
+  }));
+
   app.get('/production/materials', requireAuth, requirePermission('production', 'view'), asyncRoute(async (req, res) => {
     const companyId = getCompanyId(req);
     const filters = { category: normalizeString(req.query.category), q: normalizeString(req.query.q) };
@@ -305,6 +484,51 @@ function registerProductionRoutes(app, deps) {
     res.render('production/index', baseView(req, 'materials', { materials, filters, productTypes: PRODUCT_TYPES }));
   }));
 
+  app.get('/production/materials/new', requireAuth, requirePermission('production', 'edit_order'), asyncRoute(async (req, res) => {
+    res.render('production/index', await materialFormView(req, {}, null));
+  }));
+
+  app.post('/production/materials/create', requireAuth, requirePermission('production', 'edit_order'), asyncRoute(async (req, res) => {
+    const companyId = getCompanyId(req);
+    const name = clean(req.body.name);
+    const sku = normalizeMaterialSku(req.body.sku) || await nextMaterialSku(db, companyId);
+    const itemCode = clean(req.body.item_code) || sku;
+    const qty = nonNegativeNumber(req.body.qty);
+    const minStock = nonNegativeNumber(req.body.min_stock);
+    const unitCost = nonNegativeNumber(req.body.unit_cost);
+    const categoryId = toId(req.body.category_id);
+    const brandId = toId(req.body.brand_id);
+    const warehouseLocation = clean(req.body.warehouse_location);
+    const barcode = clean(req.body.barcode);
+    const notes = clean(req.body.notes);
+
+    if (!name) {
+      return res.render('production/index', await materialFormView(req, req.body, 'El nombre de la materia prima es obligatorio.'));
+    }
+    const duplicate = await getDb(db, 'SELECT id FROM items WHERE sku = ? AND company_id = ?', [sku, companyId]);
+    if (duplicate) {
+      return res.render('production/index', await materialFormView(req, req.body, 'Ya existe un producto con ese codigo SKU.'));
+    }
+
+    const inserted = await runDb(
+      db,
+      `INSERT INTO items
+       (name, sku, item_code, code_manual, qty, min_stock, warehouse_location, barcode, price, production_type, average_cost, last_cost, is_production_active, category_id, brand_id, company_id)
+       VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, 'raw_material', ?, ?, 1, ?, ?, ?)`,
+      [name, sku, itemCode, qty, minStock, warehouseLocation || null, barcode || null, unitCost, unitCost, unitCost, categoryId, brandId, companyId]
+    );
+
+    if (qty > 0) {
+      await runDb(db, `INSERT INTO inventory_movements
+        (company_id, product_id, movement_type, quantity, stock_before, stock_after, unit_cost, total_cost, reference_type, reference_id, notes, created_by, created_at)
+        VALUES (?, ?, 'material_entry', ?, 0, ?, ?, ?, 'production_material', ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [companyId, inserted.lastID, qty, qty, unitCost, qty * unitCost, inserted.lastID, notes || 'Ingreso inicial de materia prima', currentUserId(req)]);
+    }
+
+    await auditProduction(db, req, 'create_raw_material', 'items', inserted.lastID, null, { name, sku, qty, unit_cost: unitCost });
+    res.redirect('/production/materials');
+  }));
+
   app.post('/production/materials/:id/classify', requireAuth, requirePermission('production', 'edit_order'), asyncRoute(async (req, res) => {
     const companyId = getCompanyId(req);
     await runDb(db, 'UPDATE items SET production_type = ?, is_production_active = ? WHERE id = ? AND company_id = ?', [enumValue(req.body.production_type, PRODUCT_TYPES, 'raw_material'), req.body.is_active ? 1 : 0, toId(req.params.id), companyId]);
@@ -319,13 +543,14 @@ function registerProductionRoutes(app, deps) {
 
   app.get('/production/finished-goods', requireAuth, requirePermission('production', 'view'), asyncRoute(async (req, res) => {
     const companyId = getCompanyId(req);
+    const orders = await getOrders(db, companyId, { status: 'finished' }, 300);
     const goods = await allDb(db, `SELECT i.*, COALESCE(SUM(po.quantity_finished), 0) AS produced_qty, COALESCE(AVG(po.unit_cost), i.average_cost, i.last_cost, i.price, 0) AS production_cost
       FROM items i
       LEFT JOIN production_orders po ON po.product_id = i.id AND po.company_id = i.company_id AND po.status = 'finished'
       WHERE i.company_id = ? AND i.production_type = 'finished_good'
       GROUP BY i.id
       ORDER BY i.name`, [companyId]);
-    res.render('production/index', baseView(req, 'finished_goods', { goods }));
+    res.render('production/index', baseView(req, 'finished_goods', { orders, goods }));
   }));
 
   app.get('/production/waste', requireAuth, requirePermission('production', 'view'), asyncRoute(async (req, res) => {
@@ -358,6 +583,9 @@ function registerProductionRoutes(app, deps) {
 }
 
 function baseView(req, activeTab, data = {}) {
+  const companySettings = req.session && req.session.company ? req.session.company : {};
+  const baseCurrency = String(companySettings.base_currency || companySettings.currency || 'GTQ').toUpperCase();
+  const currencyOptions = productionCurrencyOptions(companySettings);
   return {
     activeTab,
     moduleTabs: productionTabs(),
@@ -367,18 +595,36 @@ function baseView(req, activeTab, data = {}) {
     overheadMethods: OVERHEAD_METHODS,
     canViewCosts: req.app.locals ? false : false,
     showCosts: typeof req.res?.locals?.can === 'function' ? req.res.locals.can('production', 'view_costs') : false,
+    buildFileUrl: productionBuildFileUrl,
+    productionUnits: DEFAULT_PRODUCTION_UNITS,
+    baseCurrency,
+    currencyOptions,
     error: null,
     ...data
   };
+}
+
+function productionCurrencyOptions(companySettings = {}) {
+  const baseCurrency = String(companySettings.base_currency || companySettings.currency || 'GTQ').trim().toUpperCase() || 'GTQ';
+  const configured = String(companySettings.allowed_currencies || '').split(',').map((value) => String(value || '').trim().toUpperCase()).filter(Boolean);
+  return Array.from(new Set([baseCurrency, ...configured, 'GTQ', 'USD']));
+}
+
+function resolveProductionCurrency(req, value) {
+  const companySettings = req.session && req.session.company ? req.session.company : {};
+  const options = productionCurrencyOptions(companySettings);
+  const requested = String(value || '').trim().toUpperCase();
+  return options.includes(requested) ? requested : options[0];
 }
 
 function productionTabs() {
   return [
     { key: 'dashboard', label: 'Panel', href: '/production' },
     { key: 'orders', label: 'Ordenes', href: '/production/orders' },
-    { key: 'bom', label: 'Formulas o BOM', href: '/production/bom' },
+    { key: 'products', label: 'Productos', href: '/production/products' },
+    { key: 'bom', label: 'BOM', href: '/production/bom' },
     { key: 'materials', label: 'Materia prima', href: '/production/materials' },
-    { key: 'wip', label: 'En proceso', href: '/production/work-in-process' },
+    { key: 'wip', label: 'Procesos', href: '/production/work-in-process' },
     { key: 'finished_goods', label: 'Terminados', href: '/production/finished-goods' },
     { key: 'waste', label: 'Merma', href: '/production/waste' },
     { key: 'reports', label: 'Reportes', href: '/production/reports' }
@@ -387,11 +633,13 @@ function productionTabs() {
 
 async function orderFormView(req, order, error) {
   const companyId = getCompanyIdFromReq(req);
-  const products = await getProducts(req.app.locals.db || globalDbFallback(req), companyId);
+  const db = globalDbFallback(req);
+  const products = await getProducts(req.app.locals.db || db, companyId);
   return baseView(req, order ? 'order_edit' : 'order_new', {
     order,
     products,
-    boms: await allDb(globalDbFallback(req), 'SELECT b.*, i.name AS product_name FROM production_boms b LEFT JOIN items i ON i.id = b.finished_product_id AND i.company_id = b.company_id WHERE b.company_id = ? AND b.status = ? ORDER BY b.name', [companyId, 'active']),
+    orderBoms: order ? await getOrderBomLines(db, companyId, order.id) : [],
+    boms: await allDb(db, 'SELECT b.*, i.name AS product_name, i.sku FROM production_boms b LEFT JOIN items i ON i.id = b.finished_product_id AND i.company_id = b.company_id WHERE b.company_id = ? AND b.status = ? ORDER BY b.name', [companyId, 'active']),
     error
   });
 }
@@ -401,7 +649,29 @@ async function bomFormView(req, bom, error) {
   const companyId = getCompanyIdFromReq(req);
   const products = await getProducts(db, companyId);
   const items = bom ? await allDb(db, 'SELECT * FROM production_bom_items WHERE bom_id = ? AND company_id = ? ORDER BY id', [bom.id, companyId]) : [];
-  return baseView(req, bom ? 'bom_edit' : 'bom_new', { bom, bomItems: items, products, error });
+  const productionUnits = await getProductionUnits(db, companyId, [
+    bom && bom.unit,
+    ...items.map((item) => item.unit)
+  ]);
+  return baseView(req, bom ? 'bom_edit' : 'bom_new', { bom, bomItems: items, products, productionUnits, error });
+}
+
+async function materialFormView(req, material, error) {
+  const db = globalDbFallback(req);
+  const companyId = getCompanyIdFromReq(req);
+  const categories = await allDb(db, 'SELECT id, name FROM categories WHERE company_id = ? ORDER BY name', [companyId]);
+  const brands = await allDb(db, 'SELECT id, name FROM brands WHERE company_id = ? ORDER BY name', [companyId]);
+  const suggestedSku = await nextMaterialSku(db, companyId);
+  return baseView(req, 'material_new', { material, categories, brands, suggestedSku, error });
+}
+
+async function productFormView(req, product, error) {
+  const db = globalDbFallback(req);
+  const companyId = getCompanyIdFromReq(req);
+  const materials = await getProducts(db, companyId);
+  const suggestedSku = await nextProductSku(db, companyId);
+  const productionUnits = await getProductionUnits(db, companyId);
+  return baseView(req, 'product_new', { product, materials, productionUnits, suggestedSku, error });
 }
 
 function globalDbFallback(req) {
@@ -424,17 +694,18 @@ async function saveBom(req, res, db, id) {
   let bomId = id;
   if (id) {
     await runDb(db, `UPDATE production_boms SET finished_product_id = ?, code = ?, name = ?, version = ?, base_quantity = ?, unit = ?, status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND company_id = ?`,
-      [finishedProductId, code, name, clean(req.body.version) || '1', baseQty, clean(req.body.unit) || 'unidad', enumValue(req.body.status, ['active', 'inactive'], 'active'), clean(req.body.notes), id, companyId]);
+      [finishedProductId, code, name, clean(req.body.version) || '1', resolveProductionUnit(req.body.unit, req.body.unit_other), enumValue(req.body.status, ['active', 'inactive'], 'active'), clean(req.body.notes), id, companyId]);
     await runDb(db, 'DELETE FROM production_bom_items WHERE bom_id = ? AND company_id = ?', [id, companyId]);
   } else {
     const result = await runDb(db, `INSERT INTO production_boms (company_id, finished_product_id, code, name, version, base_quantity, unit, status, notes, created_by, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [companyId, finishedProductId, code, name, clean(req.body.version) || '1', baseQty, clean(req.body.unit) || 'unidad', enumValue(req.body.status, ['active', 'inactive'], 'active'), clean(req.body.notes), currentUserId(req)]);
+      [companyId, finishedProductId, code, name, clean(req.body.version) || '1', baseQty, resolveProductionUnit(req.body.unit, req.body.unit_other), enumValue(req.body.status, ['active', 'inactive'], 'active'), clean(req.body.notes), currentUserId(req)]);
     bomId = result.lastID;
   }
   const materialIds = arrayOf(req.body.material_product_id);
   const quantities = arrayOf(req.body.quantity);
   const units = arrayOf(req.body.unit_item);
+  const unitOthers = arrayOf(req.body.unit_item_other);
   const wastes = arrayOf(req.body.waste_percentage);
   for (let index = 0; index < materialIds.length; index += 1) {
     const materialId = toId(materialIds[index]);
@@ -445,7 +716,7 @@ async function saveBom(req, res, db, id) {
     const waste = positiveNumber(wastes[index]);
     const total = qty * unitCost * (1 + waste / 100);
     await runDb(db, `INSERT INTO production_bom_items (company_id, bom_id, material_product_id, quantity, unit, waste_percentage, unit_cost, total_cost)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [companyId, bomId, materialId, qty, clean(units[index]) || 'unidad', waste, unitCost, total]);
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [companyId, bomId, materialId, qty, resolveProductionUnit(units[index], unitOthers[index]), waste, unitCost, total]);
   }
   await auditProduction(db, req, id ? 'edit_bom' : 'create_bom', 'production_boms', bomId, null, { code, name });
   res.redirect('/production/bom');
@@ -461,6 +732,7 @@ async function orderDetailData(req, db) {
     LEFT JOIN users u ON u.id = po.created_by AND u.company_id = po.company_id
     WHERE po.id = ? AND po.company_id = ?`, [id, companyId]);
   if (!order) return { order: null };
+  const orderBoms = await getOrderBomLines(db, companyId, id);
   const materials = await allDb(db, `SELECT m.*, i.name AS product_name, i.sku, i.qty AS stock_qty, COALESCE(r.reserved_qty, 0) AS reserved_total
     FROM production_order_materials m
     JOIN items i ON i.id = m.product_id AND i.company_id = m.company_id
@@ -474,7 +746,7 @@ async function orderDetailData(req, db) {
   const employees = await getEmployees(db, companyId);
   const products = await getProducts(db, companyId);
   const totals = await productionTotals(db, companyId, id);
-  return { order, materials, labor, overhead, waste, movements, employees, products, totals };
+  return { order, orderBoms, materials, labor, overhead, waste, movements, employees, products, totals };
 }
 
 async function buildDashboard(db, companyId) {
@@ -483,6 +755,53 @@ async function buildDashboard(db, companyId) {
   const reserved = await getDb(db, `SELECT SUM(MAX(quantity_reserved - quantity_consumed, 0) * unit_cost) AS total FROM production_order_materials WHERE company_id = ?`, [companyId]);
   const finished = await getDb(db, "SELECT SUM(quantity_finished) AS qty, SUM(real_cost) AS cost FROM production_orders WHERE company_id = ? AND status = 'finished' AND strftime('%Y-%m', COALESCE(real_end_date, created_at)) = strftime('%Y-%m', 'now')", [companyId]);
   const margin = await getDb(db, "SELECT SUM((i.price - po.unit_cost) * po.quantity_finished) AS profit FROM production_orders po JOIN items i ON i.id = po.product_id AND i.company_id = po.company_id WHERE po.company_id = ? AND po.status = 'finished'", [companyId]);
+  const catalog = await getDb(db, `SELECT
+      SUM(CASE WHEN production_type IN ('finished_good', 'work_in_process') AND is_production_active = 1 THEN 1 ELSE 0 END) AS active_products,
+      SUM(CASE WHEN production_type IN ('raw_material', 'supply', 'packaging') AND is_production_active = 1 THEN 1 ELSE 0 END) AS active_materials,
+      SUM(CASE WHEN production_type IN ('raw_material', 'supply', 'packaging') AND is_production_active = 1 AND qty <= min_stock THEN 1 ELSE 0 END) AS low_stock
+    FROM items
+    WHERE company_id = ?`, [companyId]);
+  const bom = await getDb(db, "SELECT COUNT(*) AS active FROM production_boms WHERE company_id = ? AND status = 'active'", [companyId]);
+  const materialDemand = await getDb(db, `SELECT
+      SUM(CASE WHEN i.qty < m.quantity_required - m.quantity_consumed THEN 1 ELSE 0 END) AS shortage_lines,
+      SUM(MAX(m.quantity_required - m.quantity_consumed, 0) * m.unit_cost) AS open_cost
+    FROM production_order_materials m
+    JOIN production_orders po ON po.id = m.production_order_id AND po.company_id = m.company_id
+    JOIN items i ON i.id = m.product_id AND i.company_id = m.company_id
+    WHERE m.company_id = ? AND po.status IN ('draft', 'pending', 'in_production', 'paused')`, [companyId]);
+  const statusBreakdown = PRODUCTION_STATUSES
+    .filter((status) => status !== 'cancelled' || map.cancelled)
+    .map((status) => ({ status, total: map[status] || 0 }));
+  const lowStockMaterials = await allDb(db, `SELECT name, sku, qty, min_stock, production_type
+    FROM items
+    WHERE company_id = ?
+      AND production_type IN ('raw_material', 'supply', 'packaging')
+      AND is_production_active = 1
+      AND qty <= min_stock
+    ORDER BY (qty - min_stock), name
+    LIMIT 6`, [companyId]);
+  const productMix = await allDb(db, `SELECT i.name, COALESCE(SUM(po.quantity_finished), 0) AS qty, COALESCE(SUM(po.real_cost), 0) AS cost
+    FROM production_orders po
+    JOIN items i ON i.id = po.product_id AND i.company_id = po.company_id
+    WHERE po.company_id = ?
+      AND po.status = 'finished'
+      AND strftime('%Y-%m', COALESCE(po.real_end_date, po.created_at)) = strftime('%Y-%m', 'now')
+    GROUP BY po.product_id
+    ORDER BY qty DESC, i.name
+    LIMIT 6`, [companyId]);
+  const products = await allDb(db, `SELECT i.id, i.name, i.sku, i.item_code, i.production_photo_path, i.production_days, i.is_production_active,
+      COALESCE(b.bom_count, 0) AS bom_count
+    FROM items i
+    LEFT JOIN (
+      SELECT finished_product_id, company_id, COUNT(*) AS bom_count
+      FROM production_boms
+      WHERE status = 'active'
+      GROUP BY finished_product_id, company_id
+    ) b ON b.finished_product_id = i.id AND b.company_id = i.company_id
+    WHERE i.company_id = ?
+      AND i.production_type IN ('finished_good', 'work_in_process')
+    ORDER BY i.is_production_active DESC, i.name
+    LIMIT 12`, [companyId]);
   return {
     active: (map.in_production || 0) + (map.paused || 0),
     pending: map.pending || 0,
@@ -491,7 +810,17 @@ async function buildDashboard(db, companyId) {
     reserved: Number(reserved && reserved.total || 0),
     finishedQty: Number(finished && finished.qty || 0),
     monthCost: Number(finished && finished.cost || 0),
-    estimatedProfit: Number(margin && margin.profit || 0)
+    estimatedProfit: Number(margin && margin.profit || 0),
+    activeProducts: Number(catalog && catalog.active_products || 0),
+    activeMaterials: Number(catalog && catalog.active_materials || 0),
+    lowStock: Number(catalog && catalog.low_stock || 0),
+    activeBoms: Number(bom && bom.active || 0),
+    shortageLines: Number(materialDemand && materialDemand.shortage_lines || 0),
+    openMaterialCost: Number(materialDemand && materialDemand.open_cost || 0),
+    statusBreakdown,
+    lowStockMaterials,
+    productMix,
+    products
   };
 }
 
@@ -501,10 +830,13 @@ async function getOrders(db, companyId, filters = {}, limit = 300) {
   if (filters.status) {
     where.push('po.status = ?');
     params.push(filters.status);
+  } else if (Array.isArray(filters.statuses) && filters.statuses.length) {
+    where.push(`po.status IN (${filters.statuses.map(() => '?').join(',')})`);
+    params.push(...filters.statuses);
   }
   if (filters.product_id) {
-    where.push('po.product_id = ?');
-    params.push(filters.product_id);
+    where.push('(po.product_id = ? OR EXISTS (SELECT 1 FROM production_order_boms pob_filter WHERE pob_filter.production_order_id = po.id AND pob_filter.company_id = po.company_id AND pob_filter.product_id = ?))');
+    params.push(filters.product_id, filters.product_id);
   }
   if (filters.user_id) {
     where.push('po.created_by = ?');
@@ -531,12 +863,82 @@ async function getOrders(db, companyId, filters = {}, limit = 300) {
     params.push(filters.cost_max);
   }
   params.push(limit);
-  return allDb(db, `SELECT po.*, i.name AS product_name, i.sku, u.username AS created_by_name
+  return allDb(db, `SELECT po.*,
+      COALESCE(NULLIF(os.products, ''), i.name) AS product_name,
+      CASE WHEN os.line_count > 1 THEN '' ELSE i.sku END AS sku,
+      COALESCE(os.quantity_planned, po.quantity_planned) AS quantity_planned,
+      COALESCE(os.quantity_finished, po.quantity_finished) AS quantity_finished,
+      u.username AS created_by_name
     FROM production_orders po
     LEFT JOIN items i ON i.id = po.product_id AND i.company_id = po.company_id
+    LEFT JOIN (
+      SELECT pob.production_order_id, pob.company_id, GROUP_CONCAT(it.name, ', ') AS products, COUNT(*) AS line_count,
+        SUM(pob.quantity_planned) AS quantity_planned, SUM(pob.quantity_finished) AS quantity_finished
+      FROM production_order_boms pob
+      JOIN items it ON it.id = pob.product_id AND it.company_id = pob.company_id
+      GROUP BY pob.production_order_id, pob.company_id
+    ) os ON os.production_order_id = po.id AND os.company_id = po.company_id
     LEFT JOIN users u ON u.id = po.created_by AND u.company_id = po.company_id
     WHERE ${where.join(' AND ')}
     ORDER BY po.created_at DESC LIMIT ?`, params);
+}
+
+async function getOrderBomLines(db, companyId, orderId) {
+  return allDb(db, `SELECT pob.*, b.code AS bom_code, b.name AS bom_name, b.base_quantity, b.unit, i.name AS product_name, i.sku
+    FROM production_order_boms pob
+    JOIN production_boms b ON b.id = pob.bom_id AND b.company_id = pob.company_id
+    JOIN items i ON i.id = pob.product_id AND i.company_id = pob.company_id
+    WHERE pob.company_id = ? AND pob.production_order_id = ?
+    ORDER BY pob.id`, [companyId, orderId]);
+}
+
+async function parseOrderBomLines(db, companyId, body) {
+  const bomIds = arrayOf(body.bom_id);
+  const quantities = arrayOf(body.quantity_planned);
+  const lines = [];
+  for (let index = 0; index < bomIds.length; index += 1) {
+    const bomId = toId(bomIds[index]);
+    const quantity = positiveNumber(quantities[index]);
+    if (!bomId || quantity <= 0) continue;
+    const bom = await getDb(db, 'SELECT * FROM production_boms WHERE id = ? AND company_id = ? AND status = ?', [bomId, companyId, 'active']);
+    if (!bom) continue;
+    const items = await allDb(db, 'SELECT * FROM production_bom_items WHERE bom_id = ? AND company_id = ?', [bomId, companyId]);
+    const estimatedCost = estimateBomLineCost(bom, items, quantity);
+    lines.push({ bom, quantity, items, estimatedCost });
+  }
+  return lines;
+}
+
+function estimateBomLineCost(bom, items, quantity) {
+  const scale = quantity / Math.max(Number(bom.base_quantity || 1), 1);
+  return items.reduce((sum, item) => {
+    const required = Number(item.quantity || 0) * scale;
+    const waste = required * (Number(item.waste_percentage || 0) / 100);
+    return sum + (required + waste) * Number(item.unit_cost || 0);
+  }, 0);
+}
+
+function buildOrderMaterials(lines) {
+  const materials = new Map();
+  for (const line of lines) {
+    const scale = line.quantity / Math.max(Number(line.bom.base_quantity || 1), 1);
+    for (const item of line.items) {
+      const productId = Number(item.material_product_id);
+      const required = Number(item.quantity || 0) * scale;
+      const wasteQty = required * (Number(item.waste_percentage || 0) / 100);
+      const unitCost = Number(item.unit_cost || 0);
+      const totalRequired = required + wasteQty;
+      const existing = materials.get(productId) || { productId, quantityRequired: 0, unitCost, totalCost: 0, wasteValue: 0, baseRequired: 0 };
+      existing.quantityRequired += totalRequired;
+      existing.totalCost += totalRequired * unitCost;
+      existing.wasteValue += wasteQty;
+      existing.baseRequired += required;
+      existing.unitCost = existing.quantityRequired > 0 ? existing.totalCost / existing.quantityRequired : unitCost;
+      existing.wastePercentage = existing.baseRequired > 0 ? (existing.wasteValue / existing.baseRequired) * 100 : 0;
+      materials.set(productId, existing);
+    }
+  }
+  return Array.from(materials.values());
 }
 
 async function getProducts(db, companyId) {
@@ -546,6 +948,91 @@ async function getProducts(db, companyId) {
     LEFT JOIN (${reservedSql()}) r ON r.company_id = i.company_id AND r.product_id = i.id
     WHERE i.company_id = ?
     ORDER BY i.name`, [companyId]);
+}
+
+async function getProductionProducts(db, companyId) {
+  return allDb(db, `SELECT i.*,
+      COALESCE(b.bom_count, 0) AS bom_count,
+      COALESCE(b.material_count, 0) AS material_count,
+      b.first_bom_id,
+      b.first_bom_code,
+      b.material_names
+    FROM items i
+    LEFT JOIN (
+      SELECT pb.finished_product_id, pb.company_id, COUNT(DISTINCT pb.id) AS bom_count, MIN(pb.id) AS first_bom_id, MIN(pb.code) AS first_bom_code,
+        COUNT(DISTINCT pbi.material_product_id) AS material_count, GROUP_CONCAT(DISTINCT mi.name) AS material_names
+      FROM production_boms pb
+      LEFT JOIN production_bom_items pbi ON pbi.bom_id = pb.id AND pbi.company_id = pb.company_id
+      LEFT JOIN items mi ON mi.id = pbi.material_product_id AND mi.company_id = pbi.company_id
+      GROUP BY pb.finished_product_id, pb.company_id
+    ) b ON b.finished_product_id = i.id AND b.company_id = i.company_id
+    WHERE i.company_id = ? AND i.production_type IN ('finished_good', 'work_in_process')
+    ORDER BY i.name`, [companyId]);
+}
+
+function uploadedPath(req, fieldName) {
+  const files = req.files && req.files[fieldName];
+  const file = Array.isArray(files) ? files[0] : null;
+  return file && file.path ? file.path : null;
+}
+
+async function createBomFromProductForm(db, req, productId, productName, productSku) {
+  const companyId = getCompanyIdFromReq(req);
+  const materialIds = arrayOf(req.body.material_product_id);
+  const quantities = arrayOf(req.body.quantity);
+  const units = arrayOf(req.body.unit_item);
+  const unitOthers = arrayOf(req.body.unit_item_other);
+  const wastes = arrayOf(req.body.waste_percentage);
+  const hasMaterials = materialIds.some((value, index) => toId(value) && positiveNumber(quantities[index]) > 0);
+  if (!hasMaterials) return null;
+
+  const code = await nextBomCode(db, companyId, productSku);
+  const result = await runDb(db, `INSERT INTO production_boms (company_id, finished_product_id, code, name, version, base_quantity, unit, status, notes, created_by, created_at, updated_at)
+    VALUES (?, ?, ?, ?, '1', 1, 'unidad', 'active', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [companyId, productId, code, `BOM ${productName}`, clean(req.body.production_notes), currentUserId(req)]);
+  for (let index = 0; index < materialIds.length; index += 1) {
+    const materialId = toId(materialIds[index]);
+    const qty = positiveNumber(quantities[index]);
+    if (!materialId || qty <= 0) continue;
+    const item = await getDb(db, 'SELECT average_cost, last_cost, price FROM items WHERE id = ? AND company_id = ?', [materialId, companyId]);
+    const unitCost = Number(item ? (item.average_cost || item.last_cost || item.price || 0) : 0);
+    const waste = positiveNumber(wastes[index]);
+    await runDb(db, `INSERT INTO production_bom_items (company_id, bom_id, material_product_id, quantity, unit, waste_percentage, unit_cost, total_cost)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [companyId, result.lastID, materialId, qty, resolveProductionUnit(units[index], unitOthers[index]), waste, unitCost, qty * unitCost * (1 + waste / 100)]);
+  }
+  return result.lastID;
+}
+
+async function getProductionUnits(db, companyId, extraUnits = []) {
+  const rows = await allDb(db, `SELECT unit FROM production_boms WHERE company_id = ? AND TRIM(COALESCE(unit, '')) <> ''
+    UNION
+    SELECT unit FROM production_bom_items WHERE company_id = ? AND TRIM(COALESCE(unit, '')) <> ''
+    ORDER BY unit`, [companyId, companyId]).catch(() => []);
+  const units = new Map();
+  [...DEFAULT_PRODUCTION_UNITS, ...rows.map((row) => row.unit), ...extraUnits]
+    .map((unit) => clean(unit))
+    .filter(Boolean)
+    .forEach((unit) => units.set(unit.toLocaleLowerCase('es-GT'), unit));
+  return Array.from(units.values()).sort((a, b) => a.localeCompare(b, 'es'));
+}
+
+function resolveProductionUnit(selected, other) {
+  const selectedUnit = clean(selected);
+  const otherUnit = clean(other);
+  if (selectedUnit === '__other') return otherUnit || 'unidad';
+  return selectedUnit || otherUnit || 'unidad';
+}
+
+async function nextBomCode(db, companyId, productSku) {
+  const prefix = normalizeCode(productSku) || 'BOM';
+  let next = 1;
+  while (next < 1000) {
+    const code = `${prefix}-BOM-${String(next).padStart(2, '0')}`;
+    const exists = await getDb(db, 'SELECT id FROM production_boms WHERE code = ? AND company_id = ?', [code, companyId]);
+    if (!exists) return code;
+    next += 1;
+  }
+  return `${prefix}-BOM-${Date.now()}`;
 }
 
 async function getEmployees(db, companyId) {
@@ -600,6 +1087,29 @@ async function changeOrderStatus(db, req, status) {
   await auditProduction(db, req, 'change_status', 'production_orders', id, { status: order.status }, { status });
 }
 
+async function updateOrdersBulkStatus(db, req, companyId, ids, status) {
+  for (const id of ids) {
+    const order = await getDb(db, 'SELECT * FROM production_orders WHERE id = ? AND company_id = ?', [id, companyId]);
+    if (!order || order.status === 'cancelled') continue;
+    if (status === 'cancelled') {
+      await runDb(db, `UPDATE production_order_materials SET quantity_reserved = 0 WHERE production_order_id = ? AND company_id = ?`, [id, companyId]);
+      await runDb(db, `UPDATE production_orders SET status = 'cancelled', cancellation_reason = COALESCE(NULLIF(?, ''), cancellation_reason), updated_at = CURRENT_TIMESTAMP WHERE id = ? AND company_id = ?`, [clean(req.body.reason), id, companyId]);
+    } else if (status === 'in_production') {
+      await runDb(db, `UPDATE production_orders SET status = 'in_production', real_start_date = COALESCE(real_start_date, DATE('now')), updated_at = CURRENT_TIMESTAMP WHERE id = ? AND company_id = ?`, [id, companyId]);
+    } else if (status === 'paused') {
+      await runDb(db, `UPDATE production_orders SET status = 'paused', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND company_id = ?`, [id, companyId]);
+    } else if (status === 'finished') {
+      await runDb(db, `UPDATE production_order_boms SET quantity_finished = quantity_planned WHERE production_order_id = ? AND company_id = ? AND quantity_finished < quantity_planned`, [id, companyId]);
+      const orderBoms = await getOrderBomLines(db, companyId, id);
+      const finishedQty = orderBoms.length
+        ? orderBoms.reduce((sum, line) => sum + Number(line.quantity_finished || line.quantity_planned || 0), 0)
+        : Number(order.quantity_planned || 0);
+      await runDb(db, `UPDATE production_orders SET status = 'finished', quantity_finished = ?, real_end_date = COALESCE(real_end_date, DATE('now')), updated_at = CURRENT_TIMESTAMP WHERE id = ? AND company_id = ?`, [finishedQty, id, companyId]);
+    }
+    await auditProduction(db, req, 'bulk_change_status', 'production_orders', id, { status: order.status }, { status });
+  }
+}
+
 async function nextOrderNumber(db, companyId) {
   const row = await getDb(db, "SELECT COUNT(*) AS total FROM production_orders WHERE company_id = ?", [companyId]);
   return `OP-${String(Number(row && row.total || 0) + 1).padStart(4, '0')}`;
@@ -645,9 +1155,15 @@ async function ensureProductionSchema(db) {
     SELECT pm.id, pa.id FROM permission_modules pm, permission_actions pa
     WHERE pm.code = 'production' AND pa.code IN ('view','create_order','edit_order','start_production','finish_production','cancel_production','view_costs','edit_costs','record_labor','record_waste','approve_production','view_reports')`);
   await addColumn(db, 'items', 'production_type', "TEXT NOT NULL DEFAULT 'supply'");
+  await addColumn(db, 'items', 'currency', "TEXT NOT NULL DEFAULT 'GTQ'");
   await addColumn(db, 'items', 'average_cost', 'REAL NOT NULL DEFAULT 0');
   await addColumn(db, 'items', 'last_cost', 'REAL NOT NULL DEFAULT 0');
   await addColumn(db, 'items', 'is_production_active', 'INTEGER NOT NULL DEFAULT 1');
+  await addColumn(db, 'items', 'production_labor_cost', 'REAL NOT NULL DEFAULT 0');
+  await addColumn(db, 'items', 'production_days', 'REAL NOT NULL DEFAULT 0');
+  await addColumn(db, 'items', 'production_notes', 'TEXT');
+  await addColumn(db, 'items', 'production_photo_path', 'TEXT');
+  await addColumn(db, 'items', 'production_support_path', 'TEXT');
   await runDb(db, `CREATE TABLE IF NOT EXISTS production_boms (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     company_id INTEGER NOT NULL,
@@ -695,6 +1211,18 @@ async function ensureProductionSchema(db) {
     created_by INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await runDb(db, `CREATE TABLE IF NOT EXISTS production_order_boms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_id INTEGER NOT NULL,
+    production_order_id INTEGER NOT NULL,
+    bom_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    quantity_planned REAL NOT NULL DEFAULT 0,
+    quantity_finished REAL NOT NULL DEFAULT 0,
+    estimated_cost REAL NOT NULL DEFAULT 0,
+    unit_cost REAL NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS production_order_materials (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -776,6 +1304,8 @@ async function ensureProductionSchema(db) {
   await runDb(db, 'CREATE UNIQUE INDEX IF NOT EXISTS ux_production_boms_company_code ON production_boms (company_id, code)');
   await runDb(db, 'CREATE UNIQUE INDEX IF NOT EXISTS ux_production_orders_company_number ON production_orders (company_id, order_number)');
   await runDb(db, 'CREATE INDEX IF NOT EXISTS idx_production_orders_company_status ON production_orders (company_id, status)');
+  await runDb(db, 'CREATE INDEX IF NOT EXISTS idx_production_order_boms_order ON production_order_boms (company_id, production_order_id)');
+  await runDb(db, 'CREATE INDEX IF NOT EXISTS idx_production_order_boms_product ON production_order_boms (company_id, product_id)');
   await runDb(db, 'CREATE INDEX IF NOT EXISTS idx_production_materials_order ON production_order_materials (company_id, production_order_id)');
   await runDb(db, 'CREATE INDEX IF NOT EXISTS idx_inventory_movements_production ON inventory_movements (company_id, movement_type, reference_id)');
 }
@@ -858,6 +1388,65 @@ function toId(value) {
 function positiveNumber(value) {
   const num = Number(value || 0);
   return Number.isFinite(num) && num > 0 ? num : 0;
+}
+
+function nonNegativeNumber(value) {
+  const num = Number(value || 0);
+  return Number.isFinite(num) && num >= 0 ? num : 0;
+}
+
+function normalizeMaterialSku(value) {
+  return clean(value).toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 40);
+}
+
+function normalizeProductSku(value) {
+  return clean(value).toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 40);
+}
+
+function productCodePrefix(name) {
+  return clean(name)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 3);
+}
+
+function normalizeProductCodeForName(value, name) {
+  const prefix = productCodePrefix(name);
+  const code = clean(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, '')
+    .slice(0, 40);
+  if (!prefix) return code;
+  if (!code) return prefix;
+  return code.startsWith(prefix) ? code : `${prefix}${code}`.slice(0, 40);
+}
+
+async function nextMaterialSku(db, companyId) {
+  const row = await getDb(db, "SELECT COUNT(*) AS total FROM items WHERE company_id = ? AND production_type = 'raw_material'", [companyId]);
+  let next = Number(row && row.total || 0) + 1;
+  while (next < 100000) {
+    const sku = `MP-${String(next).padStart(4, '0')}`;
+    const exists = await getDb(db, 'SELECT id FROM items WHERE sku = ? AND company_id = ?', [sku, companyId]);
+    if (!exists) return sku;
+    next += 1;
+  }
+  return `MP-${Date.now()}`;
+}
+
+async function nextProductSku(db, companyId) {
+  const row = await getDb(db, "SELECT COUNT(*) AS total FROM items WHERE company_id = ? AND production_type = 'finished_good'", [companyId]);
+  let next = Number(row && row.total || 0) + 1;
+  while (next < 100000) {
+    const sku = `PT-${String(next).padStart(4, '0')}`;
+    const exists = await getDb(db, 'SELECT id FROM items WHERE sku = ? AND company_id = ?', [sku, companyId]);
+    if (!exists) return sku;
+    next += 1;
+  }
+  return `PT-${Date.now()}`;
 }
 
 function cleanDate(value) {

@@ -399,9 +399,252 @@ body.page .app-panel {
     max-width: none !important;
   }
 
-  .status-footer {
+.status-footer {
     right: 8px;
     bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     max-width: calc(100vw - 16px);
+  }
+}
+
+/*
+  Responsive viewport contract for the full system:
+  - Desktop: broad content, normal multi-column operational views.
+  - Tablet: keep two-column workflows where readable, collapse dense layouts.
+  - Mobile: one-column forms and card-like rows to prevent overlap.
+*/
+
+:root {
+  --app-desktop-max: 1240px;
+  --app-tablet-gutter: 24px;
+  --app-mobile-gutter: 16px;
+}
+
+body.page *,
+body.page *::before,
+body.page *::after {
+  min-width: 0;
+}
+
+body.page table {
+  max-width: 100%;
+}
+
+body.page .table-wrap,
+body.page .app-table-wrap,
+body.page .table,
+body.page [class*='table-wrap'],
+body.page [class*='table-scroll'] {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.page .table-row,
+body.page .package-row,
+body.page .app-table-row {
+  max-width: 100%;
+}
+
+body.page p,
+body.page span,
+body.page strong,
+body.page small,
+body.page a,
+body.page td,
+body.page th,
+body.page li {
+  overflow-wrap: anywhere;
+}
+
+body.page input:not([type='checkbox']):not([type='radio']):not([type='file']),
+body.page select,
+body.page textarea,
+body.page .app-input,
+body.page .app-select {
+  max-width: 100%;
+}
+
+@media (min-width: 1201px) {
+  body.page .container,
+  .page-shell {
+    width: min(100% - 40px, var(--app-desktop-max));
+  }
+
+  body.page .app-table {
+    min-width: 0;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1200px) {
+  body.page .container,
+  .page-shell {
+    width: min(100% - var(--app-tablet-gutter), var(--app-desktop-max));
+  }
+
+  .grid,
+  .grid-2,
+  .grid-3,
+  .detail-grid,
+  .permission-grid,
+  .filters-form,
+  .app-filter-grid,
+  .app-form-grid,
+  .app-form-grid-fluid,
+  .company-grid,
+  .supplier-grid,
+  .supplier-card-grid,
+  .project-grid,
+  .projects-grid,
+  .production-grid,
+  .hr-form-grid,
+  .hr-section-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .full-row,
+  .grid-full,
+  .app-grid-full {
+    grid-column: 1 / -1;
+  }
+
+  body.page .table-row,
+  body.page .package-row {
+    gap: 10px;
+    font-size: 0.94rem;
+  }
+
+  body.page .table-row[class*='items'],
+  body.page .table-row[class*='packages'],
+  body.page .table-row[class*='invoices'],
+  body.page .table-row[class*='customers'],
+  body.page .table-row[class*='accounting'],
+  body.page .table-row[class*='cuscar'],
+  body.page .table-row[class*='users'],
+  body.page .table-row[class*='audit'],
+  body.page .table-row[class*='production'],
+  body.page .table-row[class*='sales'],
+  body.page .table-row[class*='supplier'] {
+    min-width: 920px;
+  }
+
+  body.page .table {
+    overflow-x: auto;
+  }
+
+  .page-header,
+  .module-header,
+  .app-card-header,
+  .app-panel-header,
+  .app-module-header,
+  .panel-header {
+    gap: 14px;
+  }
+}
+
+@media (max-width: 760px) {
+  body.page .container,
+  .page-shell {
+    width: min(100% - var(--app-mobile-gutter), var(--app-desktop-max));
+  }
+
+  body.page .container,
+  .page-shell,
+  .panel,
+  .app-panel,
+  .app-module,
+  .app-section,
+  .app-card,
+  .app-container,
+  .form-section,
+  .card {
+    max-width: 100%;
+  }
+
+  .grid,
+  .grid-2,
+  .grid-3,
+  .detail-grid,
+  .permission-grid,
+  .filters-form,
+  .app-filter-grid,
+  .app-form-grid,
+  .app-form-grid-fluid,
+  .company-grid,
+  .supplier-grid,
+  .supplier-card-grid,
+  .project-grid,
+  .projects-grid,
+  .production-grid,
+  .hr-form-grid,
+  .hr-section-grid,
+  .hr-detail-grid,
+  .mensajeria-meta-menu,
+  .widgets-layout,
+  .notes-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  body.page .table,
+  body.page .table-wrap,
+  body.page .app-table-wrap,
+  body.page [class*='table-wrap'],
+  body.page [class*='table-scroll'] {
+    display: block;
+    overflow-x: auto;
+  }
+
+  body.page .app-table {
+    width: max-content;
+    min-width: 680px;
+  }
+
+  body.page .table-row.header,
+  body.page .package-row.header {
+    display: none !important;
+  }
+
+  body.page .table-row:not(.header):not(.empty),
+  body.page .package-row:not(.header):not(.empty) {
+    min-width: 0 !important;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  body.page .table-row > *,
+  body.page .package-row > * {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  body.page .actions,
+  body.page .page-actions,
+  body.page .toolbar-actions,
+  body.page .app-table-actions,
+  body.page .section-actions,
+  body.page .master-topbar-actions,
+  body.page .company-detail-actions,
+  body.page .master-hero-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.page .actions > *,
+  body.page .page-actions > *,
+  body.page .toolbar-actions > *,
+  body.page .app-table-actions > *,
+  body.page .section-actions > *,
+  body.page .master-topbar-actions > *,
+  body.page .company-detail-actions > *,
+  body.page .master-hero-actions > * {
+    width: 100%;
+  }
+
+  body.page .btn,
+  body.page .app-btn,
+  body.page button.btn,
+  body.page button.app-btn,
+  body.page a.btn,
+  body.page a.app-btn {
+    white-space: normal;
   }
 }

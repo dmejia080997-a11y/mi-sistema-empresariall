@@ -1,21 +1,6 @@
 (() => {
   let cityLabel = '';
 
-  const ensureAiChatAssets = () => {
-    if (document.documentElement.dataset.aiChatLoaded) return;
-    document.documentElement.dataset.aiChatLoaded = 'true';
-
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = '/css/ai-chat.css';
-    document.head.appendChild(link);
-
-    const script = document.createElement('script');
-    script.src = '/js/ai-chat.js';
-    script.defer = true;
-    document.head.appendChild(script);
-  };
-
   const ensureFooter = () => {
     let footer = document.querySelector('.status-footer');
     if (footer) return footer;
@@ -111,7 +96,6 @@
   };
 
   const start = () => {
-    ensureAiChatAssets();
     ensureFooter();
     updateClock();
     setCity();
