@@ -1,3 +1,5 @@
+const PDFDocument = require('pdfkit');
+
 const STATUSES = [
   { key: 'active', label: 'Activa' },
   { key: 'recovered', label: 'Recuperada' },
@@ -38,40 +40,7 @@ function registerFloatingInvestmentRoutes(app, deps) {
     await schemaReady;
     const companyId = getCompanyId(req);
     const filters = normalizeFilters(req.query);
-    const where = ['fi.company_id = ?'];
-    const params = [companyId];
-
-    if (filters.q) {
-      where.push(`(fi.provider LIKE ? OR fi.description LIKE ? OR c.name LIKE ? OR EXISTS (
-        SELECT 1 FROM floating_investment_lines fil
-        LEFT JOIN suppliers s ON s.id = fil.supplier_id AND s.company_id = fil.company_id
-        WHERE fil.investment_id = fi.id
-          AND fil.company_id = fi.company_id
-          AND (fil.supplier_name LIKE ? OR s.trade_name LIKE ? OR fil.cost_center LIKE ? OR fil.description LIKE ?)
-      ))`);
-      const term = `%${filters.q}%`;
-      params.push(term, term, term, term, term, term, term);
-    }
-    if (filters.status) {
-      where.push('fi.status = ?');
-      params.push(filters.status);
-    }
-
-    const investments = await allDb(db, `
-      SELECT fi.*, c.name AS customer_name, c.customer_code,
-             COUNT(fil.id) AS line_count,
-             GROUP_CONCAT(DISTINCT COALESCE(s.trade_name, fil.supplier_name)) AS line_suppliers,
-             GROUP_CONCAT(DISTINCT fil.cost_center) AS cost_centers,
-             COALESCE(SUM(fil.investment_value), fi.investment_value, 0) AS line_investment_value,
-             COALESCE(SUM(fil.expected_profit), fi.expected_profit, 0) AS line_expected_profit
-      FROM floating_investments fi
-      LEFT JOIN customers c ON c.id = fi.customer_id AND c.company_id = fi.company_id
-      LEFT JOIN floating_investment_lines fil ON fil.investment_id = fi.id AND fil.company_id = fi.company_id
-      LEFT JOIN suppliers s ON s.id = fil.supplier_id AND s.company_id = fil.company_id
-      WHERE ${where.join(' AND ')}
-      GROUP BY fi.id
-      ORDER BY date(fi.recovery_date) ASC, fi.id DESC
-    `, params);
+    const investments = await getInvestments(db, companyId, filters);
     const summary = await getDb(db, `
       SELECT COUNT(*) AS total,
              SUM(CASE WHEN status = 'recovered' THEN 1 ELSE 0 END) AS recovered,
@@ -96,6 +65,24 @@ function registerFloatingInvestmentRoutes(app, deps) {
       filters,
       statuses: STATUSES
     }));
+  }));
+
+  app.get('/floating-investments/pdf', viewGuard, asyncRoute(async (req, res) => {
+    await schemaReady;
+    const companyId = getCompanyId(req);
+    const filters = normalizeFilters(req.query);
+    const [investments, company] = await Promise.all([
+      getInvestments(db, companyId, filters),
+      getCompanyBrand(db, companyId)
+    ]);
+    const fileName = `inversion-flotante-${dateStamp()}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    const doc = createFloatingPdfDocument();
+    doc.pipe(res);
+    renderInvestmentsListPdf(doc, investments, filters, company);
+    finalizeFloatingPdf(doc, company);
+    doc.end();
   }));
 
   app.get('/floating-investments/new', createGuard, asyncRoute(async (req, res) => {
@@ -177,6 +164,27 @@ function registerFloatingInvestmentRoutes(app, deps) {
       formAction: `/floating-investments/${id}/update`,
       formTitle: 'Editar inversion flotante'
     }));
+  }));
+
+  app.get('/floating-investments/:id/pdf', viewGuard, asyncRoute(async (req, res) => {
+    await schemaReady;
+    const companyId = getCompanyId(req);
+    const id = positiveInt(req.params.id);
+    const investment = await getInvestment(db, companyId, id);
+    if (!investment) return res.status(404).send('Inversion no encontrada');
+    const [customer, lines, company] = await Promise.all([
+      investment.customer_id ? getDb(db, 'SELECT name, customer_code FROM customers WHERE id = ? AND company_id = ?', [investment.customer_id, companyId]) : null,
+      getLines(db, companyId, id),
+      getCompanyBrand(db, companyId)
+    ]);
+    const fileName = `inversion-flotante-${id}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    const doc = createFloatingPdfDocument();
+    doc.pipe(res);
+    renderInvestmentDetailPdf(doc, investment, customer, lines, company);
+    finalizeFloatingPdf(doc, company);
+    doc.end();
   }));
 
   app.post('/floating-investments/:id/update', editGuard, asyncRoute(async (req, res) => {
@@ -400,6 +408,43 @@ function getInvestment(db, companyId, id) {
   return getDb(db, 'SELECT * FROM floating_investments WHERE id = ? AND company_id = ?', [id, companyId]);
 }
 
+function getInvestments(db, companyId, filters) {
+  const where = ['fi.company_id = ?'];
+  const params = [companyId];
+
+  if (filters.q) {
+    where.push(`(fi.provider LIKE ? OR fi.description LIKE ? OR c.name LIKE ? OR EXISTS (
+      SELECT 1 FROM floating_investment_lines fil
+      LEFT JOIN suppliers s ON s.id = fil.supplier_id AND s.company_id = fil.company_id
+      WHERE fil.investment_id = fi.id
+        AND fil.company_id = fi.company_id
+        AND (fil.supplier_name LIKE ? OR s.trade_name LIKE ? OR fil.cost_center LIKE ? OR fil.description LIKE ?)
+    ))`);
+    const term = `%${filters.q}%`;
+    params.push(term, term, term, term, term, term, term);
+  }
+  if (filters.status) {
+    where.push('fi.status = ?');
+    params.push(filters.status);
+  }
+
+  return allDb(db, `
+    SELECT fi.*, c.name AS customer_name, c.customer_code,
+           COUNT(fil.id) AS line_count,
+           GROUP_CONCAT(DISTINCT COALESCE(s.trade_name, fil.supplier_name)) AS line_suppliers,
+           GROUP_CONCAT(DISTINCT fil.cost_center) AS cost_centers,
+           COALESCE(SUM(fil.investment_value), fi.investment_value, 0) AS line_investment_value,
+           COALESCE(SUM(fil.expected_profit), fi.expected_profit, 0) AS line_expected_profit
+    FROM floating_investments fi
+    LEFT JOIN customers c ON c.id = fi.customer_id AND c.company_id = fi.company_id
+    LEFT JOIN floating_investment_lines fil ON fil.investment_id = fi.id AND fil.company_id = fi.company_id
+    LEFT JOIN suppliers s ON s.id = fil.supplier_id AND s.company_id = fil.company_id
+    WHERE ${where.join(' AND ')}
+    GROUP BY fi.id
+    ORDER BY date(fi.recovery_date) ASC, fi.id DESC
+  `, params);
+}
+
 async function getLines(db, companyId, investmentId) {
   return allDb(db, `
     SELECT fil.*, s.code AS supplier_code, s.trade_name AS supplier_trade_name
@@ -408,6 +453,25 @@ async function getLines(db, companyId, investmentId) {
     WHERE fil.company_id = ? AND fil.investment_id = ?
     ORDER BY fil.sort_order ASC, fil.id ASC
   `, [companyId, investmentId]);
+}
+
+async function getCompanyBrand(db, companyId) {
+  const company = await getDb(db, `
+    SELECT name, address, nit, email, phone, currency, logo, primary_color, secondary_color
+    FROM companies
+    WHERE id = ?
+  `, [companyId]);
+  return {
+    name: clean(company && company.name) || 'Empresa',
+    nit: clean(company && company.nit),
+    address: clean(company && company.address),
+    email: clean(company && company.email),
+    phone: clean(company && company.phone),
+    currency: clean(company && company.currency) || 'GTQ',
+    logoPath: clean(company && company.logo),
+    primaryColor: normalizePdfColor(company && company.primary_color, '#24455d'),
+    secondaryColor: normalizePdfColor(company && company.secondary_color, '#2d7c7a')
+  };
 }
 
 async function saveLines(db, companyId, investmentId, lines) {
@@ -525,6 +589,394 @@ function positiveInt(value) {
 
 function getUserId(req) {
   return req.session && req.session.user ? req.session.user.id : null;
+}
+
+function createFloatingPdfDocument() {
+  return new PDFDocument({
+    size: 'A4',
+    margins: { top: 34, right: 28, bottom: 38, left: 28 },
+    bufferPages: true
+  });
+}
+
+function renderInvestmentsListPdf(doc, investments, filters, company) {
+  const palette = floatingPdfPalette(company);
+  let cursorY = drawFloatingHeader(doc, {
+    company,
+    title: 'Inversiones flotantes',
+    documentLabel: 'REPORTE',
+    documentNumber: dateStamp(),
+    statusLabel: 'Control'
+  });
+  const totalsByCurrency = investments.reduce((totals, investment) => {
+    const currency = investment.currency || 'GTQ';
+    if (!totals[currency]) totals[currency] = { investment: 0, profit: 0 };
+    totals[currency].investment += Number(investment.line_investment_value || investment.investment_value || 0);
+    totals[currency].profit += Number(investment.line_expected_profit || investment.expected_profit || 0);
+    return totals;
+  }, {});
+  const activeFilters = [];
+  if (filters.q) activeFilters.push(`Busqueda: ${filters.q}`);
+  if (filters.status) activeFilters.push(`Estado: ${statusLabel(filters.status)}`);
+
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const contentWidth = right - left;
+  const summaryLines = Object.entries(totalsByCurrency).map(([currency, totals]) =>
+    `${currency} invertido ${formatMoney(totals.investment)} | utilidad ${formatMoney(totals.profit)}`
+  );
+  const summaryText = summaryLines.length ? summaryLines.join('\n') : 'Sin movimientos.';
+  drawFloatingPanel(doc, left, cursorY, contentWidth, 74, { accentBarColor: palette.accent });
+  doc.fillColor(palette.accent).font('Helvetica-Bold').fontSize(8).text('RESUMEN', left + 20, cursorY + 16, { width: contentWidth - 40 });
+  doc.fillColor(palette.ink).font('Helvetica-Bold').fontSize(11).text(summaryText, left + 18, cursorY + 32, { width: contentWidth - 36, lineGap: 2 });
+  doc.fillColor(palette.muted).font('Helvetica').fontSize(8).text(activeFilters.length ? activeFilters.join(' | ') : 'Sin filtros aplicados', left + 18, cursorY + 58, { width: contentWidth - 36 });
+  cursorY += 92;
+
+  const columns = buildFloatingPdfColumns(left, contentWidth, [
+    { label: 'Proveedor', width: 126 },
+    { label: 'Cliente', width: 106 },
+    { label: 'Inversion', width: 76, align: 'right' },
+    { label: 'Utilidad', width: 76, align: 'right' },
+    { label: 'Recuperacion', width: 70 },
+    { label: 'Estado', width: 62 }
+  ]);
+  cursorY = drawFloatingTableHeader(doc, cursorY, columns, palette);
+  investments.forEach((investment) => {
+    if (cursorY + 48 > pageBottom(doc)) {
+      doc.addPage();
+      cursorY = drawFloatingContinuationHeader(doc, company, 'Inversiones flotantes', dateStamp());
+      cursorY = drawFloatingTableHeader(doc, cursorY, columns, palette);
+    }
+    const values = [
+      investment.line_suppliers || investment.provider || '-',
+      investment.customer_name || '-',
+      `${investment.currency || 'GTQ'} ${formatMoney(investment.line_investment_value || investment.investment_value)}`,
+      `${investment.currency || 'GTQ'} ${formatMoney(investment.line_expected_profit || investment.expected_profit)}`,
+      investment.recovery_date || '-',
+      statusLabel(investment.status)
+    ];
+    cursorY = drawFloatingTableRow(doc, cursorY, columns, values, palette);
+  });
+  if (!investments.length) {
+    drawFloatingPanel(doc, left, cursorY, contentWidth, 54, { fill: '#ffffff', stroke: palette.lineBorder });
+    doc.fillColor(palette.muted).font('Helvetica').fontSize(10).text('No hay inversiones flotantes registradas.', left + 16, cursorY + 20, { width: contentWidth - 32 });
+  }
+}
+
+function renderInvestmentDetailPdf(doc, investment, customer, lines, company) {
+  const palette = floatingPdfPalette(company);
+  const totals = lineTotals(lines.length ? lines : [defaultLine(investment)]);
+  const currency = investment.currency || company.currency || 'GTQ';
+  let cursorY = drawFloatingHeader(doc, {
+    company,
+    title: investment.description || `Inversion flotante #${investment.id}`,
+    documentLabel: 'COTIZACION',
+    documentNumber: `INV-${String(investment.id).padStart(5, '0')}`,
+    statusLabel: statusLabel(investment.status)
+  });
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const contentWidth = right - left;
+  const gap = 16;
+  const customerWidth = Math.floor(contentWidth * 0.55);
+  const metaWidth = contentWidth - customerWidth - gap;
+  const customerText = [
+    customer && customer.name ? customer.name : 'Cliente no definido',
+    customer && customer.customer_code ? `Codigo: ${customer.customer_code}` : ''
+  ].filter(Boolean).join('\n');
+  drawFloatingPanel(doc, left, cursorY, customerWidth, 112, { accentBarColor: palette.accent });
+  doc.fillColor(palette.accent).font('Helvetica-Bold').fontSize(8).text('CLIENTE', left + 20, cursorY + 16, { width: customerWidth - 34 });
+  doc.fillColor(palette.ink).font('Helvetica-Bold').fontSize(13).text(customerText, left + 16, cursorY + 34, { width: customerWidth - 30, lineGap: 3 });
+  if (investment.notes) {
+    doc.fillColor(palette.muted).font('Helvetica').fontSize(8).text(investment.notes, left + 16, cursorY + 74, { width: customerWidth - 30, height: 26, ellipsis: true });
+  }
+
+  const metaX = left + customerWidth + gap;
+  drawFloatingPanel(doc, metaX, cursorY, metaWidth, 112, { accentBarColor: palette.primary });
+  const metaRows = [
+    ['Emision', formatPdfDate(new Date())],
+    ['Recuperacion', investment.recovery_date || '-'],
+    ['Moneda', currency],
+    ['Estado', statusLabel(investment.status)]
+  ];
+  doc.fillColor(palette.primary).font('Helvetica-Bold').fontSize(8).text('RESUMEN COMERCIAL', metaX + 20, cursorY + 16, { width: metaWidth - 34 });
+  let metaY = cursorY + 34;
+  metaRows.forEach(([label, value]) => {
+    doc.fillColor(palette.muted).font('Helvetica').fontSize(8).text(label, metaX + 16, metaY, { width: 74 });
+    doc.fillColor(palette.ink).font('Helvetica-Bold').fontSize(9).text(value, metaX + 92, metaY, { width: metaWidth - 108, align: 'right' });
+    metaY += 17;
+  });
+  cursorY += 132;
+
+  const columns = buildFloatingPdfColumns(left, contentWidth, [
+    { label: 'Proveedor', width: 128 },
+    { label: 'Centro costo', width: 94 },
+    { label: 'Descripcion', width: 154 },
+    { label: 'Inversion', width: 74, align: 'right' },
+    { label: 'Utilidad', width: 76, align: 'right' }
+  ]);
+  cursorY = drawFloatingTableHeader(doc, cursorY, columns, palette);
+  (lines.length ? lines : [defaultLine(investment)]).forEach((line) => {
+    if (cursorY + 52 > pageBottom(doc)) {
+      doc.addPage();
+      cursorY = drawFloatingContinuationHeader(doc, company, 'Cotizacion de inversion flotante', `INV-${String(investment.id).padStart(5, '0')}`);
+      cursorY = drawFloatingTableHeader(doc, cursorY, columns, palette);
+    }
+    cursorY = drawFloatingTableRow(doc, cursorY, columns, [
+      line.supplier_trade_name || line.supplier_name || '-',
+      line.cost_center || '-',
+      line.description || '-',
+      `${currency} ${formatMoney(line.investment_value)}`,
+      `${currency} ${formatMoney(line.expected_profit)}`
+    ], palette);
+  });
+
+  const totalsHeight = 92;
+  if (cursorY + totalsHeight > pageBottom(doc)) {
+    doc.addPage();
+    cursorY = drawFloatingContinuationHeader(doc, company, 'Totales', `INV-${String(investment.id).padStart(5, '0')}`);
+  }
+  const totalsWidth = 210;
+  const totalsX = right - totalsWidth;
+  drawFloatingPanel(doc, totalsX, cursorY + 8, totalsWidth, totalsHeight - 8, { fill: '#ffffff', stroke: palette.lineBorder });
+  const totalRows = [
+    ['Total inversion', `${currency} ${formatMoney(totals.investment || investment.investment_value)}`],
+    ['Utilidad esperada', `${currency} ${formatMoney(totals.profit || investment.expected_profit)}`],
+    ['Total proyectado', `${currency} ${formatMoney((totals.investment || investment.investment_value || 0) + (totals.profit || investment.expected_profit || 0))}`]
+  ];
+  let totalY = cursorY + 24;
+  totalRows.forEach(([label, value], index) => {
+    if (index === totalRows.length - 1) {
+      doc.roundedRect(totalsX + 10, totalY - 5, totalsWidth - 20, 24, 10).fill(palette.softAccent);
+    }
+    doc.fillColor(index === totalRows.length - 1 ? palette.primary : palette.muted).font('Helvetica-Bold').fontSize(index === totalRows.length - 1 ? 10 : 9).text(label, totalsX + 16, totalY, { width: 94 });
+    doc.fillColor(index === totalRows.length - 1 ? palette.primary : palette.ink).font('Helvetica-Bold').fontSize(index === totalRows.length - 1 ? 10 : 9).text(value, totalsX + 104, totalY, { width: 90, align: 'right' });
+    totalY += 24;
+  });
+}
+
+function drawFloatingHeader(doc, { company, title, documentLabel, documentNumber, statusLabel: currentStatus }) {
+  const palette = floatingPdfPalette(company);
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const contentWidth = right - left;
+  const headerHeight = 126;
+  doc.rect(0, 0, doc.page.width, headerHeight).fill(palette.primary);
+  drawFloatingLogoBlock(doc, company, left, 28, 74, 58, palette);
+  const companyX = left + 92;
+  const companyWidth = contentWidth - 294;
+  const companyLines = [
+    { value: company.name || 'Empresa', size: 20, color: '#ffffff', font: 'Helvetica-Bold' },
+    { value: company.nit ? `NIT: ${company.nit}` : '', size: 9, color: '#d7e1ea', font: 'Helvetica' },
+    { value: [company.phone, company.email].filter(Boolean).join(' - '), size: 9, color: '#d7e1ea', font: 'Helvetica' },
+    { value: company.address || '', size: 8, color: '#d7e1ea', font: 'Helvetica' }
+  ].filter((line) => line.value);
+  let y = 34;
+  companyLines.forEach((line) => {
+    doc.font(line.font).fillColor(line.color).fontSize(line.size).text(line.value, companyX, y, { width: companyWidth, height: line.size + 6, ellipsis: true });
+    y += line.size + 8;
+  });
+  doc.font('Helvetica-Bold').fillColor('#ffffff').fontSize(13).text(title, companyX, 88, { width: companyWidth, height: 30, ellipsis: true });
+
+  const cardWidth = 184;
+  const cardX = right - cardWidth;
+  drawFloatingPanel(doc, cardX, 26, cardWidth, 78, { fill: '#ffffff', stroke: '#dbe5ec' });
+  doc.roundedRect(cardX + 18, 38, 88, 18, 9).fill(palette.accent);
+  doc.font('Helvetica-Bold').fillColor('#ffffff').fontSize(8).text(String(currentStatus || '').toUpperCase(), cardX + 18, 43, { width: 88, align: 'center' });
+  doc.fillColor(palette.primary).font('Helvetica-Bold').fontSize(10).text(documentLabel, cardX + 18, 63, { width: cardWidth - 36 });
+  doc.fontSize(14).text(documentNumber, cardX + 18, 78, { width: cardWidth - 36 });
+  return headerHeight + 20;
+}
+
+function drawFloatingContinuationHeader(doc, company, title, documentNumber) {
+  const palette = floatingPdfPalette(company);
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  drawFloatingPanel(doc, left, doc.page.margins.top, right - left, 58, {
+    fill: '#ffffff',
+    stroke: palette.lineBorder,
+    accentBarColor: palette.accent
+  });
+  doc.fillColor(palette.primary).font('Helvetica-Bold').fontSize(11).text('INVERSION FLOTANTE', left + 18, doc.page.margins.top + 14, { width: 160 });
+  doc.fontSize(15).text(documentNumber, left + 18, doc.page.margins.top + 28, { width: 200 });
+  doc.fillColor(palette.muted).font('Helvetica').fontSize(9).text(title, right - 230, doc.page.margins.top + 20, { width: 212, align: 'right' });
+  return doc.page.margins.top + 74;
+}
+
+function buildFloatingPdfColumns(left, contentWidth, definitions) {
+  const gap = 8;
+  const totalGap = gap * Math.max(0, definitions.length - 1);
+  const targetWidth = definitions.reduce((sum, column) => sum + column.width, 0);
+  const availableWidth = contentWidth - totalGap;
+  const scale = targetWidth > availableWidth ? availableWidth / targetWidth : 1;
+  let x = left;
+  return definitions.map((column, index) => {
+    const isLast = index === definitions.length - 1;
+    const nextColumn = {
+      ...column,
+      x,
+      width: isLast ? Math.max(1, left + contentWidth - x) : Math.floor(column.width * scale)
+    };
+    x += nextColumn.width + gap;
+    return nextColumn;
+  });
+}
+
+function drawFloatingTableHeader(doc, startY, columns, palette) {
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const padding = 6;
+  doc.roundedRect(left, startY, right - left, 30, 10).fill(palette.primary);
+  doc.font('Helvetica-Bold').fillColor('#ffffff').fontSize(8);
+  columns.forEach((column) => {
+    const textWidth = Math.max(1, column.width - padding * 2);
+    doc.text(column.label, column.x + padding, startY + 10, {
+      width: textWidth,
+      align: column.align || 'left'
+    });
+  });
+  return startY + 38;
+}
+
+function drawFloatingTableRow(doc, startY, columns, values, palette) {
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const padding = 6;
+  let maxHeight = 0;
+  doc.font('Helvetica').fontSize(8);
+  values.forEach((value, index) => {
+    const text = String(value == null || value === '' ? '-' : value);
+    const textWidth = Math.max(1, columns[index].width - padding * 2);
+    const height = doc.heightOfString(text, { width: textWidth });
+    maxHeight = Math.max(maxHeight, height);
+  });
+  const rowHeight = Math.max(38, maxHeight + 18);
+  drawFloatingPanel(doc, left, startY - 2, right - left, rowHeight, {
+    fill: '#ffffff',
+    stroke: '#edf2f7',
+    radius: 10
+  });
+  doc.fillColor(palette.ink).font('Helvetica').fontSize(8);
+  values.forEach((value, index) => {
+    const column = columns[index];
+    const textWidth = Math.max(1, column.width - padding * 2);
+    doc.text(String(value == null || value === '' ? '-' : value), column.x + padding, startY + 10, {
+      width: textWidth,
+      align: column.align || 'left',
+      height: rowHeight - 16,
+      ellipsis: true
+    });
+  });
+  return startY + rowHeight + 8;
+}
+
+function drawFloatingPanel(doc, x, y, width, height, options = {}) {
+  const radius = options.radius || 14;
+  doc.save();
+  doc.roundedRect(x, y, width, height, radius).fill(options.fill || '#f8fafc');
+  doc.restore();
+  doc.save();
+  doc.roundedRect(x, y, width, height, radius).lineWidth(1).strokeColor(options.stroke || '#d9e4ea').stroke();
+  doc.restore();
+  if (options.accentBarColor) {
+    doc.save();
+    doc.roundedRect(x + 10, y + 10, 4, Math.max(18, height - 20), 2).fill(options.accentBarColor);
+    doc.restore();
+  }
+}
+
+function drawFloatingLogoBlock(doc, company, x, y, width, height, palette) {
+  drawFloatingPanel(doc, x, y, width, height, {
+    fill: palette.accent,
+    stroke: palette.softAccent,
+    radius: 14
+  });
+  doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(18).text((company && company.name ? company.name : 'ER').slice(0, 2).toUpperCase(), x, y + 18, {
+    width,
+    align: 'center'
+  });
+}
+
+function finalizeFloatingPdf(doc, company) {
+  const palette = floatingPdfPalette(company);
+  const range = doc.bufferedPageRange();
+  for (let index = 0; index < range.count; index += 1) {
+    doc.switchToPage(index);
+    const left = doc.page.margins.left;
+    const right = doc.page.width - doc.page.margins.right;
+    const footerY = doc.page.height - doc.page.margins.bottom + 4;
+    const footerText = [
+      company && company.name ? company.name : 'Empresa',
+      company && company.email ? company.email : '',
+      company && company.phone ? company.phone : '',
+      company && company.address ? company.address : ''
+    ].filter(Boolean).join(' - ');
+    doc.moveTo(left, footerY).lineTo(right, footerY).strokeColor(palette.lineBorder).stroke();
+    doc.fillColor(palette.muted).font('Helvetica').fontSize(8).text(footerText, left, footerY + 8, { width: right - left - 86 });
+    doc.text(`Pagina ${index + 1} de ${range.count}`, right - 86, footerY + 8, { width: 86, align: 'right' });
+  }
+}
+
+function pageBottom(doc) {
+  return doc.page.height - doc.page.margins.bottom;
+}
+
+function floatingPdfPalette(company) {
+  const primary = normalizePdfColor(company && company.primaryColor, '#24455d');
+  const accent = normalizePdfColor(company && company.secondaryColor, '#2d7c7a');
+  return {
+    primary,
+    accent,
+    panelFill: '#f8fafc',
+    lineBorder: '#d9e4ea',
+    ink: '#24313f',
+    muted: '#5f7283',
+    softAccent: mixPdfColors(accent, '#ffffff', 0.86)
+  };
+}
+
+function formatMoney(value) {
+  return Number(value || 0).toFixed(2);
+}
+
+function formatPdfDate(value) {
+  try {
+    return new Intl.DateTimeFormat('es-GT', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
+  } catch (error) {
+    return dateStamp();
+  }
+}
+
+function normalizePdfColor(value, fallback) {
+  const raw = clean(value);
+  if (!/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(raw)) return fallback || '#24455d';
+  if (raw.length === 4) return `#${raw[1]}${raw[1]}${raw[2]}${raw[2]}${raw[3]}${raw[3]}`.toLowerCase();
+  return raw.toLowerCase();
+}
+
+function mixPdfColors(source, target, ratio) {
+  const from = normalizePdfColor(source, '#000000');
+  const to = normalizePdfColor(target, '#ffffff');
+  const weight = Math.max(0, Math.min(1, Number(ratio) || 0));
+  const rgb = [0, 2, 4].map((offset) => {
+    const start = parseInt(from.slice(1 + offset, 3 + offset), 16);
+    const end = parseInt(to.slice(1 + offset, 3 + offset), 16);
+    return Math.round(start + (end - start) * weight).toString(16).padStart(2, '0');
+  });
+  return `#${rgb.join('')}`;
+}
+
+function statusLabel(key) {
+  const entry = STATUSES.find((status) => status.key === key);
+  return entry ? entry.label : key || '-';
+}
+
+function dateStamp() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 module.exports = {

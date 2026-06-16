@@ -25,6 +25,12 @@
     <%- include('partials/toasts', { flash }) %>
 
     <% const moneySummaries = Array.isArray(currencySummaries) ? currencySummaries : []; %>
+    <%
+      const pdfQuery = new URLSearchParams();
+      if (filters.q) pdfQuery.set('q', filters.q);
+      if (filters.status) pdfQuery.set('status', filters.status);
+      const listPdfHref = `/floating-investments/pdf${pdfQuery.toString() ? `?${pdfQuery.toString()}` : ''}`;
+    %>
     <section class="floating-kpis">
       <article><span>Total</span><strong><%= summary.total || 0 %></strong></article>
       <article><span>Recuperadas</span><strong><%= summary.recovered || 0 %></strong></article>
@@ -66,7 +72,10 @@
           <h2>Movimientos</h2>
           <p class="muted">Los registros se guardan por empresa activa.</p>
         </div>
-        <a class="btn primary" href="/floating-investments/new">Nueva inversion</a>
+        <div class="floating-header-actions">
+          <a class="btn" href="<%= listPdfHref %>">PDF</a>
+          <a class="btn primary" href="/floating-investments/new">Nueva inversion</a>
+        </div>
       </div>
 
       <form class="floating-filters" method="GET" action="/floating-investments">
@@ -115,7 +124,12 @@
                 <% const status = statuses.find((entry) => entry.key === investment.status) || { label: investment.status }; %>
                 <span class="floating-status floating-status-<%= investment.status %>"><%= status.label %></span>
               </td>
-              <td><a class="btn small" href="/floating-investments/<%= investment.id %>/edit">Editar</a></td>
+              <td>
+                <div class="floating-row-actions">
+                  <a class="btn small" href="/floating-investments/<%= investment.id %>/pdf">PDF</a>
+                  <a class="btn small" href="/floating-investments/<%= investment.id %>/edit">Editar</a>
+                </div>
+              </td>
             </tr>
           <% }) %>
           <% if (!investments.length) { %>

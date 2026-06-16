@@ -8,6 +8,9 @@
 .floating-currency-kpis span { color: var(--color-primary); font-weight: 800; }
 .floating-currency-kpis small { display: block; color: var(--color-text-muted); margin-bottom: 4px; }
 .floating-currency-kpis strong { display: block; overflow-wrap: anywhere; }
+.floating-header-actions,
+.floating-row-actions { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.floating-row-actions { justify-content: flex-end; }
 .floating-filters { display: grid; grid-template-columns: 2fr 1fr auto auto; gap: 10px; margin-bottom: 18px; }
 .floating-table small { display: block; margin-top: 4px; color: var(--color-text-muted); }
 .floating-status { display: inline-flex; padding: 5px 9px; border-radius: 999px; background: #e5e7eb; color: #374151; font-size: .82rem; font-weight: 700; white-space: nowrap; }
