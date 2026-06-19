@@ -1,4 +1,6 @@
-﻿function registerLogisticsRoutes(app, deps) {
+﻿const { STORAGE_UPLOADS_DIR, LEGACY_UPLOADS_DIR } = require('../../core/storage-paths');
+
+function registerLogisticsRoutes(app, deps) {
   const scope = { app, ...deps };
   with (scope) {
 app.get('/cuscar', requireAuth, requirePermission('cuscar', 'view'), (req, res) => {
@@ -946,8 +948,8 @@ function resolveCompanyLogoPath(storedPath) {
   } else {
     const cleaned = raw.replace(/^uploads[\\/]/, '').replace(/^data[\\/]uploads[\\/]/, '');
     candidates.push(path.resolve(process.cwd(), raw));
-    candidates.push(path.resolve(process.cwd(), 'storage', 'uploads', cleaned));
-    candidates.push(path.resolve(process.cwd(), 'data', 'uploads', cleaned));
+    candidates.push(path.resolve(STORAGE_UPLOADS_DIR, cleaned));
+    candidates.push(path.resolve(LEGACY_UPLOADS_DIR, cleaned));
   }
   return candidates.find((candidate) => {
     try {

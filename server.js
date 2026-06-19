@@ -480,7 +480,8 @@ const captureRawBody = (req, res, buf) => {
 app.use(express.urlencoded({ extended: true, verify: captureRawBody }));
 app.use(express.json({ verify: captureRawBody }));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(path.join(process.cwd(), 'storage/uploads')));
+app.use('/uploads', express.static(STORAGE_UPLOADS_DIR));
+app.use('/uploads', express.static(LEGACY_UPLOADS_DIR));
 
 app.use(
   session(
@@ -5730,7 +5731,11 @@ function buildFileUrl(storedPath) {
     return null;
   }
   if (raw.startsWith('/')) return raw;
-  const cleaned = raw.replace(/^uploads[\\/]/, '').replace(/\\/g, '/');
+  const cleaned = raw
+    .replace(/^uploads[\\/]/, '')
+    .replace(/^data[\\/]uploads[\\/]/, '')
+    .replace(/^storage[\\/]uploads[\\/]/, '')
+    .replace(/\\/g, '/');
   const token = signFileToken(cleaned, FILE_TOKEN_TTL_MS);
   return token ? `/files/${token}` : null;
 }

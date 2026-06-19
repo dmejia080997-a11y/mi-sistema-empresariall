@@ -1,23 +1,61 @@
-const fs = require('fs/promises');
+const fs = require('fs');
+const fsp = require('fs/promises');
 const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
-const { STORAGE_UPLOADS_DIR } = require('../src/core/storage-paths');
+const { LEGACY_UPLOADS_DIR, STORAGE_UPLOADS_DIR } = require('../src/core/storage-paths');
 
-const ROOT = path.join(__dirname, '..');
-const OLD_ROOT = path.join(ROOT, 'public', 'uploads', 'packages');
-const NEW_ROOT = path.join(STORAGE_UPLOADS_DIR, 'packages');
-const DB_PATH = path.join(ROOT, 'data', 'app.db');
+const stats = {
+  copied: 0,
+  skipped: 0,
+  errors: 0
+};
 
 async function ensureDir(dir) {
-  await fs.mkdir(dir, { recursive: true });
+  await fsp.mkdir(dir, { recursive: true });
 }
 
-async function copyFiles(src, dest) {
+async function exists(target) {
+  try {
+    await fsp.access(target);
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+async function copyFilePreservingTimes(srcPath, destPath) {
+  const relative = path.relative(LEGACY_UPLOADS_DIR, srcPath).replace(/\\/g, '/');
+  try {
+    if (await exists(destPath)) {
+      stats.skipped += 1;
+      console.log(`SKIP existing: ${relative}`);
+      return;
+    }
+
+    await ensureDir(path.dirname(destPath));
+    await fsp.copyFile(srcPath, destPath, fs.constants.COPYFILE_EXCL);
+
+    try {
+      const sourceStat = await fsp.stat(srcPath);
+      await fsp.utimes(destPath, sourceStat.atime, sourceStat.mtime);
+    } catch (timeErr) {
+      console.warn(`WARN could not preserve timestamps: ${relative} (${timeErr.message})`);
+    }
+
+    stats.copied += 1;
+    console.log(`COPY ${relative}`);
+  } catch (err) {
+    stats.errors += 1;
+    console.error(`ERROR ${relative}: ${err.message}`);
+  }
+}
+
+async function copyTree(src, dest) {
   let entries = [];
   try {
-    entries = await fs.readdir(src, { withFileTypes: true });
+    entries = await fsp.readdir(src, { withFileTypes: true });
   } catch (err) {
     if (err && err.code === 'ENOENT') {
+      console.log(`Source uploads directory does not exist: ${src}`);
       return;
     }
     throw err;
@@ -28,116 +66,33 @@ async function copyFiles(src, dest) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
     if (entry.isDirectory()) {
-      await copyFiles(srcPath, destPath);
+      await copyTree(srcPath, destPath);
       continue;
     }
-    await ensureDir(path.dirname(destPath));
-    await fs.copyFile(srcPath, destPath);
-  }
-}
-
-function normalizeStoredPath(value) {
-  if (!value || typeof value !== 'string') return value;
-  let s = value.trim().replace(/\\/g, '/');
-
-  if (s.startsWith('/files/') || s.startsWith('files/')) return s;
-
-  const markers = [
-    '/public/uploads/packages/',
-    'public/uploads/packages/',
-    '/uploads/packages/',
-    'uploads/packages/',
-    '/data/uploads/packages/',
-    'data/uploads/packages/',
-    '/data/uploads/',
-    'data/uploads/',
-    '/storage/uploads/packages/',
-    'storage/uploads/packages/',
-    '/storage/uploads/',
-    'storage/uploads/',
-  ];
-
-  for (const marker of markers) {
-    const idx = s.indexOf(marker);
-    if (idx !== -1) {
-      s = s.slice(idx + marker.length);
-      break;
+    if (entry.isFile()) {
+      await copyFilePreservingTimes(srcPath, destPath);
+      continue;
     }
-  }
-
-  if (s.startsWith('/')) s = s.slice(1);
-  if (!s.startsWith('packages/')) {
-    if (s.startsWith('invoices/') || s.startsWith('photos/')) {
-      s = `packages/${s}`;
-    }
-  }
-  return s;
-}
-
-function runQuery(db, sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function onRun(err) {
-      if (err) reject(err);
-      else resolve(this);
-    });
-  });
-}
-
-function allQuery(db, sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
-}
-
-async function migrateDbPaths() {
-  const db = new sqlite3.Database(DB_PATH);
-  try {
-    await runQuery(db, 'BEGIN');
-
-    const packages = await allQuery(db, 'SELECT id, invoice_file FROM packages');
-    let packageUpdates = 0;
-    for (const row of packages) {
-      const nextValue = normalizeStoredPath(row.invoice_file);
-      if (nextValue && nextValue !== row.invoice_file) {
-        await runQuery(db, 'UPDATE packages SET invoice_file = ? WHERE id = ?', [
-          nextValue,
-          row.id,
-        ]);
-        packageUpdates += 1;
-      }
-    }
-
-    const photos = await allQuery(db, 'SELECT id, file_path FROM package_photos');
-    let photoUpdates = 0;
-    for (const row of photos) {
-      const nextValue = normalizeStoredPath(row.file_path);
-      if (nextValue && nextValue !== row.file_path) {
-        await runQuery(db, 'UPDATE package_photos SET file_path = ? WHERE id = ?', [
-          nextValue,
-          row.id,
-        ]);
-        photoUpdates += 1;
-      }
-    }
-
-    await runQuery(db, 'COMMIT');
-    return { packageUpdates, photoUpdates };
-  } catch (err) {
-    await runQuery(db, 'ROLLBACK');
-    throw err;
-  } finally {
-    db.close();
+    stats.skipped += 1;
+    console.log(`SKIP non-file: ${path.relative(LEGACY_UPLOADS_DIR, srcPath).replace(/\\/g, '/')}`);
   }
 }
 
 async function main() {
-  await ensureDir(NEW_ROOT);
-  await copyFiles(OLD_ROOT, NEW_ROOT);
-  const result = await migrateDbPaths();
-  console.log(`Migrated uploads. Packages updated: ${result.packageUpdates}. Photos updated: ${result.photoUpdates}.`);
+  console.log(`Migrating uploads from ${LEGACY_UPLOADS_DIR}`);
+  console.log(`Migrating uploads to   ${STORAGE_UPLOADS_DIR}`);
+
+  await ensureDir(STORAGE_UPLOADS_DIR);
+  await copyTree(LEGACY_UPLOADS_DIR, STORAGE_UPLOADS_DIR);
+
+  console.log('Upload migration finished.');
+  console.log(`Files copied: ${stats.copied}`);
+  console.log(`Files skipped: ${stats.skipped}`);
+  console.log(`Errors: ${stats.errors}`);
+
+  if (stats.errors > 0) {
+    process.exitCode = 1;
+  }
 }
 
 main().catch((err) => {
