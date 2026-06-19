@@ -1,10 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const {
-  ROOT_DIR,
-  STORAGE_UPLOADS_DIR,
-  STORAGE_BACKUPS_DIR
-} = require('../src/core/storage-paths');
+
+const ROOT_DIR = path.resolve(__dirname, '..');
+const BACKUPS_DIR = path.join(ROOT_DIR, 'storage', 'backups');
 
 function stamp() {
   return new Date().toISOString().replace(/[:.]/g, '-');
@@ -29,9 +27,9 @@ function copyDirIfExists(source, target) {
 }
 
 function main() {
-  ensureDir(STORAGE_BACKUPS_DIR);
+  ensureDir(BACKUPS_DIR);
 
-  const backupDir = path.join(STORAGE_BACKUPS_DIR, `backup-${stamp()}`);
+  const backupDir = path.join(BACKUPS_DIR, `backup-${stamp()}`);
   ensureDir(backupDir);
 
   const copied = [];
@@ -41,7 +39,7 @@ function main() {
   if (copyFileIfExists(path.join(ROOT_DIR, 'data', 'sessions.db'), path.join(backupDir, 'data', 'sessions.db'))) {
     copied.push('data/sessions.db');
   }
-  if (copyDirIfExists(STORAGE_UPLOADS_DIR, path.join(backupDir, 'storage', 'uploads'))) {
+  if (copyDirIfExists(path.join(ROOT_DIR, 'storage', 'uploads'), path.join(backupDir, 'storage', 'uploads'))) {
     copied.push('storage/uploads');
   }
 
