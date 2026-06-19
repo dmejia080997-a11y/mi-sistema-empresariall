@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "backup": "node tools/backup.js",
+    "backup": "node scripts/backup.js",
     "test": "node tools/selfcheck.js",
     "seed:cuscar": "node tools/seed-cuscar-catalogs.js",
     "seed:locations": "node tools/seed-locations.js"
