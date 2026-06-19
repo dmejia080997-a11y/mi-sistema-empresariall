@@ -13,20 +13,29 @@ function ensureDir(dir) {
 }
 
 function copyFileIfExists(source, target) {
-  if (!fs.existsSync(source)) return false;
+  if (!fs.existsSync(source)) {
+    console.log(`Skipped missing file: ${path.relative(ROOT_DIR, source)}`);
+    return false;
+  }
   ensureDir(path.dirname(target));
   fs.copyFileSync(source, target);
+  console.log(`Copied file: ${path.relative(ROOT_DIR, source)}`);
   return true;
 }
 
 function copyDirIfExists(source, target) {
-  if (!fs.existsSync(source)) return false;
+  if (!fs.existsSync(source)) {
+    console.log(`Skipped missing directory: ${path.relative(ROOT_DIR, source)}`);
+    return false;
+  }
   ensureDir(target);
   fs.cpSync(source, target, { recursive: true, force: true });
+  console.log(`Copied directory: ${path.relative(ROOT_DIR, source)}`);
   return true;
 }
 
 function main() {
+  console.log('Starting backup...');
   ensureDir(BACKUPS_DIR);
 
   const backupDir = path.join(BACKUPS_DIR, `backup-${stamp()}`);
@@ -53,4 +62,10 @@ function main() {
   console.log(`Included: ${copied.length ? copied.join(', ') : 'no matching files found'}`);
 }
 
-main();
+try {
+  main();
+} catch (err) {
+  console.error('Backup failed.');
+  console.error(err && err.stack ? err.stack : err);
+  process.exitCode = 1;
+}
