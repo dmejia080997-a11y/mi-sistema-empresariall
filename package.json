@@ -9,7 +9,7 @@
     "backup": "node scripts/backup.js",
     "migrate-uploads": "node tools/migrate_uploads.js",
     "db:test": "node tools/db_test.js",
-    "migrate:postgres": "node tools/migrate_sqlite_to_postgres.js",
+    "migrate:postgres": "node tools/migrate_postgres.js",
     "test": "node tools/selfcheck.js",
     "seed:cuscar": "node tools/seed-cuscar-catalogs.js",
     "seed:locations": "node tools/seed-locations.js"
