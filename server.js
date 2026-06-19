@@ -26,6 +26,13 @@ const http = require('http');
 const { applySecurityHeaders } = require('./src/core/security-headers');
 const { buildSessionOptions, getSessionCookieName } = require('./src/core/session-config');
 const { createRateLimiter } = require('./src/core/rate-limiter');
+const {
+  STORAGE_DATABASE_DIR,
+  STORAGE_UPLOADS_DIR,
+  STORAGE_BACKUPS_DIR,
+  STORAGE_LOGS_DIR,
+  LEGACY_UPLOADS_DIR
+} = require('./src/core/storage-paths');
 const { registerAuthRoutes } = require('./src/modules/auth/routes');
 const { registerCompanyRoutes } = require('./src/modules/companies/routes');
 const { registerPackageRoutes } = require('./src/modules/packages/routes');
@@ -75,7 +82,13 @@ const DESIGN_SYSTEM_ASSETS = [
   '<link rel="stylesheet" href="/css/layout.css" data-design-system-asset />',
   '<link rel="stylesheet" href="/css/components.css" data-design-system-asset />'
 ];
-const UPLOAD_ROOT = path.join(__dirname, 'data', 'uploads');
+const UPLOAD_ROOT = STORAGE_UPLOADS_DIR;
+[
+  STORAGE_DATABASE_DIR,
+  STORAGE_UPLOADS_DIR,
+  STORAGE_BACKUPS_DIR,
+  STORAGE_LOGS_DIR
+].forEach((dir) => fs.mkdirSync(dir, { recursive: true }));
 const HIDDEN_MODULE_CODES = new Set(['airway_bills', 'transport_documents']);
 const CUSCAR_BASE_CATALOG_PATH = path.join(__dirname, 'data', 'cuscar-catalogs.json');
 const CUSCAR_CATALOGS = {
@@ -467,6 +480,7 @@ const captureRawBody = (req, res, buf) => {
 app.use(express.urlencoded({ extended: true, verify: captureRawBody }));
 app.use(express.json({ verify: captureRawBody }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(process.cwd(), 'storage/uploads')));
 
 app.use(
   session(
@@ -5634,11 +5648,13 @@ function verifyFileToken(token) {
   if (Date.now() > payload.e) return null;
   const rel = String(payload.p);
   if (rel.includes('..') || path.isAbsolute(rel)) return null;
-  const filePath = path.resolve(path.join(UPLOAD_ROOT, rel));
-  const root = path.resolve(UPLOAD_ROOT);
-  if (!filePath.startsWith(root + path.sep)) return null;
-  if (!fs.existsSync(filePath)) return null;
-  return filePath;
+  for (const baseDir of [UPLOAD_ROOT, LEGACY_UPLOADS_DIR]) {
+    const filePath = path.resolve(path.join(baseDir, rel));
+    const root = path.resolve(baseDir);
+    if (!filePath.startsWith(root + path.sep)) continue;
+    if (fs.existsSync(filePath)) return filePath;
+  }
+  return null;
 }
 
 function signInvoiceUploadToken(packageId, companyId, ttlMs) {
@@ -5677,10 +5693,12 @@ function verifyInvoiceUploadToken(token) {
 function publicPathForFile(filePath) {
   if (!filePath) return null;
   const absPath = path.resolve(filePath);
-  const uploadRoot = path.resolve(UPLOAD_ROOT);
-  const relativeUpload = path.relative(uploadRoot, absPath);
-  if (!relativeUpload.startsWith('..') && !path.isAbsolute(relativeUpload)) {
-    return relativeUpload.replace(/\\/g, '/');
+  for (const baseDir of [UPLOAD_ROOT, LEGACY_UPLOADS_DIR]) {
+    const uploadRoot = path.resolve(baseDir);
+    const relativeUpload = path.relative(uploadRoot, absPath);
+    if (!relativeUpload.startsWith('..') && !path.isAbsolute(relativeUpload)) {
+      return relativeUpload.replace(/\\/g, '/');
+    }
   }
   const publicRoot = path.resolve(path.join(__dirname, 'public'));
   const relativePublic = path.relative(publicRoot, absPath);
@@ -5696,11 +5714,13 @@ function buildFileUrl(storedPath) {
   if (/^https?:\/\//i.test(raw)) return raw;
   if (path.isAbsolute(raw)) {
     const absPath = path.resolve(raw);
-    const uploadRoot = path.resolve(UPLOAD_ROOT);
-    const relativeUpload = path.relative(uploadRoot, absPath);
-    if (!relativeUpload.startsWith('..') && !path.isAbsolute(relativeUpload)) {
-      const token = signFileToken(relativeUpload.replace(/\\/g, '/'), FILE_TOKEN_TTL_MS);
-      return token ? `/files/${token}` : null;
+    for (const baseDir of [UPLOAD_ROOT, LEGACY_UPLOADS_DIR]) {
+      const uploadRoot = path.resolve(baseDir);
+      const relativeUpload = path.relative(uploadRoot, absPath);
+      if (!relativeUpload.startsWith('..') && !path.isAbsolute(relativeUpload)) {
+        const token = signFileToken(relativeUpload.replace(/\\/g, '/'), FILE_TOKEN_TTL_MS);
+        return token ? `/files/${token}` : null;
+      }
     }
     const publicRoot = path.resolve(path.join(__dirname, 'public'));
     const relativePublic = path.relative(publicRoot, absPath);

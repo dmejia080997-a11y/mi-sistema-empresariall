@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
+const { STORAGE_UPLOADS_DIR } = require('../../core/storage-paths');
 
 const SUPPLIER_STATUSES = [
   ['draft', 'Borrador'],
@@ -13,7 +14,7 @@ const SUPPLIER_STATUSES = [
   ['inactive', 'Inactivo']
 ];
 const EVALUATION_STATUSES = ['recommended', 'observation', 'not_recommended', 'blocked'];
-const UPLOAD_ROOT = path.join(process.cwd(), 'data', 'uploads', 'suppliers');
+const UPLOAD_ROOT = path.join(STORAGE_UPLOADS_DIR, 'suppliers');
 const ALLOWED_EXTENSIONS = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.xls', '.xlsx', '.doc', '.docx']);
 
 function registerSupplierRoutes(app, deps) {
@@ -552,7 +553,7 @@ function getUserId(req) { return req.session && req.session.user ? req.session.u
 function ensureDir(target) { if (!fs.existsSync(target)) fs.mkdirSync(target, { recursive: true }); }
 function safeExtension(name) { return path.extname(String(name || '')).toLowerCase(); }
 function relativeUploadPath(file) {
-  return file ? path.relative(path.join(process.cwd(), 'data', 'uploads'), file.path).replace(/\\/g, '/') : null;
+  return file ? path.relative(STORAGE_UPLOADS_DIR, file.path).replace(/\\/g, '/') : null;
 }
 
 module.exports = { registerSupplierRoutes, ensureSupplierSchema };

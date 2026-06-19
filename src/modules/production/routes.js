@@ -2,13 +2,14 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
+const { STORAGE_UPLOADS_DIR } = require('../../core/storage-paths');
 
 const PRODUCTION_STATUSES = ['draft', 'pending', 'in_production', 'paused', 'finished', 'cancelled'];
 const PRODUCT_TYPES = ['raw_material', 'supply', 'packaging', 'work_in_process', 'finished_good'];
 const WASTE_REASONS = ['Corte incorrecto', 'Dano de material', 'Producto defectuoso', 'Ajuste normal', 'Otro'];
 const OVERHEAD_METHODS = ['order', 'unit', 'percentage', 'manual'];
 const DEFAULT_PRODUCTION_UNITS = ['Litro', 'Tabla', 'Regla', 'Hoja'];
-const PRODUCTION_UPLOAD_DIR = path.join(process.cwd(), 'data', 'uploads', 'production', 'products');
+const PRODUCTION_UPLOAD_DIR = path.join(STORAGE_UPLOADS_DIR, 'production', 'products');
 const PRODUCT_ATTACHMENT_FIELDS = [
   { name: 'product_photo', maxCount: 1 },
   { name: 'product_support', maxCount: 1 }

@@ -1,17 +1,18 @@
 const fs = require('fs/promises');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
+const { STORAGE_UPLOADS_DIR } = require('../src/core/storage-paths');
 
 const ROOT = path.join(__dirname, '..');
 const OLD_ROOT = path.join(ROOT, 'public', 'uploads', 'packages');
-const NEW_ROOT = path.join(ROOT, 'data', 'uploads', 'packages');
+const NEW_ROOT = path.join(STORAGE_UPLOADS_DIR, 'packages');
 const DB_PATH = path.join(ROOT, 'data', 'app.db');
 
 async function ensureDir(dir) {
   await fs.mkdir(dir, { recursive: true });
 }
 
-async function moveFiles(src, dest) {
+async function copyFiles(src, dest) {
   let entries = [];
   try {
     entries = await fs.readdir(src, { withFileTypes: true });
@@ -27,20 +28,11 @@ async function moveFiles(src, dest) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
     if (entry.isDirectory()) {
-      await moveFiles(srcPath, destPath);
+      await copyFiles(srcPath, destPath);
       continue;
     }
     await ensureDir(path.dirname(destPath));
-    try {
-      await fs.rename(srcPath, destPath);
-    } catch (err) {
-      if (err && err.code === 'EXDEV') {
-        await fs.copyFile(srcPath, destPath);
-        await fs.unlink(srcPath);
-      } else {
-        throw err;
-      }
-    }
+    await fs.copyFile(srcPath, destPath);
   }
 }
 
@@ -59,6 +51,10 @@ function normalizeStoredPath(value) {
     'data/uploads/packages/',
     '/data/uploads/',
     'data/uploads/',
+    '/storage/uploads/packages/',
+    'storage/uploads/packages/',
+    '/storage/uploads/',
+    'storage/uploads/',
   ];
 
   for (const marker of markers) {
@@ -139,7 +135,7 @@ async function migrateDbPaths() {
 
 async function main() {
   await ensureDir(NEW_ROOT);
-  await moveFiles(OLD_ROOT, NEW_ROOT);
+  await copyFiles(OLD_ROOT, NEW_ROOT);
   const result = await migrateDbPaths();
   console.log(`Migrated uploads. Packages updated: ${result.packageUpdates}. Photos updated: ${result.photoUpdates}.`);
 }

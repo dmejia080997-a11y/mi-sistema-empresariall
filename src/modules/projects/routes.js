@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
 const PDFDocument = require('pdfkit');
+const { STORAGE_UPLOADS_DIR, LEGACY_UPLOADS_DIR } = require('../../core/storage-paths');
 
 const PROJECT_STATUSES = [
   { key: 'draft', label: 'Borrador', badgeClass: 'project-status-draft' },
@@ -120,7 +121,7 @@ const DETAIL_TABS = [
   { key: 'files', label: 'Archivo' }
 ];
 
-const PROJECT_UPLOAD_ROOT = path.join(process.cwd(), 'data', 'uploads', 'projects');
+const PROJECT_UPLOAD_ROOT = path.join(STORAGE_UPLOADS_DIR, 'projects');
 const PROJECT_FILE_EXTENSIONS = new Set([
   '.pdf',
   '.doc',
@@ -5400,10 +5401,13 @@ async function fetchProjectQuotePdfAttachments(db, companyId, quoteId) {
 function resolveStoredUploadPath(storedPath) {
   const normalized = normalizeText(storedPath).replace(/\\/g, '/');
   if (!normalized) return null;
-  const absoluteRoot = path.resolve(path.join(process.cwd(), 'data', 'uploads'));
-  const absolutePath = path.resolve(path.join(absoluteRoot, normalized));
-  if (!absolutePath.startsWith(absoluteRoot)) return null;
-  return fs.existsSync(absolutePath) ? absolutePath : null;
+  for (const root of [STORAGE_UPLOADS_DIR, LEGACY_UPLOADS_DIR]) {
+    const absoluteRoot = path.resolve(root);
+    const absolutePath = path.resolve(path.join(absoluteRoot, normalized));
+    if (!absolutePath.startsWith(absoluteRoot)) continue;
+    if (fs.existsSync(absolutePath)) return absolutePath;
+  }
+  return null;
 }
 
 function isProjectQuotePdfImage(fileName, mimeType) {
@@ -5425,10 +5429,13 @@ function normalizeLineDiscount(line) {
 }
 
 function normalizeStoredPath(filePath) {
-  const absoluteRoot = path.resolve(path.join(process.cwd(), 'data', 'uploads'));
   const absolutePath = path.resolve(filePath);
-  const relative = path.relative(absoluteRoot, absolutePath);
-  return relative.replace(/\\/g, '/');
+  for (const root of [STORAGE_UPLOADS_DIR, LEGACY_UPLOADS_DIR]) {
+    const absoluteRoot = path.resolve(root);
+    const relative = path.relative(absoluteRoot, absolutePath);
+    if (!relative.startsWith('..') && !path.isAbsolute(relative)) return relative.replace(/\\/g, '/');
+  }
+  return path.basename(filePath);
 }
 
 function normalizeProjectStatus(value) {

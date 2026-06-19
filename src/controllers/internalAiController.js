@@ -2,6 +2,7 @@ const path = require('path');
 const internalAiService = require('../services/internalAiService');
 const aiService = require('../ai/aiService');
 const { buildToolContext } = require('../ai/permissions');
+const { STORAGE_UPLOADS_DIR } = require('../core/storage-paths');
 
 function registerInternalAiRoutes(app, deps) {
   const schemaReady = internalAiService.ensureSchema(deps.db).catch((err) => console.error('[ai-internal] schema initialization failed', err));
@@ -181,7 +182,7 @@ function registerInternalAiRoutes(app, deps) {
     if (req.params.company !== companySegment) return res.status(403).send('Forbidden');
     const fileName = path.basename(req.params.file || '');
     if (!/^[a-z0-9_-]+-\d+\.(xlsx|csv|pdf)$/i.test(fileName)) return res.status(400).send('Archivo inválido');
-    const filePath = path.join(process.cwd(), 'data', 'uploads', 'ai', companySegment, fileName);
+    const filePath = path.join(STORAGE_UPLOADS_DIR, 'ai', companySegment, fileName);
     return res.download(filePath, fileName);
   }));
 

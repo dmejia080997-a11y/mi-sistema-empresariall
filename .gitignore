@@ -4,3 +4,8 @@ package-lock.json
 *.log
 .pm2/
 .DS_Store
+/storage/
+/data/*.db
+/data/uploads/
+/backups/
+logs/

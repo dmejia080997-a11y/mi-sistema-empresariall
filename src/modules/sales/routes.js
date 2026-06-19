@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
+const { STORAGE_UPLOADS_DIR } = require('../../core/storage-paths');
 
 function registerSalesRoutes(app, deps) {
   const {
@@ -972,7 +973,7 @@ async function insertQuoteAttachments(db, companyId, quoteId, files, userId) {
 }
 
 function buildQuoteUpload() {
-  const uploadDir = path.resolve(path.join(__dirname, '..', '..', '..', 'data', 'uploads', 'sales', 'quotes'));
+  const uploadDir = path.resolve(path.join(STORAGE_UPLOADS_DIR, 'sales', 'quotes'));
   ensureDir(uploadDir);
   return multer({
     storage: multer.diskStorage({

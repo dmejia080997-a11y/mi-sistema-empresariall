@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
+const { STORAGE_UPLOADS_DIR } = require('../../core/storage-paths');
 const PDFDocument = require('pdfkit');
 
 const HR_TABS = [
@@ -62,7 +63,7 @@ function registerHrRoutes(app, deps) {
 
   initializeHrModule(db);
 
-  const uploadRoot = path.resolve(path.join(__dirname, '..', '..', '..', 'data', 'uploads', 'rrhh'));
+  const uploadRoot = path.resolve(path.join(STORAGE_UPLOADS_DIR, 'rrhh'));
   ensureDir(uploadRoot);
 
   const uploadDirs = {

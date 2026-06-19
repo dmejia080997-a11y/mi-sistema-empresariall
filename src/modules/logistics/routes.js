@@ -946,6 +946,7 @@ function resolveCompanyLogoPath(storedPath) {
   } else {
     const cleaned = raw.replace(/^uploads[\\/]/, '').replace(/^data[\\/]uploads[\\/]/, '');
     candidates.push(path.resolve(process.cwd(), raw));
+    candidates.push(path.resolve(process.cwd(), 'storage', 'uploads', cleaned));
     candidates.push(path.resolve(process.cwd(), 'data', 'uploads', cleaned));
   }
   return candidates.find((candidate) => {

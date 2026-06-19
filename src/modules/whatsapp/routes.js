@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const https = require('https');
 const multer = require('multer');
 const { buildMensajeriaMetaTabs } = require('../mensajeria-meta/routes');
+const { STORAGE_UPLOADS_DIR } = require('../../core/storage-paths');
 
 const WHATSAPP_ATTACHMENT_LIMIT_BYTES = 16 * 1024 * 1024;
 const META_GRAPH_VERSION = process.env.WHATSAPP_GRAPH_VERSION || 'v19.0';
@@ -33,7 +34,7 @@ function registerWhatsappRoutes(app, deps) {
     throw error;
   });
 
-  const uploadRoot = path.resolve(path.join(__dirname, '..', '..', '..', 'data', 'uploads', 'whatsapp'));
+  const uploadRoot = path.resolve(path.join(STORAGE_UPLOADS_DIR, 'whatsapp'));
   ensureDir(uploadRoot);
 
   const upload = multer({

@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
+const { STORAGE_UPLOADS_DIR } = require('../../core/storage-paths');
 
 const CHAT_ATTACHMENT_LIMIT_BYTES = 10 * 1024 * 1024;
 const CHAT_PROFILE_PHOTO_LIMIT_BYTES = 4 * 1024 * 1024;
@@ -171,7 +172,7 @@ function registerChatRoutes(app, deps) {
 
   initializeChatModule(db);
 
-  const chatUploadRoot = path.resolve(path.join(__dirname, '..', '..', '..', 'data', 'uploads', 'chat'));
+  const chatUploadRoot = path.resolve(path.join(STORAGE_UPLOADS_DIR, 'chat'));
   const chatProfileUploadRoot = path.resolve(path.join(chatUploadRoot, 'profiles'));
   ensureDir(chatUploadRoot);
   ensureDir(chatProfileUploadRoot);

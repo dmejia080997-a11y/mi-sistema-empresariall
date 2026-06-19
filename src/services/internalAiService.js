@@ -1,10 +1,11 @@
 const fs = require('fs');
 const path = require('path');
+const { STORAGE_UPLOADS_DIR } = require('../core/storage-paths');
 const XLSX = require('xlsx');
 const PDFDocument = require('pdfkit');
 const { stringify } = require('csv-stringify/sync');
 
-const EXPORT_ROOT = path.join(process.cwd(), 'data', 'uploads', 'ai');
+const EXPORT_ROOT = path.join(STORAGE_UPLOADS_DIR, 'ai');
 const BLOCKED_SQL = /\b(DROP|DELETE|UPDATE|INSERT|ALTER|TRUNCATE|EXEC|PRAGMA|ATTACH)\b/i;
 const SQL_LIKE = /\b(SELECT|FROM|WHERE|JOIN|UNION|TABLE|DATABASE)\b/i;
 const EXTERNAL_TOPICS = [
