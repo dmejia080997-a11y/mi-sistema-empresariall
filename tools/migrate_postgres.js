@@ -10,8 +10,10 @@ const SQLITE_DB_PATH = path.join(ROOT_DIR, 'data', 'app.db');
 const BACKUP_ROOT = path.join(ROOT_DIR, 'storage', 'backups');
 
 const summary = {
+  tablesCreated: 0,
   tablesMigrated: 0,
   recordsCopied: 0,
+  recordsSkipped: 0,
   errors: []
 };
 
@@ -56,10 +58,6 @@ function defaultExpression(defaultValue) {
   return '';
 }
 
-function savepointName(tableName) {
-  return `migrate_${Buffer.from(tableName).toString('hex').slice(0, 48)}`;
-}
-
 async function createBackup() {
   if (!fs.existsSync(SQLITE_DB_PATH)) {
     throw new Error(`SQLite database not found: ${SQLITE_DB_PATH}`);
@@ -84,6 +82,7 @@ async function getSqliteTables(db) {
 }
 
 async function createPostgresTable(pg, tableName, columns) {
+  const existed = await postgresTableExists(pg, tableName);
   const pkColumns = columns
     .filter((column) => Number(column.pk || 0) > 0)
     .sort((a, b) => Number(a.pk) - Number(b.pk))
@@ -106,7 +105,23 @@ async function createPostgresTable(pg, tableName, columns) {
 
   await pg.query(`CREATE TABLE IF NOT EXISTS ${quoteIdent(tableName)} (${definitions.join(', ')})`);
   await ensurePostgresColumns(pg, tableName, columns);
-  return pkColumns;
+  if (!existed) summary.tablesCreated += 1;
+  const hasConflictTarget = pkColumns.length > 0
+    && (!existed || await postgresHasUniqueConstraint(pg, tableName, pkColumns));
+  return { pkColumns, hasConflictTarget };
+}
+
+async function postgresTableExists(pg, tableName) {
+  const result = await pg.query(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM information_schema.tables
+       WHERE table_schema = current_schema()
+         AND table_name = $1
+     ) AS exists`,
+    [tableName]
+  );
+  return Boolean(result.rows[0] && result.rows[0].exists);
 }
 
 async function ensurePostgresColumns(pg, tableName, columns) {
@@ -132,6 +147,25 @@ async function tableHasRows(pg, tableName) {
   return Boolean(result.rows[0] && result.rows[0].has_rows);
 }
 
+async function postgresHasUniqueConstraint(pg, tableName, columns) {
+  const result = await pg.query(
+    `SELECT 1
+     FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = current_schema()
+       AND t.relname = $1
+       AND c.contype IN ('p', 'u')
+       AND (
+         SELECT array_agg(a.attname ORDER BY a.attname)
+         FROM unnest(c.conkey) AS key(attnum)
+         JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = key.attnum
+       ) = $2::text[]`,
+    [tableName, [...columns].sort()]
+  );
+  return result.rowCount > 0;
+}
+
 async function rowExistsByPrimaryKey(pg, tableName, pkColumns, row) {
   const params = pkColumns.map((name) => row[name]);
   if (params.some((value) => value === null || value === undefined)) return false;
@@ -146,7 +180,7 @@ async function rowExistsByPrimaryKey(pg, tableName, pkColumns, row) {
   return result.rowCount > 0;
 }
 
-async function insertRows(pg, tableName, columns, pkColumns, rows) {
+async function insertRows(pg, tableName, columns, pkColumns, hasConflictTarget, rows) {
   if (!rows.length) return 0;
 
   const columnNames = columns.map((column) => column.name);
@@ -154,14 +188,17 @@ async function insertRows(pg, tableName, columns, pkColumns, rows) {
   let copied = 0;
 
   for (const row of rows) {
-    if (pkColumns.length && await rowExistsByPrimaryKey(pg, tableName, pkColumns, row)) {
+    if (!hasConflictTarget && pkColumns.length && await rowExistsByPrimaryKey(pg, tableName, pkColumns, row)) {
       continue;
     }
 
     const values = columnNames.map((name) => row[name]);
     const params = values.map((_, index) => `$${index + 1}`).join(', ');
+    const conflictClause = hasConflictTarget
+      ? ` ON CONFLICT (${pkColumns.map(quoteIdent).join(', ')}) DO NOTHING`
+      : '';
     const result = await pg.query(
-      `INSERT INTO ${quoteIdent(tableName)} (${quotedColumns}) VALUES (${params})`,
+      `INSERT INTO ${quoteIdent(tableName)} (${quotedColumns}) VALUES (${params})${conflictClause}`,
       values
     );
     copied += Number(result.rowCount || 0);
@@ -177,7 +214,7 @@ async function migrateTable(sqliteDb, pg, tableName) {
     return;
   }
 
-  const pkColumns = await createPostgresTable(pg, tableName, columns);
+  const { pkColumns, hasConflictTarget } = await createPostgresTable(pg, tableName, columns);
   const sqliteCount = await sqliteGet(sqliteDb, `SELECT COUNT(*) AS count FROM ${quoteIdent(tableName)}`);
   const totalRows = Number(sqliteCount && sqliteCount.count ? sqliteCount.count : 0);
 
@@ -188,16 +225,19 @@ async function migrateTable(sqliteDb, pg, tableName) {
   }
 
   if (!pkColumns.length && await tableHasRows(pg, tableName)) {
-    console.log(`SKIP ${tableName}: PostgreSQL table has data and SQLite table has no primary key`);
+    summary.recordsSkipped += totalRows;
+    console.log(`SKIP ${tableName}: PostgreSQL table has data and SQLite table has no primary key (${totalRows} records skipped)`);
     summary.tablesMigrated += 1;
     return;
   }
 
   const rows = await sqliteAll(sqliteDb, `SELECT * FROM ${quoteIdent(tableName)}`);
-  const copied = await insertRows(pg, tableName, columns, pkColumns, rows);
+  const copied = await insertRows(pg, tableName, columns, pkColumns, hasConflictTarget, rows);
+  const skipped = rows.length - copied;
   summary.tablesMigrated += 1;
   summary.recordsCopied += copied;
-  console.log(`OK ${tableName}: copied ${copied}/${rows.length} records`);
+  summary.recordsSkipped += skipped;
+  console.log(`OK ${tableName}: copied ${copied}/${rows.length} records, skipped ${skipped}`);
 }
 
 async function main() {
@@ -210,37 +250,36 @@ async function main() {
 
   const sqliteDb = new sqlite3.Database(SQLITE_DB_PATH, sqlite3.OPEN_READONLY);
   const pg = createPostgresPool(config);
+  let inTransaction = false;
 
   try {
     await pg.query('BEGIN');
+    inTransaction = true;
     const tables = await getSqliteTables(sqliteDb);
 
     for (const table of tables) {
-      const sp = savepointName(table.name);
-      await pg.query(`SAVEPOINT ${quoteIdent(sp)}`);
-      try {
-        await migrateTable(sqliteDb, pg, table.name);
-        await pg.query(`RELEASE SAVEPOINT ${quoteIdent(sp)}`);
-      } catch (err) {
-        await pg.query(`ROLLBACK TO SAVEPOINT ${quoteIdent(sp)}`);
-        await pg.query(`RELEASE SAVEPOINT ${quoteIdent(sp)}`);
-        summary.errors.push({ table: table.name, message: err.message });
-        console.error(`ERROR ${table.name}: ${err.message}`);
-      }
+      await migrateTable(sqliteDb, pg, table.name);
     }
 
     await pg.query('COMMIT');
+    inTransaction = false;
   } catch (err) {
-    await pg.query('ROLLBACK');
-    throw err;
+    summary.errors.push({ table: 'migration', message: err.message });
+    if (inTransaction) {
+      await pg.query('ROLLBACK');
+      inTransaction = false;
+    }
+    console.error(`ERROR migration: ${err.message}`);
   } finally {
     await pg.end();
     sqliteDb.close();
   }
 
   console.log('Migration summary');
+  console.log(`Tables created: ${summary.tablesCreated}`);
   console.log(`Tables migrated: ${summary.tablesMigrated}`);
   console.log(`Records copied: ${summary.recordsCopied}`);
+  console.log(`Records skipped: ${summary.recordsSkipped}`);
   console.log(`Errors: ${summary.errors.length}`);
   summary.errors.forEach((err) => console.log(`- ${err.table}: ${err.message}`));
 
