@@ -1,0 +1,132 @@
+<% const v = (name) => (awb && awb[name]) || ''; %>
+<% const cargo = awb.cargo_items || [{ dimensions_rows: [{}] }]; %>
+<% if (error) { %><div class="alert error"><%= error %></div><% } %>
+<form class="awb-form" method="POST" action="<%= action %>">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+  <input type="hidden" name="tipo_awb" value="<%= v('tipo_awb') || 'MAWB' %>" />
+  <input type="hidden" name="parent_awb_id" value="<%= v('parent_awb_id') || '' %>" />
+
+  <nav class="awb-tabs" data-awb-tabs>
+    <% ['General','Shipper','Consignee','Routing','Mercancía','Dimensiones','Cargos','Documentos','Auditoría'].forEach((tab, index) => { %>
+      <button type="button" class="<%= index === 0 ? 'active' : '' %>" data-tab="<%= index %>"><%= tab %></button>
+    <% }) %>
+  </nav>
+
+  <section class="form-card awb-tab active" data-tab-panel="0">
+    <h2>Información General</h2>
+    <% if (v('parent_numero_awb')) { %><p class="helper">Referencia MAWB padre: <strong><%= v('parent_numero_awb') %></strong></p><% } %>
+    <div class="form-grid">
+      <label>Tipo AWB<input value="<%= typeMeta[v('tipo_awb') || 'MAWB'].label %>" readonly /></label>
+      <label>Número AWB<input value="<%= v('numero_awb') || 'Automático' %>" readonly /></label>
+      <label>Fecha emisión<input type="date" name="fecha_emision" value="<%= v('fecha_emision') %>" /></label>
+      <label>Lugar emisión<input name="lugar_emision" value="<%= v('lugar_emision') %>" /></label>
+      <label class="full-row">Observaciones<textarea name="observaciones"><%= v('observaciones') %></textarea></label>
+      <label class="full-row">Condiciones transporte<textarea name="condiciones_transporte"><%= v('condiciones_transporte') %></textarea></label>
+      <label class="full-row">Instrucciones especiales<textarea name="instrucciones_especiales"><%= v('instrucciones_especiales') %></textarea></label>
+    </div>
+  </section>
+
+  <section class="form-card awb-tab" data-tab-panel="1">
+    <h2>Shipper</h2>
+    <div class="form-grid">
+      <label>Nombre<input name="shipper_nombre" value="<%= v('shipper_nombre') %>" /></label><label>NIT<input name="shipper_nit" value="<%= v('shipper_nit') %>" /></label><label>Contacto<input name="shipper_contacto" value="<%= v('shipper_contacto') %>" /></label>
+      <label>Ciudad<input name="shipper_ciudad" value="<%= v('shipper_ciudad') %>" /></label><label>País<input name="shipper_pais" value="<%= v('shipper_pais') %>" /></label><label>Teléfono<input name="shipper_telefono" value="<%= v('shipper_telefono') %>" /></label>
+      <label>Email<input type="email" name="shipper_email" value="<%= v('shipper_email') %>" /></label><label class="full-row">Dirección<textarea name="shipper_direccion"><%= v('shipper_direccion') %></textarea></label>
+    </div>
+  </section>
+
+  <section class="form-card awb-tab" data-tab-panel="2">
+    <h2>Consignee / Notify Party</h2>
+    <div class="form-grid">
+      <label>Consignee nombre<input name="consignee_nombre" value="<%= v('consignee_nombre') %>" /></label><label>NIT<input name="consignee_nit" value="<%= v('consignee_nit') %>" /></label><label>Contacto<input name="consignee_contacto" value="<%= v('consignee_contacto') %>" /></label>
+      <label>Ciudad<input name="consignee_ciudad" value="<%= v('consignee_ciudad') %>" /></label><label>País<input name="consignee_pais" value="<%= v('consignee_pais') %>" /></label><label>Teléfono<input name="consignee_telefono" value="<%= v('consignee_telefono') %>" /></label>
+      <label>Email<input type="email" name="consignee_email" value="<%= v('consignee_email') %>" /></label><label class="full-row">Dirección<textarea name="consignee_direccion"><%= v('consignee_direccion') %></textarea></label>
+      <label>Notify nombre<input name="notify_nombre" value="<%= v('notify_nombre') %>" /></label><label>Notify teléfono<input name="notify_telefono" value="<%= v('notify_telefono') %>" /></label><label>Notify email<input type="email" name="notify_email" value="<%= v('notify_email') %>" /></label>
+      <label class="full-row">Notify dirección<textarea name="notify_direccion"><%= v('notify_direccion') %></textarea></label>
+    </div>
+  </section>
+
+  <section class="form-card awb-tab" data-tab-panel="3">
+    <h2>Routing / Agentes / Aerolínea</h2>
+    <div class="form-grid">
+      <label>Agente origen<input name="agent_nombre" value="<%= v('agent_nombre') %>" /></label><label>IATA<input name="agent_iata" value="<%= v('agent_iata') %>" /></label><label>Teléfono agente<input name="agent_telefono" value="<%= v('agent_telefono') %>" /></label>
+      <label>Email agente<input type="email" name="agent_email" value="<%= v('agent_email') %>" /></label><label class="full-row">Dirección agente<textarea name="agent_direccion"><%= v('agent_direccion') %></textarea></label>
+      <label>Agente destino<input name="destination_agent" value="<%= v('destination_agent') %>" /></label><label>Teléfono destino<input name="destination_agent_phone" value="<%= v('destination_agent_phone') %>" /></label><label>Email destino<input type="email" name="destination_agent_email" value="<%= v('destination_agent_email') %>" /></label>
+      <label class="full-row">Dirección agente destino<textarea name="destination_agent_address"><%= v('destination_agent_address') %></textarea></label>
+      <label>Aerolínea<input name="airline_name" value="<%= v('airline_name') %>" /></label><label>Código<input name="airline_code" value="<%= v('airline_code') %>" /></label><label>Prefijo<input name="airline_prefix" value="<%= v('airline_prefix') %>" /></label>
+      <label>Origen<input name="airport_origin" value="<%= v('airport_origin') %>" /></label><label>Destino<input name="airport_destination" value="<%= v('airport_destination') %>" /></label><label>Tránsito 1<input name="airport_transit_1" value="<%= v('airport_transit_1') %>" /></label>
+      <label>Tránsito 2<input name="airport_transit_2" value="<%= v('airport_transit_2') %>" /></label><label>Tránsito 3<input name="airport_transit_3" value="<%= v('airport_transit_3') %>" /></label>
+      <label>Vuelo 1<input name="flight_number_1" value="<%= v('flight_number_1') %>" /></label><label>Vuelo 2<input name="flight_number_2" value="<%= v('flight_number_2') %>" /></label><label>Vuelo 3<input name="flight_number_3" value="<%= v('flight_number_3') %>" /></label>
+      <label>Fecha vuelo 1<input type="date" name="flight_date_1" value="<%= v('flight_date_1') %>" /></label><label>Fecha vuelo 2<input type="date" name="flight_date_2" value="<%= v('flight_date_2') %>" /></label><label>Fecha vuelo 3<input type="date" name="flight_date_3" value="<%= v('flight_date_3') %>" /></label>
+    </div>
+  </section>
+
+  <section class="form-card awb-tab" data-tab-panel="4">
+    <div class="card-title-row"><h2>Mercancía</h2><button class="btn small" type="button" data-add-cargo>Agregar mercancía</button></div>
+    <div class="items-list" data-cargo-list>
+      <% cargo.forEach((item, index) => { %>
+        <div class="cargo-item" data-cargo-row>
+          <label>Pieces<input type="number" step="0.01" name="cargo_items[<%= index %>][pieces]" value="<%= item.pieces || '' %>" /></label>
+          <label>Package Type<input name="cargo_items[<%= index %>][package_type]" value="<%= item.package_type || '' %>" /></label>
+          <label>HS Code<input name="cargo_items[<%= index %>][hs_code]" value="<%= item.hs_code || '' %>" /></label>
+          <label>Gross Weight<input type="number" step="0.01" name="cargo_items[<%= index %>][gross_weight]" value="<%= item.gross_weight || '' %>" data-gross /></label>
+          <label>Volumetric Weight<input type="number" step="0.01" name="cargo_items[<%= index %>][volume_weight]" value="<%= item.volume_weight || '' %>" data-volume-weight /></label>
+          <label>Chargeable Weight<input type="number" step="0.01" name="cargo_items[<%= index %>][chargeable_weight]" value="<%= item.chargeable_weight || '' %>" data-chargeable /></label>
+          <label>CBM<input type="number" step="0.001" name="cargo_items[<%= index %>][volume_cbm]" value="<%= item.volume_cbm || '' %>" /></label>
+          <label>Valor aduana<input type="number" step="0.01" name="cargo_items[<%= index %>][declared_value_customs]" value="<%= item.declared_value_customs || '' %>" /></label>
+          <label>Valor transporte<input type="number" step="0.01" name="cargo_items[<%= index %>][declared_value_carriage]" value="<%= item.declared_value_carriage || '' %>" /></label>
+          <label class="wide">Descripción<textarea name="cargo_items[<%= index %>][description_goods]"><%= item.description_goods || '' %></textarea></label>
+          <label class="wide">Dimensions texto<textarea name="cargo_items[<%= index %>][dimensions]"><%= item.dimensions || '' %></textarea></label>
+          <label class="wide">Handling Information<textarea name="cargo_items[<%= index %>][handling_information]"><%= item.handling_information || '' %></textarea></label>
+          <label class="wide">Marks / Numbers<textarea name="cargo_items[<%= index %>][marks_numbers]"><%= item.marks_numbers || '' %></textarea></label>
+          <label class="check"><input type="checkbox" name="cargo_items[<%= index %>][dangerous_goods]" value="1" <%= item.dangerous_goods ? 'checked' : '' %> /> Mercancías peligrosas</label>
+          <label>UN Number<input name="cargo_items[<%= index %>][un_number]" value="<%= item.un_number || '' %>" /></label><label>IMO Class<input name="cargo_items[<%= index %>][imo_class]" value="<%= item.imo_class || '' %>" /></label><label>Packing Group<input name="cargo_items[<%= index %>][packing_group]" value="<%= item.packing_group || '' %>" /></label>
+          <label class="check"><input type="checkbox" name="cargo_items[<%= index %>][temperature_controlled]" value="1" <%= item.temperature_controlled ? 'checked' : '' %> /> Control temperatura</label><label>Temperatura requerida<input name="cargo_items[<%= index %>][temperature_required]" value="<%= item.temperature_required || '' %>" /></label>
+          <button class="btn small danger" type="button" data-remove-row>Quitar</button>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+
+  <section class="form-card awb-tab" data-tab-panel="5">
+    <h2>Dimensiones</h2>
+    <p class="helper">Volumen: L x W x H x cantidad / 6000. El peso cobrable usa el mayor entre bruto y volumétrico.</p>
+    <div class="items-list" data-dimensions-wrapper>
+      <% cargo.forEach((item, cargoIndex) => { const dims = item.dimensions_rows || [{}]; %>
+        <div class="dimension-group" data-dimension-group="<%= cargoIndex %>">
+          <div class="card-title-row"><h3>Mercancía <%= cargoIndex + 1 %></h3><button class="btn small" type="button" data-add-dimension>Agregar dimensión</button></div>
+          <div class="items-list" data-dimension-list>
+            <% dims.forEach((dim, dimIndex) => { %>
+              <div class="dimension-row" data-dimension-row>
+                <label>Cantidad<input type="number" step="0.01" name="cargo_items[<%= cargoIndex %>][dimensions_rows][<%= dimIndex %>][quantity]" value="<%= dim.quantity || '' %>" data-dim-qty /></label>
+                <label>Largo<input type="number" step="0.01" name="cargo_items[<%= cargoIndex %>][dimensions_rows][<%= dimIndex %>][length]" value="<%= dim.length || '' %>" data-dim-length /></label>
+                <label>Ancho<input type="number" step="0.01" name="cargo_items[<%= cargoIndex %>][dimensions_rows][<%= dimIndex %>][width]" value="<%= dim.width || '' %>" data-dim-width /></label>
+                <label>Alto<input type="number" step="0.01" name="cargo_items[<%= cargoIndex %>][dimensions_rows][<%= dimIndex %>][height]" value="<%= dim.height || '' %>" data-dim-height /></label>
+                <label>Unidad<select name="cargo_items[<%= cargoIndex %>][dimensions_rows][<%= dimIndex %>][unit]"><option value="CM" <%= (dim.unit || 'CM') === 'CM' ? 'selected' : '' %>>CM</option><option value="IN" <%= dim.unit === 'IN' ? 'selected' : '' %>>IN</option></select></label>
+                <label>Peso<input type="number" step="0.01" name="cargo_items[<%= cargoIndex %>][dimensions_rows][<%= dimIndex %>][weight]" value="<%= dim.weight || '' %>" /></label>
+                <button class="btn small danger" type="button" data-remove-row>Quitar</button>
+              </div>
+            <% }) %>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+
+  <section class="form-card awb-tab" data-tab-panel="6">
+    <h2>Cargos</h2>
+    <div class="form-grid">
+      <label>Freight Prepaid<input type="number" step="0.01" name="freight_prepaid" value="<%= v('freight_prepaid') %>" /></label><label>Freight Collect<input type="number" step="0.01" name="freight_collect" value="<%= v('freight_collect') %>" /></label><label>Other Charges<input type="number" step="0.01" name="other_charges" value="<%= v('other_charges') %>" /></label>
+      <label>Currency<input name="currency" value="<%= v('currency') || 'USD' %>" /></label><label>Insurance Amount<input type="number" step="0.01" name="insurance_amount" value="<%= v('insurance_amount') %>" /></label>
+    </div>
+  </section>
+
+  <section class="form-card awb-tab" data-tab-panel="7"><h2>Documentos</h2><p class="helper">Estructura reservada para integrar manifiestos aéreos, consolidados, tracking, facturación, aduanas y cotizaciones.</p></section>
+  <section class="form-card awb-tab" data-tab-panel="8"><h2>Auditoría</h2><p class="helper">La creación, edición, emisión, anulación, impresión, PDF, creación HAWB y duplicación se registran en auditoría.</p></section>
+
+  <div class="form-actions sticky-actions">
+    <button class="btn" type="submit" name="action" value="borrador">Guardar borrador</button>
+    <button class="btn primary" type="submit" name="action" value="emitir">Emitir</button>
+    <a class="btn" href="/air-waybills">Cancelar</a>
+  </div>
+</form>

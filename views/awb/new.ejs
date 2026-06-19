@@ -1,0 +1,15 @@
+<%- include('../partials/head', { title: 'Nueva AWB', extraStyles: ['/css/awb.css'] }) %>
+<%- include('../partials/header', { currentModule: 'awb' }) %>
+<%- include('../partials/toasts') %>
+
+<main class="container awb-page">
+  <div class="page-header">
+    <div>
+      <h1>Nueva Guía Aérea</h1>
+      <p class="muted">Documentos de Transporte · Air Waybill</p>
+    </div>
+    <a class="btn" href="/air-waybills">Cancelar</a>
+  </div>
+  <%- include('_form', { awb, action: '/air-waybills', error: typeof error !== 'undefined' ? error : null, types, statuses, typeMeta }) %>
+</main>
+<script src="/js/awb/form.js" defer></script>

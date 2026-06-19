@@ -1,0 +1,57 @@
+<%- include('../partials/head', { title: 'BL ' + bl.numero_bl, extraStyles: ['/css/bl.css'] }) %>
+<%- include('../partials/header', { currentModule: 'bl' }) %>
+<%- include('../partials/toasts') %>
+
+<main class="container bl-page">
+  <div class="page-header">
+    <div>
+      <h1><%= bl.numero_bl %></h1>
+      <p class="muted"><%= bl.type_label %> · <%= bl.estado %></p>
+    </div>
+    <div class="actions">
+      <a class="btn" href="/bill-of-lading">Listado</a>
+      <a class="btn" href="/bill-of-lading/tree">Ver arbol</a>
+      <% if (bl.parent_bl_id) { %><a class="btn" href="/bill-of-lading/<%= bl.parent_bl_id %>">Ver BL padre</a><% } %>
+      <% if (bl.estado === 'Borrador' && can('bl', 'editar')) { %><a class="btn" href="/bill-of-lading/<%= bl.id %>/edit">Editar</a><% } %>
+      <% if (can('bl', 'imprimir')) { %><a class="btn" href="/bill-of-lading/<%= bl.id %>/print" target="_blank" rel="noopener">Imprimir</a><% } %>
+      <% if (can('bl', 'descargar_pdf')) { %><a class="btn primary" href="/bill-of-lading/<%= bl.id %>/pdf">Descargar PDF</a><% } %>
+    </div>
+  </div>
+
+  <section class="form-card">
+    <div class="summary-grid">
+      <div><span>Tipo</span><strong><%= bl.type_label %></strong></div>
+      <div><span>Padre</span><strong><%= bl.parent_numero_bl || '-' %></strong></div>
+      <% if (bl.master) { %><div><span>Master</span><strong><%= bl.master.numero_bl %></strong></div><% } %>
+      <div><span>Fecha</span><strong><%= bl.fecha_emision || '-' %></strong></div>
+      <div><span>Ruta</span><strong><%= bl.port_of_loading || '-' %> / <%= bl.port_of_discharge || '-' %></strong></div>
+      <div><span>Buque / Viaje</span><strong><%= bl.vessel || '-' %> / <%= bl.voyage || '-' %></strong></div>
+      <div><span>Contenedores</span><strong><%= bl.total_containers || 0 %></strong></div>
+      <div><span>Bultos</span><strong><%= bl.total_packages || 0 %></strong></div>
+      <div><span>Peso bruto</span><strong><%= bl.total_gross_weight || 0 %></strong></div>
+      <div><span>CBM</span><strong><%= bl.total_cbm || 0 %></strong></div>
+    </div>
+  </section>
+
+  <section class="form-card">
+    <div class="card-title-row">
+      <h2>Acciones</h2>
+      <div class="row-actions">
+        <% if (bl.nivel_bl === 'MASTER' && can('bl', 'crear_hijo')) { %><form method="POST" action="/bill-of-lading/<%= bl.id %>/create-child"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn" type="submit">Crear BL Hijo</button></form><% } %>
+        <% if (bl.nivel_bl === 'HOUSE' && can('bl', 'crear_nieto')) { %><form method="POST" action="/bill-of-lading/<%= bl.id %>/create-child"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn" type="submit">Crear BL Nieto</button></form><% } %>
+        <% if (can('bl', 'crear')) { %><form method="POST" action="/bill-of-lading/<%= bl.id %>/duplicate"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn" type="submit">Duplicar</button></form><% } %>
+        <% if (can('bl', 'crear')) { %><form method="POST" action="/bill-of-lading/<%= bl.id %>/duplicate"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><input type="hidden" name="with_children" value="1" /><button class="btn" type="submit">Duplicar con hijos</button></form><% } %>
+        <% if (bl.estado !== 'Anulado' && can('bl', 'anular')) { %><form method="POST" action="/bill-of-lading/<%= bl.id %>/void" onsubmit="return confirm('Anular este BL?');"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn danger" type="submit">Anular</button></form><% } %>
+      </div>
+    </div>
+    <% if (bl.children && bl.children.length) { %>
+      <div class="child-list">
+        <% bl.children.forEach((child) => { %><a href="/bill-of-lading/<%= child.id %>"><%= child.numero_bl %> · <%= child.type_label %></a><% }) %>
+      </div>
+    <% } else { %>
+      <p class="helper">Sin BL hijos.</p>
+    <% } %>
+  </section>
+
+  <iframe title="Vista previa BL" src="/bill-of-lading/<%= bl.id %>/print" class="print-preview"></iframe>
+</main>

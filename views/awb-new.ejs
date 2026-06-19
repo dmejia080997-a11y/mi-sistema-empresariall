@@ -62,10 +62,20 @@
 </div>
 <div class="grid-2">
 <label>
+<%= t('awb.document_type') %>
+<select name="document_type" data-document-type>
+<option value="bl"><%= t('awb.document_type.bl') %></option>
+<option value="awb" selected><%= t('awb.document_type.awb') %></option>
+<option value="carta_porte"><%= t('awb.document_type.carta_porte') %></option>
+</select>
+</label>
+<label>
 <%= t('awb.awb_type') %>
 <select name="awb_type">
 <option value="MAWB">MAWB</option>
 <option value="HAWB">HAWB</option>
+<option value="Original">Original</option>
+<option value="Copia">Copia</option>
 </select>
 </label>
 <label>
@@ -332,6 +342,7 @@
 </div>
 </form>
 </main>
+<script src="/js/transport-documents.js" defer></script>
 <script src="/status-footer.js" defer></script>
 </body>
 </html>

@@ -21,8 +21,73 @@ function registerAuthRoutes(app, deps) {
     createCompanySlug,
     DEFAULT_LANG,
     SUPPORTED_LANGS,
-    SESSION_COOKIE_NAME
+    SESSION_COOKIE_NAME,
+    buildFileUrl
   } = deps;
+
+  function normalizeCompanyNit(value) {
+    return normalizeString(value).replace(/[\s-]/g, '').toUpperCase();
+  }
+
+  function buildLoginCompany(company) {
+    if (!company) return null;
+    const primaryColor = company.primary_color || '#d97757';
+    const secondaryColor = company.secondary_color || '#3d7b6f';
+    const backgroundColor = company.theme_background_color || '#f8f5ee';
+    const titleColor = company.theme_title_color || '#1c1b1a';
+    const textColor = company.theme_text_color || '#1c1b1a';
+    return {
+      id: company.id,
+      name: resolveCompanyDisplayName(company),
+      nit: company.nit || null,
+      logo: typeof buildFileUrl === 'function' ? buildFileUrl(company.logo || null) : null,
+      primary_color: primaryColor,
+      secondary_color: secondaryColor,
+      background_color: backgroundColor,
+      title_color: titleColor,
+      text_color: textColor,
+      font_family: company.theme_font_family || 'space-grotesk',
+      theme_style: [
+        `--accent:${primaryColor}`,
+        `--accent-2:${secondaryColor}`,
+        `--bg:${backgroundColor}`,
+        `--ink:${textColor}`,
+        `--title-color:${titleColor}`
+      ].join(';')
+    };
+  }
+
+  function renderLogin(res, options = {}) {
+    return res.render('login', {
+      error: options.error || null,
+      loginCompany: options.loginCompany || null
+    });
+  }
+
+  function loadLoginCompanyById(id, callback) {
+    return db.get(
+      `SELECT id, name, legal_name, commercial_name, nit, logo, primary_color, secondary_color,
+              theme_background_color, theme_title_color, theme_text_color, theme_font_family
+       FROM companies
+       WHERE id = ?
+       LIMIT 1`,
+      [id],
+      callback
+    );
+  }
+
+  function loadDefaultLoginCompany(callback) {
+    return db.get(
+      `SELECT id, name, legal_name, commercial_name, nit, logo, primary_color, secondary_color,
+              theme_background_color, theme_title_color, theme_text_color, theme_font_family
+       FROM companies
+       WHERE COALESCE(is_active, 1) != 0
+         AND COALESCE(TRIM(nit), '') != ''
+       ORDER BY id DESC
+       LIMIT 1`,
+      callback
+    );
+  }
 
   app.get('/', (req, res) => {
     if (req.session && req.session.master) return res.redirect('/master');
@@ -39,35 +104,106 @@ function registerAuthRoutes(app, deps) {
       const companySlug = createCompanySlug(req.session.company_slug || (req.session.company && req.session.company.slug) || req.session.company_name);
       return res.redirect(companySlug ? `/${companySlug}/panel` : '/login');
     }
-    return res.render('login', { error: null });
+    if (req.session && req.session.login_company_id) {
+      return loadLoginCompanyById(req.session.login_company_id, (err, company) => {
+          if (err || !company) {
+            delete req.session.login_company_id;
+            return loadDefaultLoginCompany((defaultErr, defaultCompany) => {
+              if (!defaultErr && defaultCompany) {
+                req.session.login_company_id = defaultCompany.id;
+                return renderLogin(res, { loginCompany: buildLoginCompany(defaultCompany) });
+              }
+              return renderLogin(res);
+            });
+          }
+          return renderLogin(res, { loginCompany: buildLoginCompany(company) });
+        }
+      );
+    }
+    if (req.session && req.session.skip_default_login_company) {
+      delete req.session.skip_default_login_company;
+      return renderLogin(res);
+    }
+    return loadDefaultLoginCompany((err, company) => {
+      if (!err && company) {
+        req.session.login_company_id = company.id;
+        return renderLogin(res, { loginCompany: buildLoginCompany(company) });
+      }
+      return renderLogin(res);
+    });
   });
 
   app.post('/login', (req, res) => {
     if (req.session && req.session.master && !req.session.user) {
       req.session.master = false;
     }
-    const companyUsername = normalizeString(req.body.company_username);
+    const companyNit = normalizeCompanyNit(req.body.company_nit || req.body.company_username);
     const username = normalizeString(req.body.username);
     const password = normalizeString(req.body.password);
-    const loginKey = `${getClientIp(req)}|${String(companyUsername || '').toLowerCase()}|${String(username || '').toLowerCase()}`;
+    const loginCompanyId = req.session && req.session.login_company_id ? Number(req.session.login_company_id) : null;
     const now = Date.now();
-    if (!companyUsername || !username || !password) {
-      return res.render('login', { error: res.locals.t('errors.username_password_required') });
-    }
-    if (!rateLimiter.hit(loginRateLimit, loginKey, AUTH_LIMIT_WINDOW_MS, LOGIN_LIMIT_MAX, now)) {
-      return res.render('login', { error: res.locals.t('errors.invalid_credentials') });
+
+    if (companyNit && (!username || !password)) {
+      return db.get(
+        `SELECT *
+         FROM companies
+         WHERE REPLACE(REPLACE(UPPER(COALESCE(nit, '')), '-', ''), ' ', '') = ?
+         LIMIT 1`,
+        [companyNit],
+        (compErr, company) => {
+          if (compErr) {
+            return renderLogin(res, { error: res.locals.t('errors.server_try_again') });
+          }
+          if (!company) {
+            return renderLogin(res, { error: res.locals.t('errors.invalid_nit') });
+          }
+          if (company.is_active === 0 || company.is_active === '0') {
+            return renderLogin(res, { error: res.locals.t('errors.company_inactive') });
+          }
+          if (isCompanyExpired(company)) {
+            return renderLogin(res, { error: res.locals.t('errors.company_expired') });
+          }
+          delete req.session.skip_default_login_company;
+          req.session.login_company_id = company.id;
+          return renderLogin(res, { loginCompany: buildLoginCompany(company) });
+        }
+      );
     }
 
-    db.get('SELECT * FROM companies WHERE username = ? LIMIT 1', [companyUsername], (compErr, company) => {
-      if (compErr || !company) {
+    if ((!loginCompanyId && !companyNit) || !username || !password) {
+      return renderLogin(res, { error: res.locals.t('errors.username_password_required') });
+    }
+
+    const loginKey = `${getClientIp(req)}|${String(loginCompanyId || companyNit || '').toLowerCase()}|${String(username || '').toLowerCase()}`;
+    if (!rateLimiter.hit(loginRateLimit, loginKey, AUTH_LIMIT_WINDOW_MS, LOGIN_LIMIT_MAX, now)) {
+      return renderLogin(res, { error: res.locals.t('errors.invalid_credentials') });
+    }
+
+    const companySql = loginCompanyId
+      ? 'SELECT * FROM companies WHERE id = ? LIMIT 1'
+      : `SELECT * FROM companies
+         WHERE REPLACE(REPLACE(UPPER(COALESCE(nit, '')), '-', ''), ' ', '') = ?
+         LIMIT 1`;
+    const companyParams = [loginCompanyId || companyNit];
+
+    db.get(companySql, companyParams, (compErr, company) => {
+      const loginCompany = buildLoginCompany(company);
+      if (compErr) {
         console.log('[login] usuario encontrado=false company_id=null role=null redirect=null');
-        return res.render('login', { error: res.locals.t('errors.invalid_credentials') });
+        return renderLogin(res, { error: res.locals.t('errors.server_try_again') });
+      }
+      if (!company) {
+        console.log('[login] usuario encontrado=false company_id=null role=null redirect=null');
+        return renderLogin(res, { error: res.locals.t('errors.invalid_nit') });
+      }
+      if (!loginCompanyId) {
+        req.session.login_company_id = company.id;
       }
       if (company.is_active === 0 || company.is_active === '0') {
-        return res.render('login', { error: res.locals.t('errors.company_inactive') });
+        return renderLogin(res, { error: res.locals.t('errors.company_inactive'), loginCompany });
       }
       if (isCompanyExpired(company)) {
-        return res.render('login', { error: res.locals.t('errors.company_expired') });
+        return renderLogin(res, { error: res.locals.t('errors.company_expired'), loginCompany });
       }
 
       db.get(
@@ -76,23 +212,23 @@ function registerAuthRoutes(app, deps) {
         (userErr, user) => {
           if (userErr || !user || !user.password_hash) {
             console.log(`[login] usuario encontrado=false company_id=${company.id} role=null redirect=null`);
-            return res.render('login', { error: res.locals.t('errors.invalid_credentials') });
+            return renderLogin(res, { error: res.locals.t('errors.invalid_credentials'), loginCompany });
           }
           if (user.is_active === 0) {
             console.log(`[login] usuario encontrado=true company_id=${company.id} role=${user.role || null} redirect=null`);
-            return res.render('login', { error: res.locals.t('errors.invalid_credentials') });
+            return renderLogin(res, { error: res.locals.t('errors.invalid_credentials'), loginCompany });
           }
           const ok = bcrypt.compareSync(password, user.password_hash);
           if (!ok) {
             console.log(`[login] usuario encontrado=true company_id=${company.id} role=${user.role || null} redirect=null`);
-            return res.render('login', { error: res.locals.t('errors.invalid_credentials') });
+            return renderLogin(res, { error: res.locals.t('errors.invalid_credentials'), loginCompany });
           }
           loginRateLimit.delete(loginKey);
           const previousLang = req.session && req.session.lang ? req.session.lang : DEFAULT_LANG;
           req.session.regenerate((regenErr) => {
             if (regenErr) {
               console.error('[login] session regenerate failed', regenErr);
-              return res.render('login', { error: res.locals.t('errors.server_try_again') });
+              return renderLogin(res, { error: res.locals.t('errors.server_try_again'), loginCompany });
             }
             req.session.lang = SUPPORTED_LANGS[previousLang] ? previousLang : DEFAULT_LANG;
             const companyName = typeof company.name === 'string' ? company.name.trim() : '';
@@ -125,6 +261,7 @@ function registerAuthRoutes(app, deps) {
               legal_name: company.legal_name || null,
               display_name: resolveCompanyDisplayName(company),
               username: company.username,
+              nit: company.nit || null,
               currency: company.currency,
               base_currency: baseCurrency,
               allowed_currencies: allowedCurrencies,
@@ -171,6 +308,14 @@ function registerAuthRoutes(app, deps) {
     });
   });
 
+  app.post('/login/company/reset', (req, res) => {
+    if (req.session) {
+      delete req.session.login_company_id;
+      req.session.skip_default_login_company = true;
+    }
+    return res.redirect('/login');
+  });
+
   app.get('/logout', (req, res) => {
     if (!req.session) {
       return res.redirect('/login');
@@ -204,6 +349,7 @@ function registerAuthRoutes(app, deps) {
   app.get('/files/:token', (req, res) => {
     const filePath = verifyFileToken(req.params.token);
     if (!filePath) return res.status(404).send('Not found');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     return res.sendFile(filePath);
   });
 

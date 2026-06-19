@@ -1,0 +1,42 @@
+<%- include('../partials/head', { title: 'Arbol BL', extraStyles: ['/css/bl.css'] }) %>
+<%- include('../partials/header', { currentModule: 'bl' }) %>
+<%- include('../partials/toasts') %>
+
+<% const renderNode = (node) => { %>
+  <li class="tree-node tree-<%= String(node.nivel_bl).toLowerCase() %>">
+    <div class="tree-card">
+      <strong><%= node.numero_bl %></strong>
+      <span><%= levelMeta[node.nivel_bl].label %> · <%= node.estado %></span>
+      <div class="row-actions">
+        <a class="btn small" href="/bill-of-lading/<%= node.id %>">Ver</a>
+        <% if (node.nivel_bl === 'MASTER' && can('bl', 'crear_hijo')) { %><form method="POST" action="/bill-of-lading/<%= node.id %>/create-child"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn small" type="submit">Crear BL Hijo</button></form><% } %>
+        <% if (node.nivel_bl === 'HOUSE' && can('bl', 'crear_nieto')) { %><form method="POST" action="/bill-of-lading/<%= node.id %>/create-child"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn small" type="submit">Crear BL Nieto</button></form><% } %>
+      </div>
+    </div>
+    <% if (node.children && node.children.length) { %>
+      <ul>
+        <% node.children.forEach((child) => { renderNode(child); }) %>
+      </ul>
+    <% } %>
+  </li>
+<% } %>
+
+<main class="container bl-page">
+  <div class="page-header">
+    <div>
+      <h1>Jerarquia Bill of Lading</h1>
+      <p class="muted">Master BL -> House BL -> Sub House BL</p>
+    </div>
+    <div class="actions">
+      <a class="btn" href="/bill-of-lading">Listado</a>
+      <% if (can('bl', 'crear')) { %><a class="btn primary" href="/bill-of-lading/new">Nuevo BL</a><% } %>
+    </div>
+  </div>
+  <% if (!tree.length) { %>
+    <section class="form-card"><p class="helper">No hay jerarquia registrada.</p></section>
+  <% } else { %>
+    <ul class="bl-tree">
+      <% tree.forEach((node) => { renderNode(node); }) %>
+    </ul>
+  <% } %>
+</main>

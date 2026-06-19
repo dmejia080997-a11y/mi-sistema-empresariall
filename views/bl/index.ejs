@@ -1,0 +1,73 @@
+<%- include('../partials/head', { title: 'Bill of Lading / BL', extraStyles: ['/css/bl.css'] }) %>
+<%- include('../partials/header', { currentModule: 'bl' }) %>
+<%- include('../partials/toasts') %>
+
+<main class="container bl-page">
+  <div class="page-header">
+    <div>
+      <h1>Bill of Lading / BL</h1>
+      <p class="muted">Documentos de Transporte</p>
+    </div>
+    <div class="actions">
+      <a class="btn" href="/bill-of-lading/tree">Ver arbol</a>
+      <% if (can('bl', 'crear')) { %><a class="btn primary" href="/bill-of-lading/new">Nuevo BL</a><% } %>
+    </div>
+  </div>
+
+  <form class="filters bl-filters" method="GET" action="/bill-of-lading">
+    <label>Numero BL<input name="numero_bl" value="<%= filters.numero_bl || '' %>" /></label>
+    <label>Tipo BL
+      <select name="nivel_bl">
+        <option value="">Todos</option>
+        <% levels.forEach((level) => { %><option value="<%= level %>" <%= filters.nivel_bl === level ? 'selected' : '' %>><%= levelMeta[level].label %></option><% }) %>
+      </select>
+    </label>
+    <label>BL padre<input name="parent_bl_id" value="<%= filters.parent_bl_id || '' %>" /></label>
+    <label>Shipper<input name="shipper" value="<%= filters.shipper || '' %>" /></label>
+    <label>Consignee<input name="consignee" value="<%= filters.consignee || '' %>" /></label>
+    <label>Vessel<input name="vessel" value="<%= filters.vessel || '' %>" /></label>
+    <label>Voyage<input name="voyage" value="<%= filters.voyage || '' %>" /></label>
+    <label>Puerto carga<input name="port_of_loading" value="<%= filters.port_of_loading || '' %>" /></label>
+    <label>Puerto descarga<input name="port_of_discharge" value="<%= filters.port_of_discharge || '' %>" /></label>
+    <label>Desde<input type="date" name="fecha_desde" value="<%= filters.fecha_desde || '' %>" /></label>
+    <label>Hasta<input type="date" name="fecha_hasta" value="<%= filters.fecha_hasta || '' %>" /></label>
+    <label>Estado
+      <select name="estado">
+        <option value="">Todos</option>
+        <% statuses.forEach((status) => { %><option value="<%= status %>" <%= filters.estado === status ? 'selected' : '' %>><%= status %></option><% }) %>
+      </select>
+    </label>
+    <div class="filter-actions">
+      <button class="btn" type="submit">Filtrar</button>
+      <a class="btn small" href="/bill-of-lading">Limpiar</a>
+    </div>
+  </form>
+
+  <div class="table bl-table">
+    <div class="table-row table-head">
+      <div>Numero</div><div>Tipo</div><div>Padre</div><div>Shipper</div><div>Consignee</div><div>Ruta</div><div>Estado</div><div>Acciones</div>
+    </div>
+    <% if (!bls.length) { %>
+      <div class="empty-state">No hay BL registrados.</div>
+    <% } %>
+    <% bls.forEach((bl) => { %>
+      <div class="table-row">
+        <div><strong><%= bl.numero_bl %></strong><small><%= bl.fecha_emision || '-' %></small></div>
+        <div><%= bl.type_label %></div>
+        <div><%= bl.parent_numero_bl || '-' %></div>
+        <div><%= bl.shipper_nombre || '-' %></div>
+        <div><%= bl.consignee_nombre || '-' %></div>
+        <div><%= bl.port_of_loading || '-' %> / <%= bl.port_of_discharge || '-' %></div>
+        <div><span class="status-pill status-<%= String(bl.estado || '').toLowerCase() %>"><%= bl.estado %></span></div>
+        <div class="row-actions">
+          <% if (can('bl', 'ver')) { %><a class="btn small" href="/bill-of-lading/<%= bl.id %>">Ver</a><% } %>
+          <% if (bl.estado === 'Borrador' && can('bl', 'editar')) { %><a class="btn small" href="/bill-of-lading/<%= bl.id %>/edit">Editar</a><% } %>
+          <% if (can('bl', 'imprimir')) { %><a class="btn small" href="/bill-of-lading/<%= bl.id %>/print" target="_blank" rel="noopener">Imprimir</a><% } %>
+          <% if (can('bl', 'descargar_pdf')) { %><a class="btn small" href="/bill-of-lading/<%= bl.id %>/pdf">PDF</a><% } %>
+          <% if (bl.nivel_bl === 'MASTER' && can('bl', 'crear_hijo')) { %><form method="POST" action="/bill-of-lading/<%= bl.id %>/create-child"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn small" type="submit">Crear BL Hijo</button></form><% } %>
+          <% if (bl.nivel_bl === 'HOUSE' && can('bl', 'crear_nieto')) { %><form method="POST" action="/bill-of-lading/<%= bl.id %>/create-child"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn small" type="submit">Crear BL Nieto</button></form><% } %>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+</main>

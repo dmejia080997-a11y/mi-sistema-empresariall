@@ -1,0 +1,119 @@
+<%
+const data = document.data || {};
+const items = document.items || [];
+const merch = document.merchandise || [];
+%>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>CP <%= document.document_number %></title>
+<style>
+  @page { size: letter; margin: 10mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Arial, sans-serif; color: #111827; background: #fff; font-size: 10px; }
+  .sheet { max-width: 8in; margin: 0 auto; border: 1px solid #555; }
+  .head { display: grid; grid-template-columns: 1fr 1fr 1fr; border-bottom: 1px solid #555; }
+  .head div, .cell { border-right: 1px solid #555; border-bottom: 1px solid #555; padding: 5px; min-height: 28px; }
+  .head div:last-child, .row .cell:last-child { border-right: 0; }
+  h1 { margin: 0; font-size: 18px; text-align: center; }
+  h2 { margin: 0; padding: 5px; background: #d9d9d9; border-bottom: 1px solid #555; font-size: 11px; text-transform: uppercase; }
+  .row { display: grid; grid-template-columns: repeat(12, 1fr); }
+  .span-2 { grid-column: span 2; } .span-3 { grid-column: span 3; } .span-4 { grid-column: span 4; } .span-6 { grid-column: span 6; } .span-8 { grid-column: span 8; } .span-12 { grid-column: span 12; }
+  .label { color: #333; font-weight: 700; font-size: 8px; text-transform: uppercase; }
+  .value { margin-top: 3px; white-space: pre-wrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 9px; }
+  th { background: #d9d9d9; text-transform: uppercase; }
+  th, td { border: 1px solid #555; padding: 4px; min-height: 24px; vertical-align: top; }
+  .qr { width: 88px; height: 88px; border: 1px solid #555; display: grid; place-items: center; margin-left: auto; color: #777; }
+  .conditions { page-break-before: always; padding: 18px; line-height: 1.45; }
+  @media print { .no-print { display: none; } .sheet { max-width: none; } }
+</style>
+</head>
+<body>
+<div class="no-print" style="padding:8px;text-align:right;"><button onclick="window.print()">Imprimir</button></div>
+<section class="sheet">
+  <div class="head">
+    <div><div class="label">Fecha</div><div class="value"><%= document.issue_date || '' %></div></div>
+    <div><h1>CP - CARTA PORTE</h1><div style="text-align:center;"><%= data.cfdi_carta_porte || 'CFDI / CP' %></div></div>
+    <div><div class="label">Folio / UUID</div><div class="value"><%= document.document_number %><br><%= data.uuid || '' %></div></div>
+  </div>
+
+  <h2>Cliente</h2>
+  <div class="row">
+    <div class="cell span-3"><div class="label">Cliente</div><div class="value"><%= document.client_name || '' %></div></div>
+    <div class="cell span-3"><div class="label">Nombre / RFC</div><div class="value"><%= [data.nombre, data.rfc].filter(Boolean).join(' / ') %></div></div>
+    <div class="cell span-3"><div class="label">Regimen Fiscal</div><div class="value"><%= data.regimen_fiscal || '' %></div></div>
+    <div class="cell span-3"><div class="label">Lugar de Expedicion</div><div class="value"><%= data.lugar_expedicion || '' %></div></div>
+    <div class="cell span-12"><div class="label">Domicilio</div><div class="value"><%= data.domicilio || '' %></div></div>
+  </div>
+
+  <h2>Origen y Destino</h2>
+  <div class="row">
+    <div class="cell span-6"><div class="label">Origen / Remitente / RFC / Domicilio / Cargar en / Salida</div><div class="value"><%= [document.origin, data.remitente, data.rfc_origen, data.domicilio_origen, data.cargar_en, data.fecha_hora_salida].filter(Boolean).join('\n') %></div></div>
+    <div class="cell span-6"><div class="label">Destino / Destinatario / RFC / Domicilio / Llegada / Distancia</div><div class="value"><%= [document.destination, data.destinatario, data.rfc_destino, data.domicilio_destino, data.fecha_hora_llegada, data.distancia_recorrida].filter(Boolean).join('\n') %></div></div>
+  </div>
+
+  <h2>Operador y Vehiculo</h2>
+  <div class="row">
+    <div class="cell span-4"><div class="label">Viaje / Operador / RFC / Licencia</div><div class="value"><%= [data.viaje, data.operador, data.rfc_operador, data.licencia].filter(Boolean).join(' / ') %></div></div>
+    <div class="cell span-4"><div class="label">Permisos / Seguro</div><div class="value"><%= [data.permiso_sct, data.no_permiso_sct, data.seguro_vehicular].filter(Boolean).join(' / ') %></div></div>
+    <div class="cell span-4"><div class="label">Tractor / Placas / Modelo / Configuracion</div><div class="value"><%= [data.tractor, data.placas, data.modelo, data.configuracion].filter(Boolean).join(' / ') %></div></div>
+    <div class="cell span-6"><div class="label">Remolque 1</div><div class="value"><%= [data.remolque_1, data.tipo_remolque_1, data.placas_remolque_1].filter(Boolean).join(' / ') %></div></div>
+    <div class="cell span-6"><div class="label">Remolque 2</div><div class="value"><%= [data.remolque_2, data.tipo_remolque_2, data.placas_remolque_2].filter(Boolean).join(' / ') %></div></div>
+  </div>
+
+  <h2>Datos Generales</h2>
+  <div class="row">
+    <div class="cell span-3"><div class="label">Tipo de Documento</div><div class="value">CP - Carta Porte</div></div>
+    <div class="cell span-3"><div class="label">Condiciones de Pago</div><div class="value"><%= data.condiciones_pago || '' %></div></div>
+    <div class="cell span-3"><div class="label">No. Certificado</div><div class="value"><%= data.no_certificado || '' %></div></div>
+    <div class="cell span-3"><div class="label">Observaciones</div><div class="value"><%= data.observaciones || '' %></div></div>
+  </div>
+
+  <h2>Cargas</h2>
+  <table>
+    <thead><tr><th>Bultos</th><th>Clase</th><th>Descripcion / Que se dice que contiene</th><th>Peso</th><th>Volumen M3</th><th>Peso estimado</th></tr></thead>
+    <tbody>
+      <% (items.length ? items : [{}, {}, {}]).forEach((row) => { %>
+      <tr><td><%= row.pieces || '' %></td><td><%= row.kg_lb || '' %></td><td><%= row.description || '' %></td><td><%= row.gross_weight || '' %></td><td><%= row.rate || '' %></td><td><%= row.chargeable_weight || '' %></td></tr>
+      <% }) %>
+    </tbody>
+  </table>
+
+  <h2>Mercancias</h2>
+  <div class="row">
+    <div class="cell span-3"><div class="label">Transporte Internacional</div><div class="value"><%= data.transporte_internacional || '' %></div></div>
+    <div class="cell span-3"><div class="label">Peso Neto</div><div class="value"><%= data.peso_neto || '' %></div></div>
+    <div class="cell span-3"><div class="label">Numero de Mercancias</div><div class="value"><%= data.numero_mercancias || '' %></div></div>
+    <div class="cell span-3"><div class="label">Cargo por Tasacion</div><div class="value"><%= data.cargo_tasacion || '' %></div></div>
+  </div>
+  <table>
+    <thead><tr><th>Cantidad</th><th>Unidad</th><th>Clave</th><th>Descripcion</th><th>Material Peligroso</th><th>Embalaje</th><th>Peso Kg</th><th>Valor</th></tr></thead>
+    <tbody>
+      <% (merch.length ? merch : [{}, {}]).forEach((row) => { %>
+      <tr><td><%= row.cantidad || '' %></td><td><%= row.unidad || '' %></td><td><%= row.clave || '' %></td><td><%= row.descripcion || '' %></td><td><%= row.material_peligroso || '' %></td><td><%= row.embalaje || '' %></td><td><%= row.peso_kg || '' %></td><td><%= row.valor || '' %></td></tr>
+      <% }) %>
+    </tbody>
+  </table>
+
+  <h2>Importes y CFDI</h2>
+  <div class="row">
+    <div class="cell span-3"><div class="label">Subtotal / IVA / Retencion / Neto</div><div class="value"><%= [data.subtotal, data.iva, data.retencion, data.neto].filter(Boolean).join(' / ') %></div></div>
+    <div class="cell span-5"><div class="label">Cantidad con letra</div><div class="value"><%= data.cantidad_letra || '' %></div></div>
+    <div class="cell span-4"><div class="qr"><%= data.qr ? data.qr : 'QR' %></div></div>
+    <div class="cell span-4"><div class="label">Forma / Metodo / Moneda / Uso CFDI</div><div class="value"><%= [data.forma_pago, data.metodo_pago, data.moneda, data.uso_cfdi].filter(Boolean).join(' / ') %></div></div>
+    <div class="cell span-8"><div class="label">Certificacion SAT</div><div class="value"><%= [data.certificado_sat, data.fecha_certificacion].filter(Boolean).join(' / ') %></div></div>
+    <div class="cell span-12"><div class="label">Cadena Original</div><div class="value"><%= data.cadena_original || '' %></div></div>
+    <div class="cell span-12"><div class="label">Sello Digital del Emisor</div><div class="value"><%= data.sello_emisor || '' %></div></div>
+    <div class="cell span-12"><div class="label">Sello Digital del SAT</div><div class="value"><%= data.sello_sat || '' %></div></div>
+  </div>
+</section>
+<section class="conditions">
+  <h2 style="background:transparent;border:0;padding:0;">Condiciones de servicio</h2>
+  <p>El presente documento ampara la prestacion del servicio de transporte indicado. Las partes aceptan las condiciones operativas, fiscales y de entrega descritas en este documento y en los anexos aplicables.</p>
+  <p>La informacion declarada de mercancias, pesos, embalajes, valores y datos fiscales es responsabilidad de quien la proporciona, salvo revision expresa documentada por el transportista.</p>
+</section>
+<% if (autoPrint) { %><script>window.print();</script><% } %>
+</body>
+</html>

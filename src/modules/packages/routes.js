@@ -37,11 +37,33 @@
     buildPackageUrl,
     generateBarcodeDataUrl,
     generateQrDataUrl,
+    PDFDocument,
     sendWhatsappMessage,
     buildPackageInvoiceUploadUrl,
     buildInvoiceRequestMessage,
     sendInvoiceEmail
   } = deps;
+
+function fetchActiveConsignatarios(companyId, callback) {
+  db.all(
+    `SELECT cons.id, cons.customer_id, cons.name
+     FROM consignatarios cons
+     JOIN customers c ON c.id = cons.customer_id AND c.company_id = cons.company_id
+     WHERE cons.company_id = ? AND COALESCE(c.is_voided, 0) = 0
+     ORDER BY cons.name`,
+    [companyId],
+    callback
+  );
+}
+
+function todayDateInputValue() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 app.get('/packages/home', requireAuth, requirePermission('packages', 'view'), (req, res) => {
   return res.render('packages-home', { packagesNav: 'list' });
 });
@@ -338,29 +360,25 @@ app.post('/packages/invoice/upload/:token', packageUpload.single('invoice_file')
 
 app.get('/packages/new', requireAuth, requirePermission('packages', 'create'), (req, res) => {
   const companyId = getCompanyId(req);
-  db.all(
-    'SELECT id, customer_id, name FROM consignatarios WHERE company_id = ? ORDER BY name',
-    [companyId],
-    (err, consignatarios) => {
-      const prefill = {
-        tracking_number: normalizeString(req.query.tracking),
-        carrier: normalizeString(req.query.carrier),
-        reception_id: normalizeString(req.query.reception_id),
-        received_at: normalizeString(req.query.received_at)
-      };
-      res.render('packages-new', {
-        consignatarios: err ? [] : consignatarios || [],
-        error: null,
-        prefill,
-        packagesNav: 'new'
-      });
-    }
-  );
+  fetchActiveConsignatarios(companyId, (err, consignatarios) => {
+    const prefill = {
+      tracking_number: normalizeString(req.query.tracking),
+      carrier: normalizeString(req.query.carrier),
+      reception_id: normalizeString(req.query.reception_id),
+      received_at: todayDateInputValue()
+    };
+    res.render('packages-new', {
+      consignatarios: err ? [] : consignatarios || [],
+      error: null,
+      prefill,
+      packagesNav: 'new'
+    });
+  });
 });
 
 app.post('/packages/new', requireAuth, requirePermission('packages', 'create'), packageUpload.fields([
   { name: 'invoice_file', maxCount: 1 },
-  { name: 'photos', maxCount: 10 }
+  { name: 'photos', maxCount: 6 }
 ]), csrfMiddleware, (req, res) => {
   const companyId = getCompanyId(req);
   const consignatarioId = Number(req.body.consignatario_id || 0);
@@ -370,22 +388,18 @@ app.post('/packages/new', requireAuth, requirePermission('packages', 'create'), 
     tracking_number: trackingNumber,
     carrier,
     reception_id: normalizeString(req.body.reception_id),
-    received_at: normalizeString(req.body.received_at)
+    received_at: todayDateInputValue()
   };
 
   const renderWithError = (message) => {
-    db.all(
-      'SELECT id, customer_id, name FROM consignatarios WHERE company_id = ? ORDER BY name',
-      [companyId],
-      (err, consignatarios) => {
-        res.render('packages-new', {
-          consignatarios: err ? [] : consignatarios || [],
-          error: message,
-          prefill,
-          packagesNav: 'new'
-        });
-      }
-    );
+    fetchActiveConsignatarios(companyId, (err, consignatarios) => {
+      res.render('packages-new', {
+        consignatarios: err ? [] : consignatarios || [],
+        error: message,
+        prefill,
+        packagesNav: 'new'
+      });
+    });
   };
 
   if (!consignatarioId || !trackingNumber) {
@@ -406,6 +420,10 @@ app.post('/packages/new', requireAuth, requirePermission('packages', 'create'), 
 
       generateInternalCode(companyId, 0, (codeErr, internalCode) => {
         if (codeErr || !internalCode) {
+          console.error('[packages/create] internal code failed', {
+            companyId,
+            error: codeErr ? codeErr.message : 'empty_internal_code'
+          });
           return renderWithError(res.locals.t('errors.package_create_failed'));
         }
 
@@ -413,12 +431,12 @@ app.post('/packages/new', requireAuth, requirePermission('packages', 'create'), 
         let invoiceStatus = req.body.invoice_status === 'uploaded' ? 'uploaded' : 'pending';
 
         const invoiceFile = req.files && req.files.invoice_file ? req.files.invoice_file[0] : null;
-        const photos = req.files && req.files.photos ? req.files.photos : [];
+        const photos = req.files && req.files.photos ? req.files.photos.slice(0, 6) : [];
         const invoiceFilePath = invoiceFile ? invoiceFile.path : null;
         if (invoiceFilePath) invoiceStatus = 'uploaded';
 
         const status = PACKAGE_STATUSES[0];
-        const receivedAt = normalizeString(req.body.received_at) || null;
+        const receivedAt = todayDateInputValue();
 
         getPackageSenderSettings(companyId, (senderSettings) => {
           db.run(
@@ -460,6 +478,13 @@ app.post('/packages/new', requireAuth, requirePermission('packages', 'create'), 
             ],
             function (err) {
               if (err) {
+                console.error('[packages/create] insert failed', {
+                  companyId,
+                  consignatarioId: consignatario.id,
+                  customerId: consignatario.customer_id,
+                  trackingNumber,
+                  error: err.message
+                });
                 return renderWithError(res.locals.t('errors.package_create_failed'));
               }
               const packageId = this.lastID;
@@ -500,6 +525,41 @@ app.post('/packages/new', requireAuth, requirePermission('packages', 'create'), 
   });
 });
 
+app.get('/packages/:id/media', requireAuth, requirePermission('packages', 'view'), (req, res) => {
+  const companyId = getCompanyId(req);
+  const packageId = Number(req.params.id);
+  if (!Number.isInteger(packageId) || packageId <= 0) return res.status(404).json({ ok: false });
+
+  fetchPackageDetail(companyId, packageId, (pkgErr, pkg) => {
+    if (pkgErr || !pkg) return res.status(404).json({ ok: false });
+    db.all(
+      'SELECT file_path, COALESCE(created_at, uploaded_at) AS photo_at FROM package_photos WHERE package_id = ? AND company_id = ? ORDER BY photo_at DESC',
+      [packageId, companyId],
+      (photoErr, photoRows) => {
+        const photos = (photoErr ? [] : photoRows || [])
+          .map((row) => buildFileUrl(row.file_path))
+          .filter(Boolean);
+        const invoiceFileName = pkg.invoice_file ? String(pkg.invoice_file).split(/[\\/]/).pop() : null;
+        return res.json({
+          ok: true,
+          package: {
+            id: pkg.id,
+            title: pkg.internal_code || pkg.tracking_number || `Paquete ${pkg.id}`
+          },
+          photos,
+          invoice: buildFileUrl(pkg.invoice_file)
+            ? {
+                url: buildFileUrl(pkg.invoice_file),
+                name: invoiceFileName || 'Documento del paquete',
+                isPdf: invoiceFileName ? /\.pdf$/i.test(invoiceFileName) : false
+              }
+            : null
+        });
+      }
+    );
+  });
+});
+
 app.get('/packages/:id', requireAuth, requirePermission('packages', 'view'), (req, res) => {
   const companyId = getCompanyId(req);
   const packageId = Number(req.params.id);
@@ -507,6 +567,10 @@ app.get('/packages/:id', requireAuth, requirePermission('packages', 'view'), (re
 
   fetchPackageDetail(companyId, packageId, (pkgErr, pkg) => {
     if (pkgErr || !pkg) return res.redirect('/packages');
+    const invoiceFileName = pkg.invoice_file ? String(pkg.invoice_file).split(/[\\/]/).pop() : null;
+    pkg.invoice_file_url = buildFileUrl(pkg.invoice_file);
+    pkg.invoice_file_name = invoiceFileName;
+    pkg.invoice_file_is_pdf = invoiceFileName ? /\.pdf$/i.test(invoiceFileName) : false;
     fetchPackageHistory(packageId, (history) => {
       fetchPackageComments(packageId, (comments) => {
         db.all(
@@ -539,18 +603,14 @@ app.get('/packages/:id/edit', requireAuth, requirePermission('packages', 'edit')
 
   fetchPackageDetail(companyId, packageId, (pkgErr, pkg) => {
     if (pkgErr || !pkg) return res.redirect('/packages');
-    db.all(
-      'SELECT id, customer_id, name FROM consignatarios WHERE company_id = ? ORDER BY name',
-      [companyId],
-      (consErr, consignatarios) => {
-        res.render('package-edit', {
-          pkg,
-          consignatarios: consErr ? [] : consignatarios || [],
-          statuses: PACKAGE_STATUSES,
-          error: null
-        });
-      }
-    );
+    fetchActiveConsignatarios(companyId, (consErr, consignatarios) => {
+      res.render('package-edit', {
+        pkg,
+        consignatarios: consErr ? [] : consignatarios || [],
+        statuses: PACKAGE_STATUSES,
+        error: null
+      });
+    });
   });
 });
 
@@ -563,18 +623,14 @@ app.post('/packages/:id/update', requireAuth, requirePermission('packages', 'edi
     if (pkgErr || !pkg) return res.redirect('/packages');
 
     const renderEditWithError = (message) => {
-      db.all(
-        'SELECT id, customer_id, name FROM consignatarios WHERE company_id = ? ORDER BY name',
-        [companyId],
-        (consErr, consignatarios) => {
-          res.render('package-edit', {
-            pkg,
-            consignatarios: consErr ? [] : consignatarios || [],
-            statuses: PACKAGE_STATUSES,
-            error: message
-          });
-        }
-      );
+      fetchActiveConsignatarios(companyId, (consErr, consignatarios) => {
+        res.render('package-edit', {
+          pkg,
+          consignatarios: consErr ? [] : consignatarios || [],
+          statuses: PACKAGE_STATUSES,
+          error: message
+        });
+      });
     };
 
     const rawConsignatarioId = normalizeString(req.body.consignatario_id);
@@ -590,7 +646,7 @@ app.post('/packages/:id/update', requireAuth, requirePermission('packages', 'edi
                delivery_address = ?, delivery_municipality = ?, delivery_department = ?, delivery_phone = ?,
                declared_value = ?, weight_lbs = ?, length_cm = ?, width_cm = ?, height_cm = ?, shipping_type = ?,
                branch_destination = ?, delivery_type = ?, payment_status = ?, invoice_status = ?, carrier = ?,
-               tracking_number = ?, received_at = ?, notes = ?
+               tracking_number = ?, notes = ?
            WHERE id = ? AND company_id = ?`,
           [
             customerId || null,
@@ -614,7 +670,6 @@ app.post('/packages/:id/update', requireAuth, requirePermission('packages', 'edi
             req.body.invoice_status === 'uploaded' ? 'uploaded' : 'pending',
             normalizeString(req.body.carrier) || null,
             normalizeString(req.body.tracking_number) || null,
-            normalizeString(req.body.received_at) || null,
             normalizeString(req.body.notes) || null,
             packageId,
             companyId
@@ -763,7 +818,7 @@ app.post('/packages/:id/request-invoice/email', requireAuth, requirePermission('
   });
 });
 
-app.post('/packages/:id/photos', requireAuth, requirePermission('packages', 'edit'), packageUpload.array('photos', 10), csrfMiddleware, (req, res) => {
+app.post('/packages/:id/photos', requireAuth, requirePermission('packages', 'edit'), packageUpload.array('photos', 6), csrfMiddleware, (req, res) => {
   const companyId = getCompanyId(req);
   const packageId = Number(req.params.id);
   if (!Number.isInteger(packageId) || packageId <= 0) return res.redirect('/packages');
@@ -804,21 +859,34 @@ app.get('/packages/:id/label', requireAuth, requirePermission('packages', 'view'
             if (format === 'pdf') {
               const layout = labelLayout || null;
               const items = layout && Array.isArray(layout.items) ? layout.items : [];
+              const fileCode = String(pkg.internal_code || pkg.tracking_number || pkg.id).replace(/[^A-Za-z0-9_-]/g, '-');
               res.setHeader('Content-Type', 'application/pdf');
+              res.setHeader('Content-Disposition', `attachment; filename="package-label-${fileCode}.pdf"`);
 
               if (!items.length) {
-                const doc = new PDFDocument({ size: [288, 432], margin: 20 });
-                doc.fontSize(16).text('Package Label', { align: 'center' });
-                doc.moveDown();
-                doc.fontSize(12).text(`CÃ³digo: ${pkg.internal_code || '-'}`);
-                doc.text(`Tracking: ${pkg.tracking_number || '-'}`);
+                const doc = new PDFDocument({ size: [432, 288], margin: 18 });
+                doc.pipe(res);
+                doc.fontSize(10).text('Etiqueta de paquete', { align: 'center' });
+                doc.moveDown(0.4);
+                doc.fontSize(22).text(pkg.internal_code || pkg.tracking_number || '-', { align: 'center' });
+                doc.moveDown(0.4);
+                if (barcodeDataUrl) {
+                  const barcodeImg = Buffer.from(String(barcodeDataUrl).split(',')[1] || '', 'base64');
+                  if (barcodeImg.length) doc.image(barcodeImg, 108, 74, { width: 216, height: 42 });
+                }
+                doc.fontSize(9);
+                doc.text(`Tracking: ${pkg.tracking_number || '-'}`, 18, 126);
                 doc.text(`Consignatario: ${pkg.consignatario_name || '-'}`);
-                doc.text(`DirecciÃ³n: ${labelData.delivery_address || '-'}`);
+                doc.text(`Direccion: ${labelData.delivery_address || '-'}`, { width: 260 });
                 doc.text(`Municipio: ${labelData.delivery_municipality || '-'}`);
                 doc.text(`Departamento: ${labelData.delivery_department || '-'}`);
-                doc.text(`TelÃ©fono: ${labelData.delivery_phone || '-'}`);
-                doc.text(`Peso: ${pkg.weight_lbs || '-'} lbs`);
+                doc.text(`Telefono: ${labelData.delivery_phone || '-'}`);
+                doc.text(`Peso: ${pkg.weight_lbs ? Number(pkg.weight_lbs).toFixed(2) : '-'} lbs`);
                 doc.text(`Estado: ${pkg.status || '-'}`);
+                if (qrDataUrl) {
+                  const qrImg = Buffer.from(String(qrDataUrl).split(',')[1] || '', 'base64');
+                  if (qrImg.length) doc.image(qrImg, 326, 132, { width: 82, height: 82 });
+                }
                 doc.end();
                 return;
               }
@@ -833,8 +901,8 @@ app.get('/packages/:id/label', requireAuth, requirePermission('packages', 'view'
               const size = sizeMap[sizeKey] || sizeMap.standard;
               const canvasWidth = size.width;
               const canvasHeight = size.height;
-              const canvasPadding = 14;
               const doc = new PDFDocument({ size: [canvasWidth, canvasHeight], margin: 0 });
+              doc.pipe(res);
               const shapeDefs = {
                 'shape-line': { type: 'line-h', width: 180, height: 2, stroke: 1 },
                 'shape-line-vertical': { type: 'line-v', width: 2, height: 110, stroke: 1 },
@@ -857,6 +925,10 @@ app.get('/packages/:id/label', requireAuth, requirePermission('packages', 'view'
                     return addressValue;
                   case 'tracking':
                     return pkg.tracking_number || '-';
+                  case 'tienda':
+                    return pkg.store_name || '-';
+                  case 'descripcion':
+                    return pkg.description || '-';
                   case 'consignatario':
                     return pkg.consignatario_name || '-';
                   case 'municipio':
@@ -886,32 +958,49 @@ app.get('/packages/:id/label', requireAuth, requirePermission('packages', 'view'
                 }
               };
 
+              const drawDataUrlImage = (dataUrl, x, y, width, height) => {
+                const payload = String(dataUrl || '').split(',')[1] || '';
+                if (!payload) return;
+                const img = Buffer.from(payload, 'base64');
+                if (!img.length) return;
+                const options = {};
+                if (width) options.width = width;
+                if (height) options.height = height;
+                doc.image(img, x, y, options);
+              };
+
                 items.forEach((item) => {
                   const left = Number.isFinite(Number(item.left)) ? Number(item.left) : 0;
                   const top = Number.isFinite(Number(item.top)) ? Number(item.top) : 0;
-                  const drawLeft = left + canvasPadding;
-                  const drawTop = top + canvasPadding;
+                  const drawLeft = left;
+                  const drawTop = top;
                   const fieldKey = item.field;
                   const itemText = typeof item.text === 'string' ? item.text : '';
                   const value = fieldKey === 'free-text' ? itemText : valueForField(fieldKey);
                   const shape = shapeDefs[fieldKey];
+                  const itemWidth = Number.isFinite(Number(item.width)) ? Number(item.width) : 0;
+                  const itemHeight = Number.isFinite(Number(item.height)) ? Number(item.height) : 0;
+                  const itemFontSize = Number.isFinite(Number(item.fontSize)) ? Number(item.fontSize) : 0;
                   const shapeColor =
                     typeof item.color === 'string' && item.color.trim().length ? item.color.trim() : '#111111';
                   const shapeThickness = Number(item.thickness) || 2;
 
                 if (shape) {
+                  const shapeWidth = itemWidth || shape.width;
+                  const shapeHeight = itemHeight || shape.height;
                   doc.save();
                   doc.lineWidth(shapeThickness).strokeColor(shapeColor);
+                  if (item.lineStyle === 'dotted') doc.dash(Math.max(1, shapeThickness), { space: Math.max(2, shapeThickness * 2) });
                   if (shape.type === 'line-h') {
-                    const y = drawTop + (shape.height / 2);
-                    doc.moveTo(drawLeft, y).lineTo(drawLeft + shape.width, y).stroke();
+                    const y = drawTop + (shapeHeight / 2);
+                    doc.moveTo(drawLeft, y).lineTo(drawLeft + shapeWidth, y).stroke();
                   } else if (shape.type === 'line-v') {
-                    const x = drawLeft + (shape.width / 2);
-                    doc.moveTo(x, drawTop).lineTo(x, drawTop + shape.height).stroke();
+                    const x = drawLeft + (shapeWidth / 2);
+                    doc.moveTo(x, drawTop).lineTo(x, drawTop + shapeHeight).stroke();
                   } else if (shape.type === 'rect') {
-                    doc.rect(drawLeft, drawTop, shape.width, shape.height).stroke();
+                    doc.rect(drawLeft, drawTop, shapeWidth, shapeHeight).stroke();
                   } else if (shape.type === 'circle') {
-                    const radius = shape.width / 2;
+                    const radius = Math.min(shapeWidth, shapeHeight) / 2;
                     doc.circle(drawLeft + radius, drawTop + radius, radius).stroke();
                   }
                   doc.restore();
@@ -919,21 +1008,22 @@ app.get('/packages/:id/label', requireAuth, requirePermission('packages', 'view'
                 }
 
                 if (fieldKey === 'logo' && value) {
-                  const img = Buffer.from(String(value).split(',')[1] || '', 'base64');
-                  if (img.length) doc.image(img, drawLeft, drawTop, { width: 42, height: 42 });
+                  drawDataUrlImage(value, drawLeft, drawTop, itemWidth || 42, itemHeight || 42);
                   return;
                 }
                 if (fieldKey === 'barcode' && value) {
-                  const img = Buffer.from(String(value).split(',')[1] || '', 'base64');
-                  if (img.length) doc.image(img, drawLeft, drawTop, { width: 140, height: 38 });
+                  drawDataUrlImage(value, drawLeft, drawTop, itemWidth || 140, itemHeight || 38);
                   return;
                 }
                 if (fieldKey === 'qr' && value) {
-                  const img = Buffer.from(String(value).split(',')[1] || '', 'base64');
-                  if (img.length) doc.image(img, drawLeft, drawTop, { width: 72, height: 72 });
+                  drawDataUrlImage(value, drawLeft, drawTop, itemWidth || 72, itemHeight || 72);
                   return;
                 }
-                doc.fontSize(9).text(String(value || ''), drawLeft, drawTop, { lineBreak: false });
+                doc.fontSize(itemFontSize || 9).text(String(value || ''), drawLeft, drawTop, {
+                  width: itemWidth || undefined,
+                  height: itemHeight || undefined,
+                  lineBreak: Boolean(itemWidth)
+                });
               });
 
               doc.end();

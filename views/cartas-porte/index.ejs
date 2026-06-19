@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<%- include('../partials/head', { title: 'Cartas Porte', extraStyles: ['/css/cartas-porte.css'] }) %>
+</head>
+<body class="page">
+<%- include('../partials/header', { currentModule: 'cartas_porte' }) %>
+<main class="container cartas-porte-page">
+  <div class="page-header">
+    <div>
+      <h1><%= archived ? 'Cartas Porte Archivadas' : 'Cartas Porte' %></h1>
+      <p class="muted"><%= archived ? 'Cartas porte anuladas y separadas del listado activo.' : 'Documentos de transporte terrestre por empresa.' %></p>
+    </div>
+    <div class="actions">
+      <% if (can('cartas_porte', 'crear')) { %><a class="btn primary" href="/cartas-porte/new">Nueva Carta Porte</a><% } %>
+    </div>
+  </div>
+
+  <% if (flash) { %><div class="alert <%= flash.type %>"><%= flash.message %></div><% } %>
+
+  <section class="panel">
+    <nav class="cartas-porte-tabs" aria-label="Cartas Porte">
+      <a class="<%= !archived ? 'active' : '' %>" href="/cartas-porte">Listado</a>
+      <a class="<%= archived ? 'active' : '' %>" href="/cartas-porte/archivados">Archivados</a>
+    </nav>
+
+    <form class="filters cartas-porte-filters" method="GET" action="<%= archived ? '/cartas-porte/archivados' : '/cartas-porte' %>">
+      <label>Numero<input name="numero" value="<%= filters.numero || '' %>" placeholder="CP-000001" /></label>
+      <label>Remitente<input name="remitente" value="<%= filters.remitente || '' %>" /></label>
+      <label>Destinatario<input name="destinatario" value="<%= filters.destinatario || '' %>" /></label>
+      <label>Fecha<input type="date" name="fecha_desde" value="<%= filters.fecha_desde || '' %>" /></label>
+      <label>Hasta<input type="date" name="fecha_hasta" value="<%= filters.fecha_hasta || '' %>" /></label>
+      <% if (!archived) { %>
+        <label>Estado
+          <select name="estado">
+            <option value="Todos" <%= filters.estado === 'Todos' ? 'selected' : '' %>>Todos</option>
+            <% statuses.forEach((status) => { %><option value="<%= status %>" <%= filters.estado === status ? 'selected' : '' %>><%= status %></option><% }) %>
+          </select>
+        </label>
+      <% } %>
+      <label>Placa<input name="placa" value="<%= filters.placa || '' %>" /></label>
+      <label>Conductor<input name="conductor" value="<%= filters.conductor || '' %>" /></label>
+      <div class="filter-actions">
+        <button class="btn small" type="submit">Filtrar</button>
+        <a class="btn small" href="<%= archived ? '/cartas-porte/archivados' : '/cartas-porte' %>">Limpiar</a>
+      </div>
+    </form>
+
+    <div class="table cartas-porte-table">
+      <div class="table-row header">
+        <div>Numero</div><div>Fecha</div><div>Remitente</div><div>Destinatario</div><div>Placa</div><div>Conductor</div><div>Estado</div><div>Acciones</div>
+      </div>
+      <% if (!cartas.length) { %><div class="table-row empty"><%= archived ? 'No hay cartas porte archivadas.' : 'No hay cartas porte.' %></div><% } %>
+      <% cartas.forEach((carta) => { %>
+        <div class="table-row">
+          <div><strong><%= carta.numero %></strong></div>
+          <div><%= carta.fecha_emision || '-' %></div>
+          <div><%= carta.remitente_nombre || '-' %></div>
+          <div><%= carta.destinatario_nombre || '-' %></div>
+          <div><%= carta.placa_vehiculo || '-' %></div>
+          <div><%= carta.conductor_nombre || '-' %></div>
+          <div><span class="status-badge status-<%= String(carta.estado).toLowerCase() %>"><%= carta.estado %></span></div>
+          <div class="actions row-actions">
+            <% if (can('cartas_porte', 'ver')) { %><a class="btn small" href="/cartas-porte/<%= carta.id %>">Ver</a><% } %>
+            <% if (carta.estado === 'Borrador' && can('cartas_porte', 'editar')) { %><a class="btn small" href="/cartas-porte/<%= carta.id %>/edit">Editar</a><% } %>
+            <% if (can('cartas_porte', 'imprimir')) { %><a class="btn small" href="/cartas-porte/<%= carta.id %>/print" target="_blank" rel="noopener">Imprimir</a><% } %>
+            <% if (can('cartas_porte', 'descargar_pdf')) { %><a class="btn small" href="/cartas-porte/<%= carta.id %>/pdf">Descargar PDF</a><% } %>
+            <% if (can('cartas_porte', 'crear')) { %>
+              <form method="POST" action="/cartas-porte/<%= carta.id %>/duplicate">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <button class="btn small" type="submit">Duplicar</button>
+              </form>
+            <% } %>
+            <% if (carta.estado !== 'Anulada' && can('cartas_porte', 'anular')) { %>
+              <form method="POST" action="/cartas-porte/<%= carta.id %>/void" onsubmit="return confirm('Anular esta Carta Porte?');">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <button class="btn small danger" type="submit">Anular</button>
+              </form>
+            <% } %>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

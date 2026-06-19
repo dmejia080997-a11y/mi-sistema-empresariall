@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <%
   var canCreatePackageTabs = can('packages', 'create');
+  var calcVolWeight = function (pkg) {
+    var length = Number(pkg.length_cm || 0);
+    var width = Number(pkg.width_cm || 0);
+    var height = Number(pkg.height_cm || 0);
+    var value = ((length * width * height) / 5000) * 2.2046;
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  };
   var packageModuleTabs = [
     { key: 'dashboard', label: t('packages.module.dashboard'), href: '/packages/dashboard' },
     { key: 'list', label: t('packages.module.list'), href: '/packages' },
@@ -51,9 +58,6 @@
 </a>
 <a class="btn" href="/packages/<%= pkg.id %>/label?print=1">
 <%= t('packages.print_label') %>
-</a>
-<a class="btn" href="/packages/<%= pkg.id %>/label?format=pdf">
-<%= t('packages.download_label') %>
 </a>
 </div>
 </div>
@@ -155,6 +159,14 @@
 </span>
 <div>
 <%= pkg.weight_lbs ? Number(pkg.weight_lbs).toFixed(2) + ' lbs' : '-' %>
+</div>
+</div>
+<div>
+<span class="muted">
+Peso vol
+</span>
+<div>
+<%= calcVolWeight(pkg).toFixed(2) %> lbs
 </div>
 </div>
 <div>
@@ -273,10 +285,11 @@
 <h2>
 <%= t('package_detail.invoice') %>
 </h2>
-<% if (pkg.invoice_file) { %>
-<a class="btn" href="<%= pkg.invoice_file %>" target="_blank" rel="noopener">
-<%= t('common.view') %>
-</a>
+<% if (pkg.invoice_file_url) { %>
+<button type="button" class="btn" data-media-open data-media-kind="<%= pkg.invoice_file_is_pdf ? 'pdf' : 'image' %>" data-media-src="<%= pkg.invoice_file_url %>" data-media-title="<%= pkg.invoice_file_name || 'Documento del paquete' %>">
+Ver documento
+</button>
+<a class="btn" href="<%= pkg.invoice_file_url %>" target="_blank" rel="noopener">Abrir en pestana</a>
 <% } else { %>
 <p class="muted">
 <%= t('package_detail.no_invoice') %>
@@ -303,9 +316,9 @@
 <% } %>
 <div class="photo-grid">
 <% photos.forEach(photo => { %>
-<div class="photo-card">
+<button type="button" class="photo-card package-photo-thumb" data-media-open data-media-kind="image" data-media-src="<%= photo.file_path %>" data-media-title="Foto del paquete">
 <img src="<%= photo.file_path %>" alt="Foto de paquete" />
-</div>
+</button>
 <% }) %>
 </div>
 <% if (can('packages', 'edit')) { %>
@@ -394,7 +407,60 @@
 </form>
 <% } %>
 </section>
+<div class="modal-overlay hidden package-media-modal" data-package-media-modal aria-hidden="true">
+<div class="modal-card package-media-modal__card" role="dialog" aria-modal="true" aria-labelledby="package-media-title">
+<div class="modal-header">
+<h2 id="package-media-title">Vista previa</h2>
+<button type="button" class="btn small" data-media-close>Cerrar</button>
+</div>
+<div class="package-media-modal__body" data-media-body></div>
+</div>
+</div>
 </main>
+<script>
+  (function () {
+    const modal = document.querySelector('[data-package-media-modal]');
+    if (!modal) return;
+    const title = modal.querySelector('#package-media-title');
+    const body = modal.querySelector('[data-media-body]');
+    const closeButtons = modal.querySelectorAll('[data-media-close]');
+    const close = () => {
+      modal.classList.add('hidden');
+      modal.setAttribute('aria-hidden', 'true');
+      if (body) body.innerHTML = '';
+    };
+    const open = (button) => {
+      const src = button.getAttribute('data-media-src');
+      const kind = button.getAttribute('data-media-kind');
+      if (!src || !body) return;
+      if (title) title.textContent = button.getAttribute('data-media-title') || 'Vista previa';
+      body.innerHTML = '';
+      if (kind === 'pdf') {
+        const iframe = document.createElement('iframe');
+        iframe.src = src;
+        iframe.title = 'Documento del paquete';
+        body.appendChild(iframe);
+      } else {
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = 'Archivo del paquete';
+        body.appendChild(img);
+      }
+      modal.classList.remove('hidden');
+      modal.setAttribute('aria-hidden', 'false');
+    };
+    document.querySelectorAll('[data-media-open]').forEach((button) => {
+      button.addEventListener('click', () => open(button));
+    });
+    closeButtons.forEach((button) => button.addEventListener('click', close));
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) close();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !modal.classList.contains('hidden')) close();
+    });
+  })();
+</script>
 <script src="/status-footer.js" defer></script>
 </body>
 </html>

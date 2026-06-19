@@ -23,13 +23,18 @@ app.get('/master/activities', requireMaster, (req, res) => {
       db.all(
         'SELECT id, name, modules_json, created_at FROM business_activities ORDER BY name',
         (actErr, activities) => {
-          const safeActivities = (actErr ? [] : activities).map((row) => ({
-            id: row.id,
-            name: row.name,
-            created_at: row.created_at,
-            modules: parseJsonList(row.modules_json),
-            module_labels: parseJsonList(row.modules_json).map((code) => moduleMap.get(code) || code)
-          }));
+          const safeActivities = (actErr ? [] : activities).map((row) => {
+            const hiddenActivityModules = new Set(['airway_bills', 'transport_documents']);
+            const activityModules = parseJsonList(row.modules_json)
+              .filter((code) => !hiddenActivityModules.has(code));
+            return {
+              id: row.id,
+              name: row.name,
+              created_at: row.created_at,
+              modules: activityModules,
+              module_labels: activityModules.map((code) => moduleMap.get(code) || code)
+            };
+          });
           res.render('master-activities', {
             modules: safeModules,
             activities: safeActivities,

@@ -8,6 +8,13 @@
     inTransit: 0,
     customsHold: 0
   };
+  var calcVolWeight = function (pkg) {
+    var length = Number(pkg.length_cm || 0);
+    var width = Number(pkg.width_cm || 0);
+    var height = Number(pkg.height_cm || 0);
+    var value = ((length * width * height) / 5000) * 2.2046;
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  };
   var canCreatePackageTabs = can('packages', 'create');
   var packageModuleTabs = [
     { key: 'dashboard', label: t('packages.module.dashboard'), href: '/packages/dashboard' },
@@ -242,6 +249,9 @@
 <%= t('packages.table.weight') %>
 </div>
 <div>
+Archivos
+</div>
+<div>
 <%= t('packages.table.carrier') %>
 </div>
 <div>
@@ -276,7 +286,24 @@
 <%= pkg.description || '-' %>
 </div>
 <div>
-<%= pkg.weight_lbs ? Number(pkg.weight_lbs).toFixed(2) + ' lbs' : '-' %>
+<div><%= pkg.weight_lbs ? Number(pkg.weight_lbs).toFixed(2) + ' lbs' : '-' %></div>
+<small class="muted">Vol: <%= calcVolWeight(pkg).toFixed(2) %> lbs</small>
+</div>
+<div class="package-media-actions">
+<% if (pkg.first_photo_url) { %>
+<button type="button" class="btn small app-btn app-btn-small" data-package-media data-package-id="<%= pkg.id %>" data-package-media-type="photos">
+Fotos (<%= pkg.photo_count || 0 %>)
+</button>
+<% } else { %>
+<span class="muted">Fotos: 0</span>
+<% } %>
+<% if (pkg.invoice_file_url) { %>
+<button type="button" class="btn small app-btn app-btn-small" data-package-media data-package-id="<%= pkg.id %>" data-package-media-type="invoice">
+Documento
+</button>
+<% } else { %>
+<span class="muted">Sin doc.</span>
+<% } %>
 </div>
 <div class="cell-ellipsis" title="<%= pkg.carrier || '-' %>">
 <%= pkg.carrier || '-' %>
@@ -305,8 +332,93 @@
 </div>
 </form>
 </section>
+<div class="modal-overlay hidden package-media-modal" data-package-media-modal aria-hidden="true">
+<div class="modal-card package-media-modal__card" role="dialog" aria-modal="true" aria-labelledby="package-media-title">
+<div class="modal-header">
+<h2 id="package-media-title">Vista previa</h2>
+<button type="button" class="btn small app-btn app-btn-small" data-media-close>Cerrar</button>
+</div>
+<div class="package-media-modal__body" data-media-body></div>
+</div>
+</div>
 </main>
 <script>    (function () {      const selectAll = document.getElementById('select-all-packages');      const boxes = Array.from(document.querySelectorAll('.package-select'));      if (!selectAll || boxes.length === 0) return;      selectAll.addEventListener('change', function () {        boxes.forEach((box) => {          box.checked = selectAll.checked;        });      });    })();  </script>
+<script>
+  (function () {
+    const modal = document.querySelector('[data-package-media-modal]');
+    if (!modal) return;
+    const title = modal.querySelector('#package-media-title');
+    const body = modal.querySelector('[data-media-body]');
+    const closeButtons = modal.querySelectorAll('[data-media-close]');
+    const close = () => {
+      modal.classList.add('hidden');
+      modal.setAttribute('aria-hidden', 'true');
+      if (body) body.innerHTML = '';
+    };
+    const renderMedia = (items) => {
+      if (!body) return;
+      if (!items.length) {
+        body.innerHTML = '<p class="muted">No hay archivos para mostrar.</p>';
+        return;
+      }
+      if (items.length === 1) {
+        const item = items[0];
+        body.innerHTML = item.kind === 'pdf'
+          ? `<iframe src="${item.src}" title="Documento del paquete"></iframe>`
+          : `<img src="${item.src}" alt="Archivo del paquete" />`;
+        return;
+      }
+      body.innerHTML = `<div class="package-media-gallery">${items.map((item) => (
+        item.kind === 'pdf'
+          ? `<iframe src="${item.src}" title="Documento del paquete"></iframe>`
+          : `<img src="${item.src}" alt="Foto del paquete" />`
+      )).join('')}</div>`;
+    };
+    const open = (button) => {
+      const src = button.getAttribute('data-media-src');
+      const kind = button.getAttribute('data-media-kind');
+      if (!src || !body) return;
+      if (title) title.textContent = button.getAttribute('data-media-title') || 'Vista previa';
+      renderMedia([{ src, kind }]);
+      modal.classList.remove('hidden');
+      modal.setAttribute('aria-hidden', 'false');
+    };
+    const openPackageMedia = async (button) => {
+      const packageId = button.getAttribute('data-package-id');
+      const type = button.getAttribute('data-package-media-type');
+      if (!packageId || !body) return;
+      modal.classList.remove('hidden');
+      modal.setAttribute('aria-hidden', 'false');
+      body.innerHTML = '<p class="muted">Cargando...</p>';
+      try {
+        const response = await fetch(`/packages/${packageId}/media`, { headers: { Accept: 'application/json' } });
+        const data = await response.json();
+        if (!data || !data.ok) throw new Error('media_load_failed');
+        if (title) title.textContent = `${type === 'invoice' ? 'Documento' : 'Fotos'} ${data.package && data.package.title ? data.package.title : ''}`.trim();
+        if (type === 'invoice') {
+          renderMedia(data.invoice ? [{ src: data.invoice.url, kind: data.invoice.isPdf ? 'pdf' : 'image' }] : []);
+        } else {
+          renderMedia((data.photos || []).map((src) => ({ src, kind: 'image' })));
+        }
+      } catch (err) {
+        body.innerHTML = '<p class="muted">No se pudo cargar la vista previa.</p>';
+      }
+    };
+    document.querySelectorAll('[data-media-open]').forEach((button) => {
+      button.addEventListener('click', () => open(button));
+    });
+    document.querySelectorAll('[data-package-media]').forEach((button) => {
+      button.addEventListener('click', () => openPackageMedia(button));
+    });
+    closeButtons.forEach((button) => button.addEventListener('click', close));
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) close();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !modal.classList.contains('hidden')) close();
+    });
+  })();
+</script>
 <script src="/status-footer.js" defer></script>
 </body>
 </html>

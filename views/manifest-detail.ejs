@@ -1,4 +1,4 @@
-<%  const statusLabel = manifest.status === 'closed' ? t('manifests.status.closed') : t('manifests.status.open');  const statusClass = manifest.status === 'closed' ? 'status-closed' : 'status-open';  const isClosed = manifest.status === 'closed';%>
+<%  const statusLabel = formatManifestStatus(manifest, t);  const statusClass = manifestStatusClass(manifest);  const isClosed = manifest.status === 'closed';%>
 <!DOCTYPE html>
 <html lang="<%= lang %>">
 <head>
@@ -19,10 +19,16 @@
 </h1>
 <div class="airway-block">
 <div class="airway-label">
+<%= t('manifests.manifest_number') %>
+</div>
+<div class="airway-value">
+<%= formatManifestNumber(manifest) %>
+</div>
+<div class="airway-label">
 <%= t('manifests.airway_bill') %>
 </div>
 <div class="airway-value">
-<%= manifest.airway_bill_number || '-' %>
+<%= manifest.transport_document_type ? `${manifest.transport_document_type === 'CARTA_PORTE' ? 'Carta Porte' : (manifest.transport_document_type === 'AWB' || manifest.transport_document_type === 'MAWB' ? 'AWB' : manifest.transport_document_type)} - ` : '' %><%= manifest.airway_bill_number || '-' %>
 </div>
 </div>
 </div>
@@ -59,6 +65,14 @@
 <%= t('manifests.download_excel') %>
 </a>
 <% } %>
+<% if (!isClosed && canEditManifest) { %>
+<form method="POST" action="/manifests/<%= manifest.id %>/save-draft">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn">
+<%= t('manifests.save_draft') %>
+</button>
+</form>
+<% } %>
 <% if (manifest.status === 'open' && canEditManifest) { %>
 <form method="POST" action="/manifests/<%= manifest.id %>/close">
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
@@ -78,13 +92,28 @@
 </div>
 </div>
 <div class="form grid-2">
-<form method="POST" action="/manifests/<%= manifest.id %>/airway-bill" class="form">
+<form method="POST" action="/manifests/<%= manifest.id %>/airway-bill" class="form" data-manifest-transport-form>
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 <label>
+Tipo de documento de transporte
+<select name="transport_document_type" data-transport-type <%= canEditManifest ? '' : 'disabled' %> required>
+<option value="BL" <%= selectedType === 'BL' ? 'selected' : '' %>>BL</option>
+<option value="AWB" <%= selectedType === 'AWB' || selectedType === 'MAWB' ? 'selected' : '' %>>AWB</option>
+<option value="CARTA_PORTE" <%= selectedType === 'CARTA_PORTE' ? 'selected' : '' %>>Carta Porte</option>
+</select>
+</label>
+<label>
 <%= t('manifests.airway_bill') %>
-<input type="text" name="airway_bill_number" value="<%= manifest.airway_bill_number || '' %>" <%= canEditManifest ? '' : 'disabled' %> />
+<select name="transport_document_id" data-transport-document <%= canEditManifest ? '' : 'disabled' %> required>
+<option value="">Seleccione una guia</option>
+<% (transportDocuments || []).forEach((doc) => { %>
+<option value="<%= doc.id %>" data-type="<%= doc.type %>" <%= String(doc.id) === String(manifest.transport_document_id || '') && (String(doc.type || '') === String(manifest.transport_document_type || '') || (doc.type === 'AWB' && manifest.transport_document_type === 'MAWB')) ? 'selected' : '' %>>
+<%= doc.type === 'CARTA_PORTE' ? 'Carta Porte' : (doc.type === 'AWB' || doc.type === 'MAWB' ? 'AWB' : doc.type) %> - <%= doc.document_number %><%= doc.client_name ? ` - ${doc.client_name}` : '' %><%= doc.issue_date ? ` (${doc.issue_date})` : '' %><%= String(doc.id) === String(manifest.transport_document_id || '') && (String(doc.type || '') === String(manifest.transport_document_type || '') || (doc.type === 'AWB' && manifest.transport_document_type === 'MAWB')) ? ' (actual)' : '' %>
+</option>
+<% }) %>
+</select>
 <small class="muted">
-<%= t('manifests.airway_hint') %>
+Las guias ya usadas en otro manifiesto no aparecen en esta lista.
 </small>
 </label>
 <% if (canEditManifest) { %>
@@ -93,6 +122,16 @@
 </button>
 <% } %>
 </form>
+<% if (canEditManifest && manifest.transport_document_id) { %>
+<form method="POST" action="/manifests/<%= manifest.id %>/unlink-transport-document" class="form">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<label>
+Guia bloqueada
+<input type="text" value="<%= manifest.airway_bill_number || '' %>" disabled />
+</label>
+<button type="submit" class="btn danger small">Desvincular guia</button>
+</form>
+<% } %>
 <form method="POST" action="/manifests/<%= manifest.id %>/notes" class="form">
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 <label>
@@ -282,5 +321,29 @@
 </section>
 </main>
 <script src="/status-footer.js" defer></script>
+<script>
+(function () {
+  const form = document.querySelector('[data-manifest-transport-form]');
+  if (!form) return;
+  const typeSelect = form.querySelector('[data-transport-type]');
+  const documentSelect = form.querySelector('[data-transport-document]');
+  if (!typeSelect || !documentSelect) return;
+  const options = Array.from(documentSelect.options);
+  function syncDocuments() {
+    const selectedType = typeSelect.value;
+    let hasSelectedVisible = false;
+    options.forEach((option) => {
+      const optionType = option.dataset.type || '';
+      const visible = !option.value || optionType === selectedType;
+      option.hidden = !visible;
+      option.disabled = !visible;
+      if (visible && option.selected) hasSelectedVisible = true;
+    });
+    if (!hasSelectedVisible) documentSelect.value = '';
+  }
+  typeSelect.addEventListener('change', syncDocuments);
+  syncDocuments();
+})();
+</script>
 </body>
 </html>

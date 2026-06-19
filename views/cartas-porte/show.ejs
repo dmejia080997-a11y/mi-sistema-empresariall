@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<%- include('../partials/head', { title: 'Carta Porte ' + carta.numero, extraStyles: ['/css/cartas-porte.css'] }) %>
+</head>
+<body class="page">
+<%- include('../partials/header', { currentModule: 'cartas_porte' }) %>
+<main class="container cartas-porte-page">
+  <div class="page-header">
+    <div>
+      <h1>Carta Porte <%= carta.numero %></h1>
+      <p class="muted"><%= carta.fecha_emision %> · <%= carta.estado %></p>
+    </div>
+    <div class="actions">
+      <a class="btn" href="<%= carta.estado === 'Anulada' ? '/cartas-porte/archivados' : '/cartas-porte' %>"><%= carta.estado === 'Anulada' ? 'Archivados' : 'Listado' %></a>
+      <% if (carta.estado === 'Borrador' && can('cartas_porte', 'editar')) { %><a class="btn" href="/cartas-porte/<%= carta.id %>/edit">Editar</a><% } %>
+      <% if (can('cartas_porte', 'imprimir')) { %><a class="btn" href="/cartas-porte/<%= carta.id %>/print" target="_blank" rel="noopener">Imprimir</a><% } %>
+      <% if (can('cartas_porte', 'descargar_pdf')) { %><a class="btn primary" href="/cartas-porte/<%= carta.id %>/pdf">Descargar PDF</a><% } %>
+      <% if (can('cartas_porte', 'crear')) { %>
+        <form method="POST" action="/cartas-porte/<%= carta.id %>/duplicate">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <button class="btn" type="submit">Duplicar</button>
+        </form>
+      <% } %>
+      <% if (carta.estado !== 'Anulada' && can('cartas_porte', 'anular')) { %>
+        <form method="POST" action="/cartas-porte/<%= carta.id %>/void" onsubmit="return confirm('Anular esta Carta Porte?');">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <button class="btn danger" type="submit">Anular</button>
+        </form>
+      <% } %>
+    </div>
+  </div>
+
+  <% if (flash) { %><div class="alert <%= flash.type %>"><%= flash.message %></div><% } %>
+
+  <section class="panel summary-grid">
+    <div><span>Remitente</span><strong><%= carta.remitente_nombre || '-' %></strong></div>
+    <div><span>Destinatario</span><strong><%= carta.destinatario_nombre || '-' %></strong></div>
+    <div><span>Transportista</span><strong><%= carta.transportista_nombre || '-' %></strong></div>
+    <div><span>Vehiculo</span><strong><%= carta.placa_vehiculo || '-' %></strong></div>
+    <div><span>Idioma</span><strong><%= carta.idioma === 'en' ? 'Ingles' : 'Español' %></strong></div>
+    <div><span>Total bultos</span><strong><%= carta.total_bultos || 0 %></strong></div>
+    <div><span>Peso bruto</span><strong><%= carta.total_peso_bruto || 0 %></strong></div>
+  </section>
+
+  <% if (can('cartas_porte', 'imprimir')) { %>
+    <section class="panel">
+      <iframe title="Vista previa Carta Porte" src="/cartas-porte/<%= carta.id %>/print" class="print-preview"></iframe>
+    </section>
+  <% } %>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

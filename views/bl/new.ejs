@@ -1,0 +1,15 @@
+<%- include('../partials/head', { title: 'Nuevo BL', extraStyles: ['/css/bl.css'] }) %>
+<%- include('../partials/header', { currentModule: 'bl' }) %>
+<%- include('../partials/toasts') %>
+
+<main class="container bl-page">
+  <div class="page-header">
+    <div>
+      <h1>Nuevo Bill of Lading</h1>
+      <p class="muted">Master BL</p>
+    </div>
+    <a class="btn" href="/bill-of-lading">Cancelar</a>
+  </div>
+  <%- include('_form', { bl, action: '/bill-of-lading', error: typeof error !== 'undefined' ? error : null, levels, statuses, modalities, freightTerms, levelMeta }) %>
+</main>
+<script src="/js/bl/form.js" defer></script>

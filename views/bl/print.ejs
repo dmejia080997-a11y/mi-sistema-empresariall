@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>BL <%= bl.numero_bl %></title>
+  <link rel="stylesheet" href="/css/bl.css" />
+</head>
+<body class="bl-print-body">
+  <main class="bl-print-page">
+    <header class="bl-print-header">
+      <div>
+        <% if (companyBrand && companyBrand.logo) { %>
+          <img src="<%= companyBrand.logo %>" alt="Logo" class="bl-print-logo" />
+        <% } else { %>
+          <h2><%= companyBrand && companyBrand.name ? companyBrand.name : 'Empresa' %></h2>
+        <% } %>
+        <p>
+          <strong><%= companyBrand && (companyBrand.legal_name || companyBrand.name) || '' %></strong><br />
+          <%= companyBrand && companyBrand.address || '' %><br />
+          NIT: <%= companyBrand && companyBrand.nit || '-' %> · Tel: <%= companyBrand && companyBrand.phone || '-' %><br />
+          <%= companyBrand && companyBrand.email || '' %>
+        </p>
+      </div>
+      <div>
+        <h1>BILL OF LADING</h1>
+        <p><strong><%= bl.type_label %></strong></p>
+        <p>No. <strong><%= bl.numero_bl %></strong></p>
+        <p>Fecha: <%= bl.fecha_emision || '-' %> · Estado: <%= bl.estado %></p>
+        <% if (bl.parent_numero_bl) { %><p>BL padre: <%= bl.parent_numero_bl %></p><% } %>
+      </div>
+    </header>
+
+    <section class="print-grid-three">
+      <div><h3>1. Shipper / Exporter</h3><p><%= bl.shipper_nombre || '-' %><br /><%= bl.shipper_nit || '' %><br /><%= bl.shipper_direccion || '' %><br /><%= bl.shipper_telefono || '' %> <%= bl.shipper_email || '' %><br /><%= bl.shipper_contacto || '' %></p></div>
+      <div><h3>2. Consignee</h3><p><%= bl.consignee_nombre || '-' %><br /><%= bl.consignee_nit || '' %><br /><%= bl.consignee_direccion || '' %><br /><%= bl.consignee_telefono || '' %> <%= bl.consignee_email || '' %><br /><%= bl.consignee_contacto || '' %></p></div>
+      <div><h3>3. Notify Party</h3><p><%= bl.notify_nombre || '-' %><br /><%= bl.notify_nit || '' %><br /><%= bl.notify_direccion || '' %><br /><%= bl.notify_telefono || '' %> <%= bl.notify_email || '' %><br /><%= bl.notify_contacto || '' %></p></div>
+    </section>
+
+    <section class="print-box"><h3>4. Forwarder / Agent</h3><p><%= bl.forwarder_nombre || '-' %> · <%= bl.forwarder_nit || '' %> · <%= bl.forwarder_telefono || '' %> · <%= bl.forwarder_email || '' %><br /><%= bl.forwarder_direccion || '' %></p></section>
+
+    <section class="print-grid-four">
+      <div><span>5. Vessel and Voyage</span><strong><%= bl.vessel || '-' %> / <%= bl.voyage || '-' %></strong></div>
+      <div><span>6. Place of Receipt</span><strong><%= bl.place_of_receipt || '-' %></strong></div>
+      <div><span>7. Port of Loading</span><strong><%= bl.port_of_loading || '-' %></strong></div>
+      <div><span>8. Port of Discharge</span><strong><%= bl.port_of_discharge || '-' %></strong></div>
+      <div><span>9. Place of Delivery</span><strong><%= bl.place_of_delivery || '-' %></strong></div>
+      <div><span>10. Final Destination</span><strong><%= bl.final_destination || '-' %></strong></div>
+      <div><span>11. Freight Terms</span><strong><%= bl.freight_terms || '-' %></strong></div>
+      <div><span>Payable at</span><strong><%= bl.freight_payable_at || '-' %></strong></div>
+    </section>
+
+    <section class="print-box">
+      <h3>12. Containers</h3>
+      <table>
+        <thead><tr><th>Container No.</th><th>Seal No.</th><th>Type</th><th>Packages</th><th>Package Type</th><th>Gross Weight</th><th>Net Weight</th><th>CBM</th><th>Marks</th></tr></thead>
+        <tbody>
+          <% (bl.containers || []).forEach((row) => { %>
+            <tr><td><%= row.container_number || '-' %></td><td><%= row.seal_number || '-' %></td><td><%= row.container_type || '-' %></td><td><%= row.package_quantity || 0 %></td><td><%= row.package_type || '-' %></td><td><%= row.gross_weight || 0 %></td><td><%= row.net_weight || 0 %></td><td><%= row.volume_cbm || 0 %></td><td><%= row.marks_numbers || '-' %></td></tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="print-box">
+      <h3>13-16. Marks and Numbers / Description of Goods / Gross Weight / Measurement</h3>
+      <table>
+        <thead><tr><th>Quantity</th><th>Package Type</th><th>Description</th><th>HS Code</th><th>Gross Weight</th><th>Net Weight</th><th>CBM</th><th>Marks/Numbers</th></tr></thead>
+        <tbody>
+          <% (bl.cargo_items || []).forEach((row) => { %>
+            <tr><td><%= row.quantity || 0 %></td><td><%= row.package_type || '-' %></td><td><%= row.description || '-' %></td><td><%= row.hs_code || '-' %></td><td><%= row.gross_weight || 0 %></td><td><%= row.net_weight || 0 %></td><td><%= row.volume_cbm || 0 %></td><td><%= row.marks_numbers || '-' %></td></tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <p class="print-totals">Totales: contenedores <%= bl.total_containers || 0 %> · bultos <%= bl.total_packages || 0 %> · peso bruto <%= bl.total_gross_weight || 0 %> · peso neto <%= bl.total_net_weight || 0 %> · CBM <%= bl.total_cbm || 0 %> · valor <%= bl.moneda || '' %> <%= bl.total_declared_value || 0 %></p>
+    </section>
+
+    <section class="print-grid-three">
+      <div><h3>17. Number of Originals</h3><p><%= bl.number_of_originals || '-' %></p></div>
+      <div><h3>18. Observations</h3><p><%= bl.observaciones || '-' %></p></div>
+      <div><h3>19. Terms and Conditions</h3><p><%= bl.condiciones_transporte || '-' %></p></div>
+    </section>
+
+    <section class="signature-grid">
+      <div><span></span><p>Carrier / Agent Signature</p></div>
+      <div><span></span><p>Shipper Signature</p></div>
+      <div><span></span><p>Authorized Signature</p></div>
+      <div><span></span><p>Date</p></div>
+    </section>
+  </main>
+  <% if (typeof autoPrint !== 'undefined' && autoPrint) { %><script>window.addEventListener('load', function(){ window.print(); });</script><% } %>
+</body>
+</html>

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<%- include('../partials/head', { title: 'Editar Carta Porte', extraStyles: ['/css/cartas-porte.css'] }) %>
+</head>
+<body class="page">
+<%- include('../partials/header', { currentModule: 'cartas_porte' }) %>
+<main class="container cartas-porte-page">
+  <div class="page-header">
+    <div>
+      <h1>Editar Carta Porte</h1>
+      <p class="muted"><%= carta.numero || 'Borrador' %></p>
+    </div>
+    <a class="btn" href="/cartas-porte/<%= carta.id %>">Cancelar</a>
+  </div>
+  <%- include('_form', { carta, action: '/cartas-porte/' + carta.id + '/update', error }) %>
+</main>
+<script src="/js/cartas-porte/form.js" defer></script>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

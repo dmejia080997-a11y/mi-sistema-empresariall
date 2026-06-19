@@ -1,0 +1,54 @@
+<%- include('../partials/head', { title: 'AWB ' + awb.numero_awb, extraStyles: ['/css/awb.css'] }) %>
+<%- include('../partials/header', { currentModule: 'awb' }) %>
+<%- include('../partials/toasts') %>
+
+<main class="container awb-page">
+  <div class="page-header">
+    <div>
+      <h1><%= awb.numero_awb %></h1>
+      <p class="muted"><%= awb.type_label %> · <%= awb.estado %></p>
+    </div>
+    <div class="actions">
+      <a class="btn" href="/air-waybills">Listado</a>
+      <a class="btn" href="/air-waybills/tree">Ver jerarquía</a>
+      <% if (awb.parent_awb_id) { %><a class="btn" href="/air-waybills/<%= awb.parent_awb_id %>">Ver MAWB padre</a><% } %>
+      <% if (awb.estado === 'Borrador' && can('awb', 'editar')) { %><a class="btn" href="/air-waybills/<%= awb.id %>/edit">Editar</a><% } %>
+      <% if (can('awb', 'imprimir')) { %><a class="btn" href="/air-waybills/<%= awb.id %>/print" target="_blank" rel="noopener">Imprimir</a><% } %>
+      <% if (can('awb', 'descargar_pdf')) { %><a class="btn primary" href="/air-waybills/<%= awb.id %>/pdf">Descargar PDF</a><% } %>
+    </div>
+  </div>
+
+  <section class="form-card">
+    <div class="summary-grid">
+      <div><span>Tipo</span><strong><%= awb.type_label %></strong></div>
+      <div><span>MAWB padre</span><strong><%= awb.parent_numero_awb || '-' %></strong></div>
+      <div><span>Fecha</span><strong><%= awb.fecha_emision || '-' %></strong></div>
+      <div><span>Aerolínea</span><strong><%= awb.airline_name || '-' %></strong></div>
+      <div><span>Ruta</span><strong><%= awb.airport_origin || '-' %> / <%= awb.airport_destination || '-' %></strong></div>
+      <div><span>Vuelo</span><strong><%= awb.flight_number_1 || '-' %></strong></div>
+      <div><span>Piezas</span><strong><%= awb.total_pieces || 0 %></strong></div>
+      <div><span>Peso bruto</span><strong><%= awb.total_gross_weight || 0 %></strong></div>
+      <div><span>Peso cobrable</span><strong><%= awb.total_chargeable_weight || 0 %></strong></div>
+      <div><span>CBM</span><strong><%= awb.total_cbm || 0 %></strong></div>
+    </div>
+  </section>
+
+  <section class="form-card">
+    <div class="card-title-row">
+      <h2>Acciones</h2>
+      <div class="row-actions">
+        <% if (awb.tipo_awb === 'MAWB' && can('awb', 'crear_hija')) { %><form method="POST" action="/air-waybills/<%= awb.id %>/create-child"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn" type="submit">Crear HAWB</button></form><% } %>
+        <% if (can('awb', 'crear')) { %><form method="POST" action="/air-waybills/<%= awb.id %>/duplicate"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn" type="submit">Duplicar</button></form><% } %>
+        <% if (awb.tipo_awb === 'MAWB' && can('awb', 'crear')) { %><form method="POST" action="/air-waybills/<%= awb.id %>/duplicate"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><input type="hidden" name="with_children" value="1" /><button class="btn" type="submit">Duplicar MAWB con todas sus HAWB</button></form><% } %>
+        <% if (awb.estado !== 'Anulada' && can('awb', 'anular')) { %><form method="POST" action="/air-waybills/<%= awb.id %>/void" onsubmit="return confirm('Anular esta AWB?');"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn danger" type="submit">Anular</button></form><% } %>
+      </div>
+    </div>
+    <% if (awb.children && awb.children.length) { %>
+      <div class="child-list"><% awb.children.forEach((child) => { %><a href="/air-waybills/<%= child.id %>"><%= child.numero_awb %> · <%= child.type_label %> · <%= child.total_pieces || 0 %> pcs</a><% }) %></div>
+    <% } else { %>
+      <p class="helper">Sin HAWB asociadas.</p>
+    <% } %>
+  </section>
+
+  <iframe title="Vista previa AWB" src="/air-waybills/<%= awb.id %>/print" class="print-preview"></iframe>
+</main>

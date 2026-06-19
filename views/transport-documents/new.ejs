@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<%- include('../partials/head', { title: 'Nuevo Documento de Transporte', extraStyles: ['/css/transport-documents.css'] }) %>
+</head>
+<body class="page">
+<%- include('../partials/header', { currentModule: 'transport_documents' }) %>
+<main class="container">
+  <div class="page-header">
+    <div>
+      <h1>Nuevo Documento de Transporte</h1>
+      <p class="muted">Seleccione Carta Porte, Bill of Lading o Guia Aerea y complete los datos correspondientes.</p>
+    </div>
+    <a class="btn" href="/transport-documents">Listado</a>
+  </div>
+  <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+  <%- include('_form', { document, action: '/transport-documents', csrfToken, typeLabels, statusLabels }) %>
+</main>
+<script src="/js/transport-documents/form.js" defer></script>
+</body>
+</html>

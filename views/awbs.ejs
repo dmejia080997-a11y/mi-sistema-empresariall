@@ -11,6 +11,10 @@
 <body class="page">
 <%- include('partials/header') %>
 <main class="container">
+<%
+const documentTypeLabels = { bl: t('awb.document_type.bl'), awb: t('awb.document_type.awb'), carta_porte: t('awb.document_type.carta_porte') };
+const currentFilters = typeof filters !== 'undefined' && filters ? filters : { document_type: 'all', status: 'active' };
+%>
 <div class="page-header">
 <div>
 <h1>
@@ -44,8 +48,36 @@
 <%= t('awb.list') %>
 </h2>
 </div>
+<form method="GET" action="/airway-bills" class="filters">
+<label>
+<%= t('awb.document_type') %>
+<select name="document_type">
+<option value="all" <%= currentFilters.document_type === 'all' ? 'selected' : '' %>><%= t('common.all') %></option>
+<option value="bl" <%= currentFilters.document_type === 'bl' ? 'selected' : '' %>><%= t('awb.document_type.bl') %></option>
+<option value="awb" <%= currentFilters.document_type === 'awb' ? 'selected' : '' %>><%= t('awb.document_type.awb') %></option>
+<option value="carta_porte" <%= currentFilters.document_type === 'carta_porte' ? 'selected' : '' %>><%= t('awb.document_type.carta_porte') %></option>
+</select>
+</label>
+<label>
+<%= t('awb.status') %>
+<select name="status">
+<option value="active" <%= currentFilters.status === 'active' ? 'selected' : '' %>><%= t('awb.status.active') %></option>
+<option value="draft" <%= currentFilters.status === 'draft' ? 'selected' : '' %>><%= t('awb.status.draft') %></option>
+<option value="issued" <%= currentFilters.status === 'issued' ? 'selected' : '' %>><%= t('awb.status.issued') %></option>
+<option value="applied" <%= currentFilters.status === 'applied' ? 'selected' : '' %>><%= t('awb.status.applied') %></option>
+<option value="cancelled" <%= currentFilters.status === 'cancelled' ? 'selected' : '' %>><%= t('awb.status.cancelled') %></option>
+</select>
+</label>
+<button class="btn small" type="submit"><%= t('common.filter') %></button>
+<a class="btn small" href="/airway-bills"><%= t('common.clear') %></a>
+<a class="btn small" href="/airway-bills/applied"><%= t('awb.applied') %></a>
+<a class="btn small" href="/airway-bills/cancelled"><%= t('awb.cancelled') %></a>
+</form>
 <div class="table">
 <div class="table-row header awbs">
+<div>
+<%= t('awb.document_type') %>
+</div>
 <div>
 <%= t('awb.awb_number') %>
 </div>
@@ -65,6 +97,9 @@
 <%= t('awb.created_at') %>
 </div>
 <div>
+<%= t('awb.applied_manifest') %>
+</div>
+<div>
 <%= t('awb.actions') %>
 </div>
 </div>
@@ -75,6 +110,9 @@
 <% } %>
 <% (awbs || []).forEach((awb) => { %>
 <div class="table-row awbs">
+<div>
+<%= documentTypeLabels[awb.document_type || 'awb'] || awb.document_type || '-' %>
+</div>
 <div>
 <%= awb.awb_number || '-' %>
 </div>
@@ -95,10 +133,31 @@
 <div>
 <%= awb.created_at || '-' %>
 </div>
+<div>
+<%= awb.applied_manifests || '-' %>
+</div>
 <div class="actions">
 <a class="btn small" href="/airway-bills/<%= awb.id %>">
 <%= t('awb.view') %>
 </a>
+<% if (can('airway_bills', 'edit') && awb.status !== 'cancelled') { %>
+<form method="POST" action="/airway-bills/<%= awb.id %>/cancel">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button class="btn small danger" type="submit"><%= t('awb.cancel') %></button>
+</form>
+<% if (awb.applied_manifests) { %>
+<form method="POST" action="/airway-bills/<%= awb.id %>/apply">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button class="btn small" type="submit"><%= t('awb.apply') %></button>
+</form>
+<% } %>
+<% } %>
+<% if (can('airway_bills', 'edit')) { %>
+<form method="POST" action="/airway-bills/<%= awb.id %>/delete" onsubmit="return confirm('<%= t('awb.delete_confirm') %>');">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button class="btn small danger" type="submit"><%= t('common.delete') %></button>
+</form>
+<% } %>
 </div>
 </div>
 <% }) %>

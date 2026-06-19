@@ -56,11 +56,35 @@
 </button>
 </form>
 <% } %>
-<% if (canEdit && awb.status !== 'issued') { %>
+<% if (canEdit && !['issued', 'applied', 'cancelled'].includes(awb.status)) { %>
 <form method="POST" action="/airway-bills/<%= awb.id %>/issue">
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 <button type="submit" class="btn">
 <%= t('awb.issue') %>
+</button>
+</form>
+<% } %>
+<% if (canEdit && awb.status !== 'cancelled') { %>
+<form method="POST" action="/airway-bills/<%= awb.id %>/cancel">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn danger">
+<%= t('awb.cancel') %>
+</button>
+</form>
+<% if (linkedManifests && linkedManifests.length) { %>
+<form method="POST" action="/airway-bills/<%= awb.id %>/apply">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn">
+<%= t('awb.apply') %>
+</button>
+</form>
+<% } %>
+<% } %>
+<% if (canEdit) { %>
+<form method="POST" action="/airway-bills/<%= awb.id %>/delete" onsubmit="return confirm('<%= t('awb.delete_confirm') %>');">
+<input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<button type="submit" class="btn danger">
+<%= t('common.delete') %>
 </button>
 </form>
 <% } %>
@@ -91,6 +115,14 @@
 </h2>
 </div>
 <div class="detail-grid">
+<div class="cell">
+<div class="cell-label">
+<%= t('awb.document_type') %>
+</div>
+<div>
+<%= awb.document_type === 'bl' ? t('awb.document_type.bl') : awb.document_type === 'carta_porte' ? t('awb.document_type.carta_porte') : t('awb.document_type.awb') %>
+</div>
+</div>
 <div class="cell">
 <div class="cell-label">
 <%= t('awb.awb_type') %>

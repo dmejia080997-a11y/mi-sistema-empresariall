@@ -206,11 +206,15 @@
 
 
   "login.title": "Login",
-  "login.heading": "Inventory Login",
-  "login.subtitle": "Use your account to access the dashboard.",
-  "login.company_username": "Company username",
-  "login.company_username_helper": "Use the company username, not the company name.",
-  "login.user_username": "User username",
+  "login.heading": "Plataforma Empresarial",
+  "login.subtitle": "",
+  "login.company_username": "Company username",
+  "login.company_username_helper": "Use the company username, not the company name.",
+  "login.company_nit": "Company tax ID",
+  "login.company_nit_helper": "Enter the tax ID of the company you want to access.",
+  "login.change_company": "Change company",
+  "login.continue": "Continue",
+  "login.user_username": "Username",
   "login.password": "Password",
   "login.sign_in": "Sign in",
 
@@ -487,6 +491,7 @@
 
   "errors.server_try_again": "Server error. Try again.",
   "errors.invalid_credentials": "Invalid username or password.",
+  "errors.invalid_nit": "Invalid tax ID.",
   "errors.company_expired": "Company account expired. Contact the administrator.",
   "errors.company_inactive": "Company account is inactive. Contact the administrator.",
   "errors.company_create_failed": "Company creation failed.",
@@ -533,7 +538,7 @@
   "errors.consignatario_name_required": "Consignee name is required.",
   "errors.consignatario_create_failed": "Unable to create consignee.",
   "errors.exchange_rate_invalid": "Invalid exchange rate.",
-  "errors.username_password_required": "Username and password are required.",
+  "errors.username_password_required": "Username and password are required.",
   "errors.user_create_failed": "User creation failed. Username may already exist.",
   "errors.username_required": "Username is required.",
   "errors.user_remove_admin_self": "You cannot remove your own admin role.",
@@ -767,7 +772,8 @@
   "packages_dashboard.in_customs": "In customs",
   "packages_dashboard.ready_delivery": "Ready for delivery",
   "packages_dashboard.delivered": "Delivered",
-  "common.clear": "Clear",
+  "common.clear": "Clear",
+  "common.filter": "Filter",
   "common.search": "Search",
   "common.choose": "Choose",
   "common.all": "All",
@@ -969,6 +975,12 @@
   ,"manifests.detail": "Manifest detail"
 
   ,"manifests.airway_bill": "Air Waybill number"
+  ,"manifests.manifest_number": "Manifest number"
+  ,"manifests.number_mode": "Numbering mode"
+  ,"manifests.number_mode.automatic": "Automatic"
+  ,"manifests.number_mode.manual": "Manual"
+  ,"manifests.manifest_number_placeholder": "Ex. MAN-2026-0001"
+  ,"manifests.manifest_number_hint": "Only required when manual mode is selected."
 
   ,"manifests.airway_hint": "Editable while the manifest is open."
 
@@ -977,6 +989,7 @@
   ,"manifests.status": "Status"
 
   ,"manifests.status.open": "Open"
+  ,"manifests.status.draft": "Draft"
 
   ,"manifests.status.closed": "Closed"
 
@@ -997,6 +1010,7 @@
   ,"manifests.close": "Close manifest"
 
   ,"manifests.reopen": "Reopen manifest"
+  ,"manifests.save_draft": "Save draft"
 
   ,"manifests.no_pieces": "No pieces yet."
 
@@ -1046,14 +1060,27 @@
   ,"awb.close": "Close"
   ,"awb.issue": "Issue"
   ,"awb.reopen": "Reopen"
+  ,"awb.apply": "Apply"
+  ,"awb.applied": "Applied"
+  ,"awb.cancel": "Cancel"
+  ,"awb.cancelled": "Cancelled"
+  ,"awb.delete_confirm": "Are you sure you want to delete this document?"
   ,"awb.actions": "Actions"
   ,"awb.status": "Status"
+  ,"awb.status.active": "Active"
   ,"awb.status.draft": "Draft"
   ,"awb.status.closed": "Closed"
   ,"awb.status.issued": "Issued"
+  ,"awb.status.applied": "Applied"
+  ,"awb.status.cancelled": "Cancelled"
   ,"awb.created_at": "Created"
   ,"awb.no_awbs": "No air waybills yet."
   ,"awb.paper_title": "Air Waybill"
+  ,"awb.document_type": "Document type"
+  ,"awb.document_type.bl": "BL"
+  ,"awb.document_type.awb": "Air Waybill"
+  ,"awb.document_type.carta_porte": "Carta porte"
+  ,"awb.applied_manifest": "Applied manifest"
 
   ,"awb.sections.header": "Header"
   ,"awb.sections.parties": "Shipper and consignee"

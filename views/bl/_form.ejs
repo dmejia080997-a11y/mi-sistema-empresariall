@@ -1,0 +1,149 @@
+<% const v = (name) => (bl && bl[name]) || ''; %>
+<% if (error) { %><div class="alert error"><%= error %></div><% } %>
+<form class="bl-form" method="POST" action="<%= action %>">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+  <input type="hidden" name="nivel_bl" value="<%= v('nivel_bl') || 'MASTER' %>" />
+  <input type="hidden" name="parent_bl_id" value="<%= v('parent_bl_id') || '' %>" />
+
+  <section class="form-card">
+    <h2>Datos generales</h2>
+    <% if (v('parent_numero_bl')) { %><p class="helper">Referencia BL padre: <strong><%= v('parent_numero_bl') %></strong></p><% } %>
+    <% if (bl && bl.master) { %><p class="helper">Referencia Master BL: <strong><%= bl.master.numero_bl %></strong></p><% } %>
+    <div class="form-grid">
+      <label>Tipo de BL<input value="<%= levelMeta[v('nivel_bl') || 'MASTER'].label %>" readonly /></label>
+      <label>Numero BL<input value="<%= v('numero_bl') || 'Automatico' %>" readonly /></label>
+      <label>Fecha de emision<input type="date" name="fecha_emision" value="<%= v('fecha_emision') %>" /></label>
+      <label>Lugar de emision<input name="lugar_emision" value="<%= v('lugar_emision') %>" /></label>
+      <label>Tipo de servicio<input name="tipo_servicio" value="<%= v('tipo_servicio') %>" /></label>
+      <label>Modalidad
+        <select name="modalidad">
+          <option value="">Seleccione</option>
+          <% modalities.forEach((item) => { %><option value="<%= item %>" <%= v('modalidad') === item ? 'selected' : '' %>><%= item %></option><% }) %>
+        </select>
+      </label>
+      <label>Incoterm<input name="incoterm" value="<%= v('incoterm') %>" /></label>
+      <label>Moneda<input name="moneda" value="<%= v('moneda') || 'USD' %>" /></label>
+    </div>
+  </section>
+
+  <% [['Shipper / Exportador','shipper'], ['Consignee / Consignatario','consignee'], ['Notify Party','notify']].forEach(([title, prefix]) => { %>
+    <section class="form-card">
+      <h2><%= title %></h2>
+      <div class="form-grid">
+        <label>Nombre<input name="<%= prefix %>_nombre" value="<%= v(prefix + '_nombre') %>" /></label>
+        <label>NIT<input name="<%= prefix %>_nit" value="<%= v(prefix + '_nit') %>" /></label>
+        <label>Telefono<input name="<%= prefix %>_telefono" value="<%= v(prefix + '_telefono') %>" /></label>
+        <label>Email<input type="email" name="<%= prefix %>_email" value="<%= v(prefix + '_email') %>" /></label>
+        <label>Contacto<input name="<%= prefix %>_contacto" value="<%= v(prefix + '_contacto') %>" /></label>
+        <label class="full-row">Direccion<textarea name="<%= prefix %>_direccion"><%= v(prefix + '_direccion') %></textarea></label>
+      </div>
+    </section>
+  <% }) %>
+
+  <section class="form-card">
+    <h2>Forwarder / Agente</h2>
+    <div class="form-grid">
+      <label>Nombre<input name="forwarder_nombre" value="<%= v('forwarder_nombre') %>" /></label>
+      <label>NIT<input name="forwarder_nit" value="<%= v('forwarder_nit') %>" /></label>
+      <label>Telefono<input name="forwarder_telefono" value="<%= v('forwarder_telefono') %>" /></label>
+      <label>Email<input type="email" name="forwarder_email" value="<%= v('forwarder_email') %>" /></label>
+      <label class="full-row">Direccion<textarea name="forwarder_direccion"><%= v('forwarder_direccion') %></textarea></label>
+    </div>
+  </section>
+
+  <section class="form-card">
+    <h2>Datos maritimos</h2>
+    <div class="form-grid">
+      <label>Carrier<input name="carrier" value="<%= v('carrier') %>" /></label>
+      <label>Vessel<input name="vessel" value="<%= v('vessel') %>" /></label>
+      <label>Voyage<input name="voyage" value="<%= v('voyage') %>" /></label>
+      <label>Port of Loading<input name="port_of_loading" value="<%= v('port_of_loading') %>" /></label>
+      <label>Port of Discharge<input name="port_of_discharge" value="<%= v('port_of_discharge') %>" /></label>
+      <label>Place of Receipt<input name="place_of_receipt" value="<%= v('place_of_receipt') %>" /></label>
+      <label>Place of Delivery<input name="place_of_delivery" value="<%= v('place_of_delivery') %>" /></label>
+      <label>Final Destination<input name="final_destination" value="<%= v('final_destination') %>" /></label>
+      <label>ETD<input type="date" name="etd" value="<%= v('etd') %>" /></label>
+      <label>ETA<input type="date" name="eta" value="<%= v('eta') %>" /></label>
+      <label>Freight Terms
+        <select name="freight_terms">
+          <option value="">Seleccione</option>
+          <% freightTerms.forEach((item) => { %><option value="<%= item %>" <%= v('freight_terms') === item ? 'selected' : '' %>><%= item %></option><% }) %>
+        </select>
+      </label>
+      <label>Freight payable at<input name="freight_payable_at" value="<%= v('freight_payable_at') %>" /></label>
+      <label>Number of originals<input name="number_of_originals" value="<%= v('number_of_originals') %>" /></label>
+      <label>Ocean freight<input type="number" step="0.01" name="ocean_freight" value="<%= v('ocean_freight') %>" /></label>
+      <label>Charges<input type="number" step="0.01" name="charges" value="<%= v('charges') %>" /></label>
+    </div>
+  </section>
+
+  <section class="form-card">
+    <div class="card-title-row">
+      <h2>Contenedores</h2>
+      <button class="btn small" type="button" data-add-container>Agregar contenedor</button>
+    </div>
+    <div class="items-list" data-container-list>
+      <% (bl.containers || [{}]).forEach((item, index) => { %>
+        <div class="cargo-item" data-container-row>
+          <input type="hidden" name="containers[<%= index %>][id]" value="<%= item.id || (index + 1) %>" />
+          <label>Container No.<input name="containers[<%= index %>][container_number]" value="<%= item.container_number || '' %>" /></label>
+          <label>Seal No.<input name="containers[<%= index %>][seal_number]" value="<%= item.seal_number || '' %>" /></label>
+          <label>Type<input name="containers[<%= index %>][container_type]" value="<%= item.container_type || '' %>" /></label>
+          <label>Tare<input type="number" step="0.01" name="containers[<%= index %>][tare_weight]" value="<%= item.tare_weight || '' %>" /></label>
+          <label>Gross<input type="number" step="0.01" name="containers[<%= index %>][gross_weight]" value="<%= item.gross_weight || '' %>" /></label>
+          <label>Net<input type="number" step="0.01" name="containers[<%= index %>][net_weight]" value="<%= item.net_weight || '' %>" /></label>
+          <label>CBM<input type="number" step="0.01" name="containers[<%= index %>][volume_cbm]" value="<%= item.volume_cbm || '' %>" /></label>
+          <label>Packages<input type="number" step="0.01" name="containers[<%= index %>][package_quantity]" value="<%= item.package_quantity || '' %>" /></label>
+          <label>Package Type<input name="containers[<%= index %>][package_type]" value="<%= item.package_type || '' %>" /></label>
+          <label class="wide">Marks<textarea name="containers[<%= index %>][marks_numbers]"><%= item.marks_numbers || '' %></textarea></label>
+          <button class="btn small danger" type="button" data-remove-row>Quitar</button>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+
+  <section class="form-card">
+    <div class="card-title-row">
+      <h2>Mercancias</h2>
+      <button class="btn small" type="button" data-add-cargo>Agregar mercancia</button>
+    </div>
+    <div class="items-list" data-cargo-list>
+      <% (bl.cargo_items || [{}]).forEach((item, index) => { %>
+        <div class="cargo-item" data-cargo-row>
+          <label>Contenedor ref.<input type="number" name="cargo_items[<%= index %>][container_id]" value="<%= item.container_id || '' %>" /></label>
+          <label>Quantity<input type="number" step="0.01" name="cargo_items[<%= index %>][quantity]" value="<%= item.quantity || '' %>" /></label>
+          <label>Package Type<input name="cargo_items[<%= index %>][package_type]" value="<%= item.package_type || '' %>" /></label>
+          <label>HS Code<input name="cargo_items[<%= index %>][hs_code]" value="<%= item.hs_code || '' %>" /></label>
+          <label>Gross<input type="number" step="0.01" name="cargo_items[<%= index %>][gross_weight]" value="<%= item.gross_weight || '' %>" /></label>
+          <label>Net<input type="number" step="0.01" name="cargo_items[<%= index %>][net_weight]" value="<%= item.net_weight || '' %>" /></label>
+          <label>CBM<input type="number" step="0.01" name="cargo_items[<%= index %>][volume_cbm]" value="<%= item.volume_cbm || '' %>" /></label>
+          <label>Declared Value<input type="number" step="0.01" name="cargo_items[<%= index %>][value_declared]" value="<%= item.value_declared || '' %>" /></label>
+          <label class="wide">Description<textarea name="cargo_items[<%= index %>][description]"><%= item.description || '' %></textarea></label>
+          <label class="wide">Marks/Numbers<textarea name="cargo_items[<%= index %>][marks_numbers]"><%= item.marks_numbers || '' %></textarea></label>
+          <label class="check"><input type="checkbox" name="cargo_items[<%= index %>][dangerous_goods]" value="1" <%= item.dangerous_goods ? 'checked' : '' %> /> Dangerous goods</label>
+          <label>UN Number<input name="cargo_items[<%= index %>][un_number]" value="<%= item.un_number || '' %>" /></label>
+          <label>IMO Class<input name="cargo_items[<%= index %>][imo_class]" value="<%= item.imo_class || '' %>" /></label>
+          <label class="check"><input type="checkbox" name="cargo_items[<%= index %>][temperature_controlled]" value="1" <%= item.temperature_controlled ? 'checked' : '' %> /> Temp. controlled</label>
+          <label>Temperature<input name="cargo_items[<%= index %>][temperature]" value="<%= item.temperature || '' %>" /></label>
+          <label class="wide">Observations<textarea name="cargo_items[<%= index %>][observations]"><%= item.observations || '' %></textarea></label>
+          <button class="btn small danger" type="button" data-remove-row>Quitar</button>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+
+  <section class="form-card">
+    <h2>Condiciones y observaciones</h2>
+    <div class="form-grid">
+      <label class="full-row">Condiciones de transporte<textarea name="condiciones_transporte"><%= v('condiciones_transporte') %></textarea></label>
+      <label class="full-row">Instrucciones especiales<textarea name="instrucciones_especiales"><%= v('instrucciones_especiales') %></textarea></label>
+      <label class="full-row">Observaciones<textarea name="observaciones"><%= v('observaciones') %></textarea></label>
+    </div>
+  </section>
+
+  <div class="form-actions sticky-actions">
+    <button class="btn" type="submit" name="action" value="borrador">Guardar borrador</button>
+    <button class="btn primary" type="submit" name="action" value="emitir">Emitir</button>
+    <a class="btn" href="/bill-of-lading">Cancelar</a>
+  </div>
+</form>

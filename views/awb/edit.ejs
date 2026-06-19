@@ -1,0 +1,15 @@
+<%- include('../partials/head', { title: 'Editar AWB ' + awb.numero_awb, extraStyles: ['/css/awb.css'] }) %>
+<%- include('../partials/header', { currentModule: 'awb' }) %>
+<%- include('../partials/toasts') %>
+
+<main class="container awb-page">
+  <div class="page-header">
+    <div>
+      <h1>Editar <%= awb.numero_awb %></h1>
+      <p class="muted"><%= typeMeta[awb.tipo_awb].label %></p>
+    </div>
+    <a class="btn" href="/air-waybills/<%= awb.id %>">Ver</a>
+  </div>
+  <%- include('_form', { awb, action: '/air-waybills/' + awb.id + '/update', error: typeof error !== 'undefined' ? error : null, types, statuses, typeMeta }) %>
+</main>
+<script src="/js/awb/form.js" defer></script>

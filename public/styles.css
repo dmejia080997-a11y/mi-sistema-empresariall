@@ -251,6 +251,83 @@ h1, h2 {
   font-weight: 600;
 }
 
+.login-company-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 10px;
+  padding: 12px 42px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.login-company-close-form {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  margin: 0;
+}
+
+.login-company-close {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--muted);
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.login-company-close:hover,
+.login-company-close:focus-visible {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  outline: none;
+}
+
+.login-company-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.login-company-card strong,
+.login-company-card span {
+  display: block;
+}
+
+.login-company-card span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.login-company-reset {
+  margin: 0 0 16px;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-2);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .lang-pill-group {
   display: inline-flex;
   gap: 10px;
@@ -1334,7 +1411,7 @@ button[disabled],
 }
 
 .table-row.awbs {
-  grid-template-columns: 1fr 0.7fr 1.2fr 1.2fr 0.7fr 0.9fr 0.7fr;
+  grid-template-columns: 0.9fr 1fr 0.7fr 1.1fr 1.1fr 0.8fr 0.9fr 1fr 1.3fr;
 }
 
 .table-row.awbs {
@@ -5439,6 +5516,30 @@ button[disabled],
   background: #ecfeff;
   border-color: #bae6fd;
   color: #0e7490;
+}
+
+.status-applied {
+  background: #dcfce7;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.status-cancelled {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.awb-form[data-transport-doc-type="bl"] {
+  border-top: 4px solid #0f766e;
+}
+
+.awb-form[data-transport-doc-type="awb"] {
+  border-top: 4px solid #9d3f35;
+}
+
+.awb-form[data-transport-doc-type="carta_porte"] {
+  border-top: 4px solid #7c3aed;
 }
 
 .status-ready_to_generate {

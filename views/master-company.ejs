@@ -20,7 +20,11 @@
     inventory: 'Inventario',
     floating_investments: 'Inversion flotante',
     projects: 'Proyectos',
-    airway_bills: 'Guia aerea',
+    transport_documents: 'Documentos de Transporte',
+    airway_bills: 'Carta Porte',
+    cartas_porte: 'Cartas Porte',
+    bl: 'Bill of Lading / BL',
+    awb: 'Guías Aéreas / AWB',
     manifests: 'Manifiestos',
     cuscar: 'CUSCAR SAT',
     reports: 'Reportes',
@@ -62,7 +66,7 @@
   }
 
   function getWorkspaceVisibleActivityModules(modules) {
-    const hiddenCodes = new Set(['whatsapp', 'meta_inbox', 'launcher_settings']);
+    const hiddenCodes = new Set(['whatsapp', 'meta_inbox', 'launcher_settings', 'airway_bills', 'transport_documents']);
     return (modules || []).filter((moduleItem) => {
       const code = String(moduleItem && moduleItem.code || '').trim();
       if (!code || hiddenCodes.has(code)) return false;

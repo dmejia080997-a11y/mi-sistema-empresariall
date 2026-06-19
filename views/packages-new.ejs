@@ -69,6 +69,16 @@
 <% if (prefillData && prefillData.reception_id) { %>
 <input type="hidden" name="reception_id" value="<%= prefillData.reception_id %>" />
 <% } %>
+<div class="package-weight-summary">
+<div>
+<span class="muted">Peso ingresado</span>
+<strong data-weight-entered>0.00 lbs</strong>
+</div>
+<div>
+<span class="muted">Peso vol</span>
+<strong data-weight-volume>0.00 lbs</strong>
+</div>
+</div>
 <label>
 <%= t('packages.consignatario') %>
 <select name="consignatario_id" id="consignatario-select" required>
@@ -106,6 +116,10 @@
 <label>
 <%= t('packages.height_cm') %>
 <input type="number" name="height_cm" step="0.01" min="0" />
+</label>
+<label>
+Peso vol
+<input type="number" name="volumetric_weight_lbs" step="0.01" min="0" readonly data-weight-volume-input value="0.00" />
 </label>
 <label>
 <%= t('packages.shipping_type') %>
@@ -174,7 +188,7 @@
 </label>
 <label>
 <%= t('packages.received_at') %>
-<input type="date" name="received_at" value="<%= prefillData.received_at || '' %>" />
+<input type="date" name="received_at_display" value="<%= prefillData.received_at || '' %>" readonly aria-readonly="true" />
 </label>
 <label>
 <%= t('packages.invoice_file') %>
@@ -182,7 +196,13 @@
 </label>
 <label>
 <%= t('packages.photos') %>
-<input type="file" name="photos" accept="image/*" multiple />
+<div class="package-photo-upload" data-photo-upload data-max-photos="6">
+<div class="package-photo-upload__list" data-photo-list>
+<input type="file" name="photos" accept="image/*" data-photo-input />
+</div>
+<button type="button" class="btn small" data-add-photo>Agregar otra foto</button>
+<small class="muted" data-photo-count>1 de 6 fotos</small>
+</div>
 </label>
 <label>
 <%= t('packages.notes') %>
@@ -197,6 +217,63 @@
 </form>
 </section>
 </main>
+<script>
+  (function () {
+    const form = document.querySelector('form[action="/packages/new"]');
+    if (!form) return;
+    const weightInput = form.querySelector('[name="weight_lbs"]');
+    const lengthInput = form.querySelector('[name="length_cm"]');
+    const widthInput = form.querySelector('[name="width_cm"]');
+    const heightInput = form.querySelector('[name="height_cm"]');
+    const enteredNode = form.querySelector('[data-weight-entered]');
+    const volumeNode = form.querySelector('[data-weight-volume]');
+    const volumeInput = form.querySelector('[data-weight-volume-input]');
+    const readNumber = (input) => {
+      const value = Number(input && input.value ? input.value : 0);
+      return Number.isFinite(value) && value > 0 ? value : 0;
+    };
+    const format = (value) => value.toFixed(2);
+    const updateWeights = () => {
+      const entered = readNumber(weightInput);
+      const volume = ((readNumber(lengthInput) * readNumber(widthInput) * readNumber(heightInput)) / 5000) * 2.2046;
+      const safeVolume = Number.isFinite(volume) ? volume : 0;
+      if (enteredNode) enteredNode.textContent = `${format(entered)} lbs`;
+      if (volumeNode) volumeNode.textContent = `${format(safeVolume)} lbs`;
+      if (volumeInput) volumeInput.value = format(safeVolume);
+    };
+    [weightInput, lengthInput, widthInput, heightInput].forEach((input) => {
+      if (input) input.addEventListener('input', updateWeights);
+    });
+    updateWeights();
+  })();
+  (function () {
+    const upload = document.querySelector('[data-photo-upload]');
+    if (!upload) return;
+    const list = upload.querySelector('[data-photo-list]');
+    const addButton = upload.querySelector('[data-add-photo]');
+    const countNode = upload.querySelector('[data-photo-count]');
+    const maxPhotos = Number(upload.getAttribute('data-max-photos') || 6);
+    const updateState = () => {
+      const inputs = list ? list.querySelectorAll('input[type="file"][name="photos"]') : [];
+      if (countNode) countNode.textContent = `${inputs.length} de ${maxPhotos} fotos`;
+      if (addButton) addButton.disabled = inputs.length >= maxPhotos;
+    };
+    if (addButton && list) {
+      addButton.addEventListener('click', () => {
+        const current = list.querySelectorAll('input[type="file"][name="photos"]').length;
+        if (current >= maxPhotos) return;
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.name = 'photos';
+        input.accept = 'image/*';
+        input.setAttribute('data-photo-input', '');
+        list.appendChild(input);
+        updateState();
+      });
+    }
+    updateState();
+  })();
+</script>
 <script src="/status-footer.js" defer></script>
 </body>
 </html>

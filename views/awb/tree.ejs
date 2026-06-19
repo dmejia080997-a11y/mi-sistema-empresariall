@@ -1,0 +1,31 @@
+<%- include('../partials/head', { title: 'Jerarquía AWB', extraStyles: ['/css/awb.css'] }) %>
+<%- include('../partials/header', { currentModule: 'awb' }) %>
+<%- include('../partials/toasts') %>
+
+<% const renderNode = (node) => { %>
+  <li class="tree-node tree-<%= String(node.tipo_awb).toLowerCase() %>">
+    <div class="tree-card">
+      <strong><%= node.numero_awb %></strong>
+      <span><%= typeMeta[node.tipo_awb].label %> · <%= node.estado %> · <%= node.total_pieces || 0 %> pcs / <%= node.total_chargeable_weight || 0 %> kg</span>
+      <div class="row-actions">
+        <a class="btn small" href="/air-waybills/<%= node.id %>">Ver</a>
+        <% if (node.tipo_awb === 'MAWB' && can('awb', 'crear_hija')) { %><form method="POST" action="/air-waybills/<%= node.id %>/create-child"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn small" type="submit">Crear HAWB</button></form><% } %>
+      </div>
+    </div>
+    <% if (node.children && node.children.length) { %><ul><% node.children.forEach((child) => { renderNode(child); }) %></ul><% } %>
+  </li>
+<% } %>
+
+<main class="container awb-page">
+  <div class="page-header">
+    <div>
+      <h1>Jerarquía Guías Aéreas</h1>
+      <p class="muted">MAWB → HAWB</p>
+    </div>
+    <div class="actions">
+      <a class="btn" href="/air-waybills">Listado</a>
+      <% if (can('awb', 'crear')) { %><a class="btn primary" href="/air-waybills/new">Nueva AWB</a><% } %>
+    </div>
+  </div>
+  <% if (!tree.length) { %><section class="form-card"><p class="helper">No hay jerarquía registrada.</p></section><% } else { %><ul class="awb-tree"><% tree.forEach((node) => { renderNode(node); }) %></ul><% } %>
+</main>

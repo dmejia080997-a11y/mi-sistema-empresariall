@@ -67,10 +67,20 @@
 </div>
 <div class="grid-2">
 <label>
+<%= t('awb.document_type') %>
+<select name="document_type" data-document-type>
+<option value="bl" <%= awb.document_type === 'bl' ? 'selected' : '' %>><%= t('awb.document_type.bl') %></option>
+<option value="awb" <%= !awb.document_type || awb.document_type === 'awb' ? 'selected' : '' %>><%= t('awb.document_type.awb') %></option>
+<option value="carta_porte" <%= awb.document_type === 'carta_porte' ? 'selected' : '' %>><%= t('awb.document_type.carta_porte') %></option>
+</select>
+</label>
+<label>
 <%= t('awb.awb_type') %>
 <select name="awb_type">
 <option value="MAWB" <%= awb.awb_type === 'MAWB' ? 'selected' : '' %>>MAWB</option>
 <option value="HAWB" <%= awb.awb_type === 'HAWB' ? 'selected' : '' %>>HAWB</option>
+<option value="Original" <%= awb.awb_type === 'Original' ? 'selected' : '' %>>Original</option>
+<option value="Copia" <%= awb.awb_type === 'Copia' ? 'selected' : '' %>>Copia</option>
 </select>
 </label>
 <label>
@@ -431,6 +441,7 @@
 </div>
 </form>
 </main>
+<script src="/js/transport-documents.js" defer></script>
 <script src="/status-footer.js" defer></script>
 </body>
 </html>

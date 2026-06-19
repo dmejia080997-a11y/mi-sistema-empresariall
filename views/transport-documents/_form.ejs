@@ -1,0 +1,238 @@
+<%
+const d = document || {};
+const data = d.data || {};
+const itemRows = (d.items && d.items.length ? d.items : [{}, {}, {}]);
+const chargeRows = (d.charges && d.charges.length ? d.charges : [{}, {}, {}]);
+const merchRows = (d.merchandise && d.merchandise.length ? d.merchandise : [{}, {}, {}]);
+function v(key) { return data[key] || ''; }
+function checked(value, expected) { return value === expected ? 'selected' : ''; }
+%>
+<form method="POST" action="<%= action %>" class="panel transport-document-form" data-transport-form>
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+  <div class="grid-2">
+    <label>Tipo de documento
+      <select name="type" data-transport-type>
+        <% Object.keys(typeLabels).forEach((key) => { %>
+          <option value="<%= key %>" <%= checked(d.type, key) %>><%= typeLabels[key] %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label>Estado
+      <select name="status">
+        <% Object.keys(statusLabels).forEach((key) => { %>
+          <option value="<%= key %>" <%= checked(d.status || 'draft', key) %>><%= statusLabels[key] %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label>Numero de documento<input name="document_number" value="<%= d.document_number || '' %>" required /></label>
+    <label>Fecha de emision<input type="date" name="issue_date" value="<%= d.issue_date || '' %>" required /></label>
+    <label>Cliente<input name="client_name" value="<%= d.client_name || '' %>" /></label>
+    <label>Origen<input name="origin" value="<%= d.origin || '' %>" /></label>
+    <label>Destino<input name="destination" value="<%= d.destination || '' %>" /></label>
+  </div>
+
+  <div class="transport-type-panel" data-type-panel="MAWB">
+    <h2>AWB - Guia aerea</h2>
+    <div class="grid-2">
+      <label>Shipper Name and Address<textarea name="shipper" rows="3"><%= d.shipper || '' %></textarea></label>
+      <label>Consignee Name and Address<textarea name="consignee" rows="3"><%= d.consignee || '' %></textarea></label>
+      <label>Shipper Account Number<input name="shipper_account_number" value="<%= v('shipper_account_number') %>" /></label>
+      <label>Consignee Account Number<input name="consignee_account_number" value="<%= v('consignee_account_number') %>" /></label>
+      <label>Issuing Carrier Agent Name and City<input name="issuing_carrier_agent" value="<%= v('issuing_carrier_agent') %>" /></label>
+      <label>Agent IATA Code<input name="agent_iata_code" value="<%= v('agent_iata_code') %>" /></label>
+      <label>Account Number<input name="account_number" value="<%= v('account_number') %>" /></label>
+      <label>Requested Routing<input name="requested_routing" value="<%= v('requested_routing') %>" /></label>
+      <label>Reference Number<input name="reference_number" value="<%= v('reference_number') %>" /></label>
+      <label>Optional Shipping Information<input name="optional_shipping_information" value="<%= v('optional_shipping_information') %>" /></label>
+      <label>To<input name="to_1" value="<%= v('to_1') %>" /></label>
+      <label>By First Carrier<input name="by_first_carrier" value="<%= v('by_first_carrier') %>" /></label>
+      <label>Routing and Destination<input name="routing_destination" value="<%= v('routing_destination') %>" /></label>
+      <label>Currency<input name="currency" value="<%= v('currency') %>" /></label>
+      <label>CHGS Code<input name="chgs_code" value="<%= v('chgs_code') %>" /></label>
+      <label>WT/VAL PPD<input name="wtval_ppd" value="<%= v('wtval_ppd') %>" /></label>
+      <label>WT/VAL COLL<input name="wtval_coll" value="<%= v('wtval_coll') %>" /></label>
+      <label>Other PPD<input name="other_ppd" value="<%= v('other_ppd') %>" /></label>
+      <label>Other COLL<input name="other_coll" value="<%= v('other_coll') %>" /></label>
+      <label>Declared Value for Carriage<input name="declared_value_carriage" value="<%= v('declared_value_carriage') %>" /></label>
+      <label>Declared Value for Customs<input name="declared_value_customs" value="<%= v('declared_value_customs') %>" /></label>
+      <label>Requested Flight/Date<input name="requested_flight_date" value="<%= v('requested_flight_date') %>" /></label>
+      <label>Amount of Insurance<input name="amount_insurance" value="<%= v('amount_insurance') %>" /></label>
+      <label class="full-row">Handling Information<textarea name="handling_information" rows="3"><%= v('handling_information') %></textarea></label>
+      <label>SCI<input name="sci" value="<%= v('sci') %>" /></label>
+    </div>
+  </div>
+
+  <div class="transport-type-panel" data-type-panel="CARTA_PORTE">
+    <h2>CP - Carta Porte</h2>
+    <div class="grid-2">
+      <label>CFDI / CP<input name="cfdi_carta_porte" value="<%= v('cfdi_carta_porte') %>" /></label>
+      <label>Folio<input name="folio" value="<%= v('folio') %>" /></label>
+      <label>UUID<input name="uuid" value="<%= v('uuid') %>" /></label>
+      <label>Nombre<input name="nombre" value="<%= v('nombre') %>" /></label>
+      <label>RFC<input name="rfc" value="<%= v('rfc') %>" /></label>
+      <label>Regimen Fiscal<input name="regimen_fiscal" value="<%= v('regimen_fiscal') %>" /></label>
+      <label class="full-row">Domicilio<textarea name="domicilio" rows="2"><%= v('domicilio') %></textarea></label>
+      <label>Lugar de Expedicion<input name="lugar_expedicion" value="<%= v('lugar_expedicion') %>" /></label>
+      <label>Remitente<input name="remitente" value="<%= v('remitente') %>" /></label>
+      <label>RFC Origen<input name="rfc_origen" value="<%= v('rfc_origen') %>" /></label>
+      <label>Domicilio Origen<input name="domicilio_origen" value="<%= v('domicilio_origen') %>" /></label>
+      <label>Cargar en<input name="cargar_en" value="<%= v('cargar_en') %>" /></label>
+      <label>FechaHoraSalida<input name="fecha_hora_salida" value="<%= v('fecha_hora_salida') %>" /></label>
+      <label>Destinatario<input name="destinatario" value="<%= v('destinatario') %>" /></label>
+      <label>RFC Destino<input name="rfc_destino" value="<%= v('rfc_destino') %>" /></label>
+      <label>Domicilio Destino<input name="domicilio_destino" value="<%= v('domicilio_destino') %>" /></label>
+      <label>FechaHoraLlegada<input name="fecha_hora_llegada" value="<%= v('fecha_hora_llegada') %>" /></label>
+      <label>Distancia Recorrida<input name="distancia_recorrida" value="<%= v('distancia_recorrida') %>" /></label>
+      <label>Viaje<input name="viaje" value="<%= v('viaje') %>" /></label>
+      <label>Operador<input name="operador" value="<%= v('operador') %>" /></label>
+      <label>RFC Operador<input name="rfc_operador" value="<%= v('rfc_operador') %>" /></label>
+      <label>Licencia<input name="licencia" value="<%= v('licencia') %>" /></label>
+      <label>Permiso SCT<input name="permiso_sct" value="<%= v('permiso_sct') %>" /></label>
+      <label>No. Permiso SCT<input name="no_permiso_sct" value="<%= v('no_permiso_sct') %>" /></label>
+      <label>Seguro Vehicular<input name="seguro_vehicular" value="<%= v('seguro_vehicular') %>" /></label>
+      <label>Tractor<input name="tractor" value="<%= v('tractor') %>" /></label>
+      <label>Placas<input name="placas" value="<%= v('placas') %>" /></label>
+      <label>Modelo<input name="modelo" value="<%= v('modelo') %>" /></label>
+      <label>Configuracion<input name="configuracion" value="<%= v('configuracion') %>" /></label>
+      <label>Remolque 1<input name="remolque_1" value="<%= v('remolque_1') %>" /></label>
+      <label>Tipo Remolque 1<input name="tipo_remolque_1" value="<%= v('tipo_remolque_1') %>" /></label>
+      <label>Placas Remolque 1<input name="placas_remolque_1" value="<%= v('placas_remolque_1') %>" /></label>
+      <label>Remolque 2<input name="remolque_2" value="<%= v('remolque_2') %>" /></label>
+      <label>Tipo Remolque 2<input name="tipo_remolque_2" value="<%= v('tipo_remolque_2') %>" /></label>
+      <label>Placas Remolque 2<input name="placas_remolque_2" value="<%= v('placas_remolque_2') %>" /></label>
+      <label>Condiciones de Pago<input name="condiciones_pago" value="<%= v('condiciones_pago') %>" /></label>
+      <label>No. Certificado<input name="no_certificado" value="<%= v('no_certificado') %>" /></label>
+      <label class="full-row">Observaciones<textarea name="observaciones" rows="3"><%= v('observaciones') %></textarea></label>
+      <label>Transporte Internacional<input name="transporte_internacional" value="<%= v('transporte_internacional') %>" /></label>
+      <label>Peso Neto<input name="peso_neto" value="<%= v('peso_neto') %>" /></label>
+      <label>Numero de Mercancias<input name="numero_mercancias" value="<%= v('numero_mercancias') %>" /></label>
+      <label>Cargo por Tasacion<input name="cargo_tasacion" value="<%= v('cargo_tasacion') %>" /></label>
+      <label>Subtotal<input name="subtotal" value="<%= v('subtotal') %>" /></label>
+      <label>IVA<input name="iva" value="<%= v('iva') %>" /></label>
+      <label>Retencion<input name="retencion" value="<%= v('retencion') %>" /></label>
+      <label>Neto<input name="neto" value="<%= v('neto') %>" /></label>
+      <label class="full-row">Cantidad con letra<input name="cantidad_letra" value="<%= v('cantidad_letra') %>" /></label>
+      <label>Forma de Pago<input name="forma_pago" value="<%= v('forma_pago') %>" /></label>
+      <label>Metodo de Pago<input name="metodo_pago" value="<%= v('metodo_pago') %>" /></label>
+      <label>Moneda<input name="moneda" value="<%= v('moneda') %>" /></label>
+      <label>Uso CFDI<input name="uso_cfdi" value="<%= v('uso_cfdi') %>" /></label>
+      <label>Certificado Digital SAT<input name="certificado_sat" value="<%= v('certificado_sat') %>" /></label>
+      <label>Fecha y Hora de Certificacion<input name="fecha_certificacion" value="<%= v('fecha_certificacion') %>" /></label>
+      <label class="full-row">Cadena Original<textarea name="cadena_original" rows="2"><%= v('cadena_original') %></textarea></label>
+      <label class="full-row">Sello Digital del Emisor<textarea name="sello_emisor" rows="2"><%= v('sello_emisor') %></textarea></label>
+      <label class="full-row">Sello Digital del SAT<textarea name="sello_sat" rows="2"><%= v('sello_sat') %></textarea></label>
+      <label>QR<input name="qr" value="<%= v('qr') %>" /></label>
+    </div>
+  </div>
+
+  <div class="transport-type-panel" data-type-panel="BL">
+    <h2>BL</h2>
+    <div class="grid-2">
+      <label>Shipper<textarea name="shipper" rows="3"><%= d.shipper || '' %></textarea></label>
+      <label>Consignee<textarea name="consignee" rows="3"><%= d.consignee || '' %></textarea></label>
+      <label class="full-row">Notify Address<textarea name="notify_address" rows="2"><%= v('notify_address') %></textarea></label>
+      <label>Pre-carriage by<input name="pre_carriage_by" value="<%= v('pre_carriage_by') %>" /></label>
+      <label>Place of Receipt by Pre-carrier<input name="place_receipt" value="<%= v('place_receipt') %>" /></label>
+      <label>Vessel<input name="vessel" value="<%= v('vessel') %>" /></label>
+      <label>Port of Loading<input name="port_loading" value="<%= v('port_loading') %>" /></label>
+      <label>Port of Discharge<input name="port_discharge" value="<%= v('port_discharge') %>" /></label>
+      <label>Place of Delivery by On-carrier<input name="place_delivery" value="<%= v('place_delivery') %>" /></label>
+      <label>Page<input name="page" value="<%= v('page') %>" /></label>
+      <label>B/L No.<input name="bl_no" value="<%= v('bl_no') %>" /></label>
+      <label>Reference No.<input name="reference_no" value="<%= v('reference_no') %>" /></label>
+      <label>Name of Carrier<input name="name_of_carrier" value="<%= v('name_of_carrier') %>" /></label>
+      <label>Export References<input name="export_references" value="<%= v('export_references') %>" /></label>
+      <label>Booking No.<input name="booking_no" value="<%= v('booking_no') %>" /></label>
+      <label class="full-row">Notes<textarea name="notes" rows="3"><%= v('notes') %></textarea></label>
+      <label>Freight Details<input name="freight_details" value="<%= v('freight_details') %>" /></label>
+      <label>Charges<input name="charges_text" value="<%= v('charges_text') %>" /></label>
+      <label>Currency<input name="currency" value="<%= v('currency') %>" /></label>
+      <label>Declared Value<input name="declared_value" value="<%= v('declared_value') %>" /></label>
+      <label>Freight Payable At<input name="freight_payable_at" value="<%= v('freight_payable_at') %>" /></label>
+      <label>Number of Original Bs/L<input name="original_bl_count" value="<%= v('original_bl_count') %>" /></label>
+      <label>Place and Date of Issue<input name="place_date_issue" value="<%= v('place_date_issue') %>" /></label>
+      <label>Signature<input name="signature" value="<%= v('signature') %>" /></label>
+    </div>
+  </div>
+
+  <h2>Carga / Mercancia</h2>
+  <div class="transport-lines">
+    <% itemRows.forEach((row, idx) => { %>
+      <div class="transport-line">
+        <input name="items[<%= idx %>][pieces]" value="<%= row.pieces || row.bultos || '' %>" placeholder="Pieces / Bultos" />
+        <input name="items[<%= idx %>][gross_weight]" value="<%= row.gross_weight || row.peso || '' %>" placeholder="Gross Weight / Peso" />
+        <input name="items[<%= idx %>][kg_lb]" value="<%= row.kg_lb || row.clase || '' %>" placeholder="Kg/Lb / Clase" />
+        <input name="items[<%= idx %>][rate_class]" value="<%= row.rate_class || '' %>" placeholder="Rate Class" />
+        <input name="items[<%= idx %>][commodity_item_no]" value="<%= row.commodity_item_no || '' %>" placeholder="Commodity Item No." />
+        <input name="items[<%= idx %>][chargeable_weight]" value="<%= row.chargeable_weight || row.peso_estimado || '' %>" placeholder="Chargeable Weight" />
+        <input name="items[<%= idx %>][rate]" value="<%= row.rate || row.volumen_m3 || '' %>" placeholder="Rate / Vol M3" />
+        <input name="items[<%= idx %>][charge]" value="<%= row.charge || '' %>" placeholder="Charge" />
+        <input class="wide" name="items[<%= idx %>][description]" value="<%= row.description || row.descripcion || '' %>" placeholder="Description / Nature and Quantity" />
+        <input name="items[<%= idx %>][marks]" value="<%= row.marks || '' %>" placeholder="Marks / Container" />
+        <input name="items[<%= idx %>][packages]" value="<%= row.packages || '' %>" placeholder="Packages" />
+        <input name="items[<%= idx %>][measurement]" value="<%= row.measurement || '' %>" placeholder="Measurement" />
+      </div>
+    <% }) %>
+  </div>
+
+  <section data-type-section="MAWB">
+  <h2>Cargos AWB</h2>
+  <div class="grid-2">
+    <label>Prepaid Weight Charge<input name="prepaid_weight_charge" value="<%= v('prepaid_weight_charge') %>" /></label>
+    <label>Collect Weight Charge<input name="collect_weight_charge" value="<%= v('collect_weight_charge') %>" /></label>
+    <label>Valuation Charge<input name="valuation_charge" value="<%= v('valuation_charge') %>" /></label>
+    <label>Tax<input name="tax" value="<%= v('tax') %>" /></label>
+    <label>Total Other Charges Due Agent<input name="total_other_charges_due_agent" value="<%= v('total_other_charges_due_agent') %>" /></label>
+    <label>Total Other Charges Due Carrier<input name="total_other_charges_due_carrier" value="<%= v('total_other_charges_due_carrier') %>" /></label>
+    <label>Total Prepaid<input name="total_prepaid" value="<%= v('total_prepaid') %>" /></label>
+    <label>Total Collect<input name="total_collect" value="<%= v('total_collect') %>" /></label>
+    <label>Currency Conversion Rates<input name="currency_conversion_rates" value="<%= v('currency_conversion_rates') %>" /></label>
+    <label>CC Charges in Destination Currency<input name="cc_charges_destination_currency" value="<%= v('cc_charges_destination_currency') %>" /></label>
+    <label>Charges at Destination<input name="charges_at_destination" value="<%= v('charges_at_destination') %>" /></label>
+    <label>Total Collect Charges<input name="total_collect_charges" value="<%= v('total_collect_charges') %>" /></label>
+  </div>
+  <div class="transport-lines">
+    <% chargeRows.forEach((row, idx) => { %>
+      <div class="transport-line">
+        <input name="charges[<%= idx %>][concept]" value="<%= row.concept || '' %>" placeholder="Concepto" />
+        <input name="charges[<%= idx %>][payer]" value="<%= row.payer || '' %>" placeholder="Prepaid / Collect" />
+        <input name="charges[<%= idx %>][currency]" value="<%= row.currency || '' %>" placeholder="Moneda" />
+        <input name="charges[<%= idx %>][amount]" value="<%= row.amount || '' %>" placeholder="Importe" />
+      </div>
+    <% }) %>
+  </div>
+  </section>
+
+  <section data-type-section="CARTA_PORTE">
+  <h2>Mercancias CP</h2>
+  <div class="transport-lines">
+    <% merchRows.forEach((row, idx) => { %>
+      <div class="transport-line">
+        <input name="merchandise[<%= idx %>][cantidad]" value="<%= row.cantidad || '' %>" placeholder="Cantidad" />
+        <input name="merchandise[<%= idx %>][unidad]" value="<%= row.unidad || '' %>" placeholder="Unidad" />
+        <input name="merchandise[<%= idx %>][clave]" value="<%= row.clave || '' %>" placeholder="Clave" />
+        <input class="wide" name="merchandise[<%= idx %>][descripcion]" value="<%= row.descripcion || '' %>" placeholder="Descripcion" />
+        <input name="merchandise[<%= idx %>][material_peligroso]" value="<%= row.material_peligroso || '' %>" placeholder="Material Peligroso" />
+        <input name="merchandise[<%= idx %>][embalaje]" value="<%= row.embalaje || '' %>" placeholder="Descripcion Embalaje" />
+        <input name="merchandise[<%= idx %>][peso_kg]" value="<%= row.peso_kg || '' %>" placeholder="Peso en Kg" />
+        <input name="merchandise[<%= idx %>][valor]" value="<%= row.valor || '' %>" placeholder="Valor Mercancia" />
+      </div>
+    <% }) %>
+  </div>
+  </section>
+
+  <section data-type-section="MAWB">
+  <h2>Firmas AWB</h2>
+  <div class="grid-2">
+    <label>Signature of Shipper or Agent<input name="shipper_signature" value="<%= v('shipper_signature') %>" /></label>
+    <label>Executed on Date<input name="executed_date" value="<%= v('executed_date') %>" /></label>
+    <label>Executed at Place<input name="executed_place" value="<%= v('executed_place') %>" /></label>
+    <label>Signature of Issuing Carrier or Agent<input name="issuing_carrier_signature" value="<%= v('issuing_carrier_signature') %>" /></label>
+  </div>
+  </section>
+
+  <div class="actions">
+    <button class="btn primary" type="submit">Guardar</button>
+    <a class="btn" href="/transport-documents">Cancelar</a>
+  </div>
+</form>

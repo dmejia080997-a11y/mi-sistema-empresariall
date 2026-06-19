@@ -1,0 +1,83 @@
+<%
+const data = document.data || {};
+const items = document.items || [];
+%>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>BL <%= document.document_number %></title>
+<style>
+  @page { size: letter; margin: 10mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Georgia, "Times New Roman", serif; color: #111827; background: #fff; }
+  .sheet { max-width: 8in; margin: 0 auto; border: 2px solid #111827; }
+  .top { display: grid; grid-template-columns: 1.2fr 1fr; border-bottom: 2px solid #111827; }
+  .title { padding: 12px; text-align: center; border-right: 1px solid #111827; }
+  h1 { margin: 0; font-size: 28px; letter-spacing: 0; }
+  .meta { display: grid; grid-template-columns: 1fr 1fr; }
+  .box { min-height: 48px; padding: 6px; border-right: 1px solid #111827; border-bottom: 1px solid #111827; }
+  .box:nth-child(2n) { border-right: 0; }
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); }
+  .cell { padding: 6px; border-right: 1px solid #111827; border-bottom: 1px solid #111827; min-height: 46px; }
+  .span-3 { grid-column: span 3; } .span-4 { grid-column: span 4; } .span-6 { grid-column: span 6; } .span-8 { grid-column: span 8; } .span-12 { grid-column: span 12; }
+  .tall { min-height: 90px; }
+  .label { font-size: 9px; text-transform: uppercase; font-weight: 700; }
+  .value { margin-top: 5px; font-size: 12px; white-space: pre-wrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th, td { border: 1px solid #111827; padding: 6px; height: 36px; vertical-align: top; }
+  th { font-size: 9px; text-transform: uppercase; }
+  .footer { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .footer .cell { min-height: 70px; }
+  @media print { .no-print { display: none; } .sheet { max-width: none; } }
+</style>
+</head>
+<body>
+<div class="no-print" style="padding:8px;text-align:right;"><button onclick="window.print()">Imprimir</button></div>
+<section class="sheet">
+  <div class="top">
+    <div class="title"><h1>BL</h1><div>Documento de transporte BL</div></div>
+    <div class="meta">
+      <div class="box"><div class="label">B/L No.</div><div class="value"><%= document.document_number %></div></div>
+      <div class="box"><div class="label">Page</div><div class="value"><%= data.page || '' %></div></div>
+      <div class="box"><div class="label">Reference No.</div><div class="value"><%= data.reference_no || '' %></div></div>
+      <div class="box"><div class="label">Booking No.</div><div class="value"><%= data.booking_no || '' %></div></div>
+    </div>
+  </div>
+  <div class="grid">
+    <div class="cell span-6 tall"><div class="label">Shipper</div><div class="value"><%= document.shipper || '' %></div></div>
+    <div class="cell span-6 tall"><div class="label">Consignee</div><div class="value"><%= document.consignee || '' %></div></div>
+    <div class="cell span-6 tall"><div class="label">Notify Address</div><div class="value"><%= data.notify_address || '' %></div></div>
+    <div class="cell span-6 tall"><div class="label">Name of Carrier / Export References</div><div class="value"><%= [data.name_of_carrier, data.export_references].filter(Boolean).join('\n') %></div></div>
+    <div class="cell span-3"><div class="label">Pre-carriage by</div><div class="value"><%= data.pre_carriage_by || '' %></div></div>
+    <div class="cell span-3"><div class="label">Place of Receipt by Pre-carrier</div><div class="value"><%= data.place_receipt || '' %></div></div>
+    <div class="cell span-3"><div class="label">Vessel</div><div class="value"><%= data.vessel || '' %></div></div>
+    <div class="cell span-3"><div class="label">Port of Loading</div><div class="value"><%= document.origin || data.port_loading || '' %></div></div>
+    <div class="cell span-4"><div class="label">Port of Discharge</div><div class="value"><%= document.destination || data.port_discharge || '' %></div></div>
+    <div class="cell span-4"><div class="label">Place of Delivery by On-carrier</div><div class="value"><%= data.place_delivery || '' %></div></div>
+    <div class="cell span-4"><div class="label">Notes</div><div class="value"><%= data.notes || '' %></div></div>
+  </div>
+  <table>
+    <thead><tr><th>Marks and Nos / Container No.</th><th>Number and Kind of Packages</th><th>Description of Goods</th><th>Gross Weight</th><th>Measurement</th></tr></thead>
+    <tbody>
+      <% (items.length ? items : [{}, {}, {}, {}, {}, {}]).forEach((row) => { %>
+      <tr><td><%= row.marks || '' %></td><td><%= row.packages || row.pieces || '' %></td><td><%= row.description || '' %></td><td><%= row.gross_weight || '' %></td><td><%= row.measurement || '' %></td></tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <div class="grid">
+    <div class="cell span-4"><div class="label">Freight Details</div><div class="value"><%= data.freight_details || '' %></div></div>
+    <div class="cell span-2"><div class="label">Charges</div><div class="value"><%= data.charges_text || '' %></div></div>
+    <div class="cell span-2"><div class="label">Currency</div><div class="value"><%= data.currency || '' %></div></div>
+    <div class="cell span-4"><div class="label">Declared Value</div><div class="value"><%= data.declared_value || '' %></div></div>
+  </div>
+  <div class="footer">
+    <div class="cell"><div class="label">Freight Payable At</div><div class="value"><%= data.freight_payable_at || '' %></div></div>
+    <div class="cell"><div class="label">Number of Original Bs/L</div><div class="value"><%= data.original_bl_count || '' %></div></div>
+    <div class="cell"><div class="label">Place and Date of Issue</div><div class="value"><%= data.place_date_issue || document.issue_date || '' %></div></div>
+    <div class="cell" style="grid-column: span 3;"><div class="label">Signature</div><div class="value"><%= data.signature || '' %></div></div>
+  </div>
+</section>
+<% if (autoPrint) { %><script>window.print();</script><% } %>
+</body>
+</html>

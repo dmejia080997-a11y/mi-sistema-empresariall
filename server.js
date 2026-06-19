@@ -39,6 +39,10 @@ const { registerFloatingInvestmentRoutes } = require('./src/modules/floating-inv
 const { registerAccountingRoutes } = require('./src/modules/accounting/routes');
 const { registerProjectRoutes } = require('./src/modules/projects/routes');
 const { registerLogisticsRoutes } = require('./src/modules/logistics/routes');
+const { registerTransportDocumentRoutes } = require('./controllers/transport-documents/routes');
+const { registerCartasPorteRoutes } = require('./src/modules/cartas-porte/routes');
+const { registerBlRoutes } = require('./src/modules/bl/routes');
+const { registerAwbRoutes } = require('./src/modules/awb/routes');
 const { registerInvoiceRoutes } = require('./src/modules/invoices/routes');
 const { registerAgendaMedicaRoutes } = require('./src/modules/agenda-medica/routes');
 const { registerHrRoutes } = require('./src/modules/hr/routes');
@@ -72,6 +76,7 @@ const DESIGN_SYSTEM_ASSETS = [
   '<link rel="stylesheet" href="/css/components.css" data-design-system-asset />'
 ];
 const UPLOAD_ROOT = path.join(__dirname, 'data', 'uploads');
+const HIDDEN_MODULE_CODES = new Set(['airway_bills', 'transport_documents']);
 const CUSCAR_BASE_CATALOG_PATH = path.join(__dirname, 'data', 'cuscar-catalogs.json');
 const CUSCAR_CATALOGS = {
   countries: {
@@ -496,6 +501,31 @@ function normalizeCompanyViewModel(company) {
   };
 }
 
+function buildSessionCompanyBrand(company) {
+  const currentCompany = normalizeCompanyViewModel(company);
+  if (!currentCompany) return null;
+  const appearance = extractCompanyAppearance(currentCompany);
+  return {
+    id: currentCompany.id || null,
+    name: currentCompany.display_name || resolveCompanyDisplayName(currentCompany),
+    commercial_name: currentCompany.commercial_name || null,
+    legal_name: currentCompany.legal_name || null,
+    nit: currentCompany.nit || null,
+    logo: buildFileUrl(appearance.logoPath || currentCompany.logo || null),
+    logo_path: appearance.logoPath || currentCompany.logo || null,
+    primary_color: appearance.primaryColor,
+    secondary_color: appearance.secondaryColor,
+    background_color: appearance.backgroundColor,
+    title_color: appearance.titleColor,
+    text_color: appearance.textColor,
+    font_family: appearance.fontFamily,
+    logo_size: appearance.logoSize,
+    icon_size: appearance.iconSize,
+    icon_frame: appearance.iconFrame,
+    theme_style: buildCompanyThemeStyle(appearance)
+  };
+}
+
 const COMPANY_ROUTE_ALIASES = [
   { visiblePrefix: '/panel', internalPrefix: '/dashboard' },
   { visiblePrefix: '/facturacion', internalPrefix: '/invoices' },
@@ -552,6 +582,11 @@ const COMPANY_KNOWN_ROOTS = new Set([
   'manifests',
   'cuscar',
   'airway-bills',
+  'air-waybills',
+  'transport-documents',
+  'cartas-porte',
+  'bill-of-lading',
+  'bl',
   'audit',
   'ai',
   'launcher',
@@ -687,7 +722,7 @@ function rewriteCompanyScopedHtml(req, html) {
   const rewriteUrl = (rawUrl) => buildCompanyScopedPath(companySlug, rawUrl);
 
   return html
-    .replace(/\b(href|action|formaction)=("|')([^"'<>]+)\2/gi, (match, attr, quote, url) => {
+    .replace(/\b(href|action|formaction|src)=("|')([^"'<>]+)\2/gi, (match, attr, quote, url) => {
       const scopedUrl = rewriteUrl(url);
       return scopedUrl === url ? match : `${attr}=${quote}${scopedUrl}${quote}`;
     })
@@ -750,6 +785,7 @@ app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.company = currentCompany;
   res.locals.currentCompany = currentCompany;
+  res.locals.companyBrand = buildSessionCompanyBrand(currentCompany);
   res.locals.currentCompanyName = (req.session && req.session.company_name) || (currentCompany ? currentCompany.name : 'Mi empresa');
   res.locals.currentCompanySlug = getSessionCompanySlug(req) || null;
   res.locals.companyPath = (pathValue) => buildCompanyScopedPath(getSessionCompanySlug(req), pathValue);
@@ -866,6 +902,9 @@ function shouldInjectGlobalDesignAssets(view, html) {
     'package-receipt',
     'awb-print',
     'awb-pdf-view',
+    'transport-documents/pdf-mawb',
+    'transport-documents/pdf-carta-porte',
+    'transport-documents/pdf-bl',
     'rrhh/employee-print',
     'rrhh/contract-print',
     'rrhh/record-print'
@@ -4232,6 +4271,10 @@ db.serialize(() => {
     `CREATE TABLE IF NOT EXISTS manifests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       company_id INTEGER NOT NULL,
+      manifest_number TEXT NULL,
+      manifest_number_mode TEXT NOT NULL DEFAULT 'automatic',
+      transport_document_type TEXT NULL,
+      transport_document_id INTEGER NULL,
       airway_bill_number TEXT NULL,
       notes TEXT NULL,
       status TEXT NOT NULL DEFAULT 'open',
@@ -4244,10 +4287,21 @@ db.serialize(() => {
     )`
   );
 
+  ensureColumnsOnTable(
+    'manifests',
+    [
+      { name: 'manifest_number', type: 'TEXT' },
+      { name: 'manifest_number_mode', type: "TEXT NOT NULL DEFAULT 'automatic'" },
+      { name: 'transport_document_type', type: 'TEXT' },
+      { name: 'transport_document_id', type: 'INTEGER' }
+    ]
+  );
+
   db.run(
     `CREATE TABLE IF NOT EXISTS awbs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       company_id INTEGER NOT NULL,
+      document_type TEXT NOT NULL DEFAULT 'awb',
       awb_type TEXT NULL,
       awb_number TEXT NOT NULL,
       awb_date TEXT NULL,
@@ -4327,6 +4381,7 @@ db.serialize(() => {
     'awbs',
     [
       { name: 'company_id', type: 'INTEGER' },
+      { name: 'document_type', type: "TEXT NOT NULL DEFAULT 'awb'" },
       { name: 'awb_type', type: 'TEXT' },
       { name: 'awb_number', type: 'TEXT' },
       { name: 'awb_date', type: 'TEXT' },
@@ -5166,7 +5221,11 @@ db.serialize(() => {
       ('projects','Proyectos','Gestion de proyectos, tareas, costos y cotizaciones'),
       ('rrhh','RRHH','Recursos humanos, empleados, asistencia y vacaciones'),
       ('ai_internal','Asistente','Asistente de reportes internos sin conexion externa'),
-      ('airway_bills','GuÃ­a AÃ©rea','GestiÃ³n de guÃ­as aÃ©reas'),
+      ('airway_bills','Carta Porte','Gestion de cartas porte'),
+      ('transport_documents','Documentos de Transporte','Menu de Carta Porte, Bill of Lading y Guias Aereas'),
+      ('cartas_porte','Documentos de Transporte - Cartas Porte','Cartas Porte para transporte terrestre'),
+      ('bl','Documentos de Transporte - Bill of Lading / BL','BL maritimos Master, House y Sub House'),
+      ('awb','Documentos de Transporte - Guías Aéreas / AWB','Guías aéreas MAWB y HAWB'),
       ('manifests','Manifiestos','GestiÃ³n de manifiestos'),
       ('cuscar','CUSCAR SAT','Manifiestos CUSCAR SAT'),
       ('mensajeria_meta','Mensajeria meta','Menu unificado para WhatsApp Business, Messenger, comentarios y Lead Ads de Meta'),
@@ -5214,9 +5273,29 @@ db.serialize(() => {
     );
 
     db.run(
+      `INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
+      ('ver','Ver','Ver Cartas Porte'),
+      ('crear','Crear','Crear Cartas Porte'),
+      ('editar','Editar','Editar Cartas Porte'),
+      ('anular','Anular','Anular Cartas Porte'),
+      ('imprimir','Imprimir','Imprimir Cartas Porte'),
+      ('descargar_pdf','Descargar PDF','Descargar PDF de Cartas Porte'),
+      ('crear_hijo','Crear BL Hijo','Crear House BL desde Master'),
+      ('crear_nieto','Crear BL Nieto','Crear Sub House BL desde House'),
+      ('crear_hija','Crear HAWB','Crear HAWB desde MAWB')`
+    );
+
+    db.run(
       `UPDATE permission_modules
        SET name = 'Asistente'
        WHERE code = 'ai_internal'`
+    );
+
+    db.run(
+      `UPDATE permission_modules
+       SET name = 'Carta Porte',
+           description = 'Gestion de cartas porte'
+       WHERE code = 'airway_bills'`
     );
 
     db.run(
@@ -5350,6 +5429,34 @@ db.serialize(() => {
       `INSERT OR IGNORE INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
+       WHERE pm.code = 'transport_documents' AND pa.code IN ('view','create','edit','export')`
+    );
+
+    db.run(
+      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+       SELECT pm.id, pa.id
+       FROM permission_modules pm, permission_actions pa
+       WHERE pm.code = 'cartas_porte' AND pa.code IN ('ver','crear','editar','anular','imprimir','descargar_pdf')`
+    );
+
+    db.run(
+      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+       SELECT pm.id, pa.id
+       FROM permission_modules pm, permission_actions pa
+       WHERE pm.code = 'bl' AND pa.code IN ('ver','crear','editar','anular','imprimir','descargar_pdf','crear_hijo','crear_nieto')`
+    );
+
+    db.run(
+      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+       SELECT pm.id, pa.id
+       FROM permission_modules pm, permission_actions pa
+       WHERE pm.code = 'awb' AND pa.code IN ('ver','crear','editar','anular','imprimir','descargar_pdf','crear_hija')`
+    );
+
+    db.run(
+      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+       SELECT pm.id, pa.id
+       FROM permission_modules pm, permission_actions pa
        WHERE pm.code = 'customers' AND pa.code IN ('view','create','edit','delete','void','view_voided')`
     );
 
@@ -5411,6 +5518,8 @@ db.serialize(() => {
 
     db.run("UPDATE permission_modules SET name = 'Mensajeria meta', description = 'Menu unificado para WhatsApp Business, Messenger, comentarios y Lead Ads de Meta', is_active = 1 WHERE code = 'mensajeria_meta'");
     db.run("UPDATE permission_modules SET is_active = 0 WHERE code IN ('whatsapp', 'meta_inbox')");
+    db.run("UPDATE permission_modules SET is_active = 0 WHERE code IN ('airway_bills', 'transport_documents')");
+    db.run("UPDATE permission_modules SET is_active = 1 WHERE code IN ('cartas_porte', 'bl', 'awb')");
     db.run(
       `INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id)
        SELECT up.user_id, up.company_id, unified.id, up.action_id
@@ -5470,6 +5579,12 @@ db.serialize(() => {
   appendModuleToJsonColumnIfRestricted('business_activities', 'modules_json', 'ai_internal');
   appendModuleToJsonColumnIfRestricted('companies', 'allowed_modules', 'mensajeria_meta');
   appendModuleToJsonColumnIfRestricted('business_activities', 'modules_json', 'mensajeria_meta');
+  appendModuleToJsonColumnIfRestricted('companies', 'allowed_modules', 'cartas_porte');
+  appendModuleToJsonColumnIfRestricted('business_activities', 'modules_json', 'cartas_porte');
+  appendModuleToJsonColumnIfRestricted('companies', 'allowed_modules', 'bl');
+  appendModuleToJsonColumnIfRestricted('business_activities', 'modules_json', 'bl');
+  appendModuleToJsonColumnIfRestricted('companies', 'allowed_modules', 'awb');
+  appendModuleToJsonColumnIfRestricted('business_activities', 'modules_json', 'awb');
 });
 
 function getCompanyId(req) {
@@ -5939,6 +6054,12 @@ const launcher_MODULE_CONFIG = {
     descKey: 'launcher.cuscar.desc',
     order: 65
   },
+  transport_documents: {
+    href: '/transport-documents',
+    color: '#1f4f5f',
+    icon: 'transport_documents',
+    order: 66
+  },
   airway_bills: {
     href: '/airway-bills',
     color: '#9d3f35',
@@ -5946,6 +6067,24 @@ const launcher_MODULE_CONFIG = {
     nameKey: 'launcher.awb.name',
     descKey: 'launcher.awb.desc',
     order: 66
+  },
+  cartas_porte: {
+    href: '/cartas-porte',
+    color: '#0f766e',
+    icon: 'manifest',
+    order: 66.5
+  },
+  bl: {
+    href: '/bill-of-lading',
+    color: '#1f4f5f',
+    icon: 'manifest',
+    order: 66.6
+  },
+  awb: {
+    href: '/air-waybills',
+    color: '#345e7d',
+    icon: 'awb',
+    order: 66.7
   },
   reports: {
     href: '/packages/reports',
@@ -6057,6 +6196,11 @@ const launcher_ICON_MAP = {
 <path d="M4 5h10l6 6-6 6H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
 <path d="M7 9h5M7 12h8M7 15h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
 </svg>`,
+  transport_documents: `<svg viewBox="0 0 24 24" aria-hidden="true">
+<path d="M6 3h8l4 4v13H6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+<path d="M14 3v4h4M8 12h8M8 16h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M3.5 18.5h3M17.5 18.5h3M4.5 15.5l2-2M19.5 15.5l-2-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+</svg>`,
   awb: `<svg viewBox="0 0 24 24" aria-hidden="true">
 <path d="M4 6h10l6 6-6 6H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
 <path d="M7 9h6M7 12h4M7 15h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -6142,6 +6286,7 @@ function buildlauncherModules(dbConn, t, permissionMap, isMaster, callback) {
 
       safeRows.forEach((row) => {
         const code = row.code;
+        if (HIDDEN_MODULE_CODES.has(code)) return;
         if (code === 'whatsapp' || code === 'meta_inbox') return;
         const config = launcher_MODULE_CONFIG[code] || {};
         const shouldShow = config.alwaysShow || hasAnyPermission(code);
@@ -6177,6 +6322,7 @@ function buildlauncherModules(dbConn, t, permissionMap, isMaster, callback) {
 
         Object.keys(launcher_MODULE_CONFIG).forEach((code) => {
           if (seen.has(code)) return;
+          if (HIDDEN_MODULE_CODES.has(code)) return;
           if (code === 'whatsapp' || code === 'meta_inbox') return;
           const config = launcher_MODULE_CONFIG[code] || {};
           const shouldShow = config.alwaysShow || hasAnyPermission(code);
@@ -6727,7 +6873,7 @@ function buildWorkspaceGridPosition(index, options = {}) {
 
 function getWorkspaceModuleGroup(moduleKey) {
   const key = normalizeString(moduleKey);
-  if (key.startsWith('packages_status_') || ['packages', 'carrier_reception', 'manifests', 'cuscar', 'airway_bills'].includes(key)) {
+  if (key.startsWith('packages_status_') || ['packages', 'carrier_reception', 'manifests', 'cuscar', 'transport_documents', 'airway_bills', 'cartas_porte', 'bl', 'awb'].includes(key)) {
     return 'operations';
   }
   if (['customers', 'consignatarios', 'portal', 'tracking'].includes(key)) {
@@ -7240,6 +7386,7 @@ function filterWorkspaceModulesForPermissions(modules, permissionMap, isMaster) 
   return safeModules.filter((module) => {
     if (!module || !module.key) return false;
     const key = normalizeString(module.key);
+    if (HIDDEN_MODULE_CODES.has(key)) return false;
     if (!key || key === launcher_SETTINGS_KEY) return false;
     if (key === 'master') return Boolean(isMaster);
     if (key.startsWith('packages_status_')) {
@@ -7813,6 +7960,7 @@ function parseJsonList(raw) {
 }
 
 function appendModuleToJsonColumnIfRestricted(tableName, columnName, moduleCode) {
+  if (HIDDEN_MODULE_CODES.has(moduleCode)) return;
   db.all(`SELECT rowid AS row_id, ${columnName} AS modules_json FROM ${tableName}`, [], (err, rows) => {
     if (err || !rows) return;
     rows.forEach((row) => {
@@ -7857,6 +8005,7 @@ function normalizeModuleSelection(input, allowedSet) {
   const selected = [];
   raw.forEach((entry) => {
     const code = normalizeString(entry);
+    if (HIDDEN_MODULE_CODES.has(code)) return;
     if (!code || (allowedSet && !allowedSet.has(code))) return;
     if (seen.has(code)) return;
     seen.add(code);
@@ -7873,6 +8022,7 @@ function normalizeAllowedModules(rawList) {
   const normalized = [];
   list.forEach((entry) => {
     const code = normalizeString(entry);
+    if (HIDDEN_MODULE_CODES.has(code)) return;
     if (!code) return;
     if (seen.has(code)) return;
     seen.add(code);
@@ -8390,6 +8540,7 @@ function getPermissionMap(userId, companyId, allowedModules, callback) {
 }
 
 function isModuleAllowed(permissionMap, moduleCode) {
+  if (HIDDEN_MODULE_CODES.has(moduleCode)) return false;
   if (!permissionMap) return false;
   const allowedList =
     Array.isArray(permissionMap.allowedModules) && permissionMap.allowedModules.length
@@ -8473,7 +8624,11 @@ const AI_MODULE_LABELS = {
   projects: 'Proyectos',
   mensajeria_meta: 'Mensajeria meta',
   manifests: 'Manifiestos',
-  airway_bills: 'Guias aereas',
+  transport_documents: 'Documentos de Transporte',
+  airway_bills: 'Carta Porte',
+  cartas_porte: 'Cartas Porte',
+  bl: 'Bill of Lading / BL',
+  awb: 'Guías Aéreas / AWB',
   rrhh: 'RRHH'
 };
 
@@ -8492,6 +8647,10 @@ function resolveModuleByPath(pathname) {
     { re: /^\/rrhh/, module: 'rrhh' },
     { re: /^\/manifests/, module: 'manifests' },
     { re: /^\/airway-bills/, module: 'airway_bills' },
+    { re: /^\/air-waybills/, module: 'awb' },
+    { re: /^\/transport-documents/, module: 'transport_documents' },
+    { re: /^\/cartas-porte/, module: 'cartas_porte' },
+    { re: /^\/bill-of-lading/, module: 'bl' },
     { re: /^\/master/, module: 'companies' },
     { re: /^\/companies/, module: 'companies' }
   ];
@@ -10028,6 +10187,8 @@ function fetchPackagesList(companyId, filters, callback) {
             cons.municipality AS consignatario_municipality,
             cons.department AS consignatario_department,
             cons.phone AS consignatario_phone,
+            (SELECT pp.file_path FROM package_photos pp WHERE pp.package_id = p.id ORDER BY COALESCE(pp.created_at, pp.uploaded_at) DESC LIMIT 1) AS first_photo_path,
+            (SELECT COUNT(*) FROM package_photos pp WHERE pp.package_id = p.id) AS photo_count,
             (SELECT MAX(COALESCE(changed_at, created_at)) FROM package_status_history WHERE package_id = p.id) AS last_status_at
      FROM ${table} p
      LEFT JOIN customers c ON c.id = p.customer_id AND c.company_id = p.company_id
@@ -10040,6 +10201,11 @@ function fetchPackagesList(companyId, filters, callback) {
         const lastStatusAt = pkg.last_status_at || pkg.received_at;
         return {
           ...pkg,
+          invoice_file_url: buildFileUrl(pkg.invoice_file),
+          invoice_file_name: pkg.invoice_file ? String(pkg.invoice_file).split(/[\\/]/).pop() : null,
+          invoice_file_is_pdf: pkg.invoice_file ? /\.pdf$/i.test(String(pkg.invoice_file)) : false,
+          first_photo_url: buildFileUrl(pkg.first_photo_path),
+          photo_count: Number(pkg.photo_count || 0),
           days_in_status: daysSince(lastStatusAt),
           days_since_received: daysSince(pkg.received_at)
         };
@@ -11034,6 +11200,7 @@ registerAuthRoutes(app, {
   MASTER_PASS,
   resolveCompanyDisplayName,
   createCompanySlug,
+  buildFileUrl,
   DEFAULT_LANG,
   SUPPORTED_LANGS,
   SESSION_COOKIE_NAME
@@ -11236,6 +11403,7 @@ registerPackageRoutes(app, {
   buildPackageUrl,
   generateBarcodeDataUrl,
   generateQrDataUrl,
+  PDFDocument,
   sendWhatsappMessage,
   buildPackageInvoiceUploadUrl,
   buildInvoiceRequestMessage,
@@ -11425,6 +11593,8 @@ registerProjectRoutes(app, {
 registerLogisticsRoutes(app, {
   db,
   PDFDocument,
+  fs,
+  path,
   requireAuth,
   requirePermission,
   hasPermission,
@@ -11450,7 +11620,51 @@ registerLogisticsRoutes(app, {
   fetchAwbItems,
   fetchAwbLinkedManifests,
   fetchAvailableManifestsForAwb,
-  computeManifestTotals
+  computeManifestTotals,
+  XLSX
+});
+
+registerTransportDocumentRoutes(app, {
+  db,
+  requireAuth,
+  requirePermission,
+  getCompanyId,
+  setFlash
+});
+
+registerCartasPorteRoutes(app, {
+  db,
+  requireAuth,
+  requirePermission,
+  getCompanyId,
+  setFlash,
+  logAction,
+  getCompanyBrandById,
+  PDFDocument
+});
+
+registerBlRoutes(app, {
+  db,
+  requireAuth,
+  requirePermission,
+  hasPermission,
+  getCompanyId,
+  setFlash,
+  logAction,
+  getCompanyBrandById,
+  PDFDocument
+});
+
+registerAwbRoutes(app, {
+  db,
+  requireAuth,
+  requirePermission,
+  hasPermission,
+  getCompanyId,
+  setFlash,
+  logAction,
+  getCompanyBrandById,
+  PDFDocument
 });
 
 registerInvoiceRoutes(app, {

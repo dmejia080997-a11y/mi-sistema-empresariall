@@ -40,22 +40,58 @@
 <h2>
 <%= t('manifests.create') %>
 </h2>
-<form method="POST" action="/manifests/create" class="form grid-2">
+<form method="POST" action="/manifests/create" class="form grid-2" data-manifest-transport-form>
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 <label>
-<%= t('manifests.airway_bill') %>
-<input type="text" name="airway_bill_number" placeholder="AWB-001" />
+<%= t('manifests.number_mode') %>
+<select name="manifest_number_mode" data-manifest-number-mode>
+<option value="automatic" <%= manifestNumberMode === 'automatic' ? 'selected' : '' %>><%= t('manifests.number_mode.automatic') %></option>
+<option value="manual" <%= manifestNumberMode === 'manual' ? 'selected' : '' %>><%= t('manifests.number_mode.manual') %></option>
+</select>
+</label>
+<label data-manifest-number-field>
+<%= t('manifests.manifest_number') %>
+<input type="text" name="manifest_number" value="<%= manifestNumber || '' %>" placeholder="<%= t('manifests.manifest_number_placeholder') %>" />
 <small class="muted">
-<%= t('manifests.airway_hint') %>
+<%= t('manifests.manifest_number_hint') %>
+</small>
+</label>
+<label>
+Tipo de documento de transporte
+<select name="transport_document_type" data-transport-type required>
+<option value="BL" <%= selectedType === 'BL' ? 'selected' : '' %>>BL</option>
+<option value="AWB" <%= selectedType === 'AWB' || selectedType === 'MAWB' ? 'selected' : '' %>>AWB</option>
+<option value="CARTA_PORTE" <%= selectedType === 'CARTA_PORTE' ? 'selected' : '' %>>Carta Porte</option>
+</select>
+<small class="muted">
+Seleccione el tipo para ver los documentos disponibles.
+</small>
+</label>
+<label>
+<%= t('manifests.airway_bill') %>
+<select name="transport_document_id" data-transport-document required>
+<option value="">Seleccione una guia</option>
+<% (transportDocuments || []).forEach((doc) => { %>
+<option value="<%= doc.id %>" data-type="<%= doc.type %>" <%= String(selectedDocumentId || '') === String(doc.id) && String(selectedType || '') === String(doc.type || '') ? 'selected' : '' %>>
+<%= doc.type === 'CARTA_PORTE' ? 'Carta Porte' : (doc.type === 'AWB' || doc.type === 'MAWB' ? 'AWB' : doc.type) %> - <%= doc.document_number %><%= doc.client_name ? ` - ${doc.client_name}` : '' %><%= doc.issue_date ? ` (${doc.issue_date})` : '' %>
+</option>
+<% }) %>
+</select>
+<small class="muted">
+Las guias ya usadas en otro manifiesto no aparecen en esta lista.
 </small>
 </label>
 <label>
 <%= t('manifests.notes') %>
 <textarea name="notes" rows="3">
+<%= notes || '' %>
 </textarea>
 </label>
-<div>
-<button type="submit" class="btn primary">
+<div class="actions">
+<button type="submit" name="save_mode" value="draft" class="btn" formnovalidate>
+<%= t('manifests.save_draft') %>
+</button>
+<button type="submit" name="save_mode" value="open" class="btn primary">
 <%= t('manifests.create') %>
 </button>
 </div>
@@ -63,5 +99,39 @@
 </section>
 </main>
 <script src="/status-footer.js" defer></script>
+<script>
+(function () {
+  const form = document.querySelector('[data-manifest-transport-form]');
+  if (!form) return;
+  const typeSelect = form.querySelector('[data-transport-type]');
+  const documentSelect = form.querySelector('[data-transport-document]');
+  const numberMode = form.querySelector('[data-manifest-number-mode]');
+  const numberField = form.querySelector('[data-manifest-number-field]');
+  const numberInput = numberField ? numberField.querySelector('input') : null;
+  if (!typeSelect || !documentSelect) return;
+  const options = Array.from(documentSelect.options);
+  function syncDocuments() {
+    const selectedType = typeSelect.value;
+    let hasSelectedVisible = false;
+    options.forEach((option) => {
+      const optionType = option.dataset.type || '';
+      const visible = !option.value || optionType === selectedType;
+      option.hidden = !visible;
+      option.disabled = !visible;
+      if (visible && option.selected) hasSelectedVisible = true;
+    });
+    if (!hasSelectedVisible) documentSelect.value = '';
+  }
+  function syncNumberMode() {
+    const manual = numberMode && numberMode.value === 'manual';
+    if (numberField) numberField.hidden = !manual;
+    if (numberInput) numberInput.required = Boolean(manual);
+  }
+  typeSelect.addEventListener('change', syncDocuments);
+  if (numberMode) numberMode.addEventListener('change', syncNumberMode);
+  syncDocuments();
+  syncNumberMode();
+})();
+</script>
 </body>
 </html>

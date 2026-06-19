@@ -56,6 +56,16 @@
 </h2>
 <form method="POST" action="/packages/<%= pkg.id %>/update" class="form grid-2" style="<%= can('packages', 'edit') ? '' : 'display:none' %>">
 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+<div class="package-weight-summary">
+<div>
+<span class="muted">Peso ingresado</span>
+<strong data-weight-entered>0.00 lbs</strong>
+</div>
+<div>
+<span class="muted">Peso vol</span>
+<strong data-weight-volume>0.00 lbs</strong>
+</div>
+</div>
 <label>
 <%= t('packages.consignatario') %>
 <select name="consignatario_id" id="consignatario-select">
@@ -94,6 +104,10 @@
 <label>
 <%= t('packages.height_cm') %>
 <input type="number" name="height_cm" step="0.01" min="0" value="<%= pkg.height_cm || '' %>" />
+</label>
+<label>
+Peso vol
+<input type="number" name="volumetric_weight_lbs" step="0.01" min="0" readonly data-weight-volume-input value="0.00" />
 </label>
 <label>
 <%= t('packages.shipping_type') %>
@@ -162,7 +176,7 @@
 </label>
 <label>
 <%= t('packages.received_at') %>
-<input type="date" name="received_at" value="<%= pkg.received_at ? pkg.received_at.substring(0, 10) : '' %>" />
+<input type="date" name="received_at_display" value="<%= pkg.received_at ? pkg.received_at.substring(0, 10) : '' %>" readonly aria-readonly="true" />
 </label>
 <label>
 <%= t('packages.notes') %>
@@ -178,6 +192,36 @@
 </form>
 </section>
 </main>
+<script>
+  (function () {
+    const form = document.querySelector('form[action="/packages/<%= pkg.id %>/update"]');
+    if (!form) return;
+    const weightInput = form.querySelector('[name="weight_lbs"]');
+    const lengthInput = form.querySelector('[name="length_cm"]');
+    const widthInput = form.querySelector('[name="width_cm"]');
+    const heightInput = form.querySelector('[name="height_cm"]');
+    const enteredNode = form.querySelector('[data-weight-entered]');
+    const volumeNode = form.querySelector('[data-weight-volume]');
+    const volumeInput = form.querySelector('[data-weight-volume-input]');
+    const readNumber = (input) => {
+      const value = Number(input && input.value ? input.value : 0);
+      return Number.isFinite(value) && value > 0 ? value : 0;
+    };
+    const format = (value) => value.toFixed(2);
+    const updateWeights = () => {
+      const entered = readNumber(weightInput);
+      const volume = ((readNumber(lengthInput) * readNumber(widthInput) * readNumber(heightInput)) / 5000) * 2.2046;
+      const safeVolume = Number.isFinite(volume) ? volume : 0;
+      if (enteredNode) enteredNode.textContent = `${format(entered)} lbs`;
+      if (volumeNode) volumeNode.textContent = `${format(safeVolume)} lbs`;
+      if (volumeInput) volumeInput.value = format(safeVolume);
+    };
+    [weightInput, lengthInput, widthInput, heightInput].forEach((input) => {
+      if (input) input.addEventListener('input', updateWeights);
+    });
+    updateWeights();
+  })();
+</script>
 <script src="/status-footer.js" defer></script>
 </body>
 </html>

@@ -1,0 +1,250 @@
+.cartas-porte-page .actions,
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.cartas-porte-page .actions form,
+.row-actions form {
+  margin: 0;
+}
+
+.cartas-porte-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.cartas-porte-tabs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  color: #374151;
+  text-decoration: none;
+  background: #fff;
+}
+
+.cartas-porte-tabs a.active {
+  border-color: #111827;
+  color: #fff;
+  background: #111827;
+}
+
+.cartas-porte-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.cartas-porte-filters label {
+  flex: 1 1 135px;
+  min-width: 120px;
+}
+
+.cartas-porte-filters label:nth-child(1),
+.cartas-porte-filters label:nth-child(2),
+.cartas-porte-filters label:nth-child(3) {
+  flex-basis: 170px;
+}
+
+.cartas-porte-filters .filter-actions {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+  flex: 0 0 auto;
+}
+
+.cartas-porte-table .table-row {
+  grid-template-columns: .9fr .8fr 1.2fr 1.2fr .8fr 1fr .8fr 2.6fr;
+}
+
+.status-borrador {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.status-emitida {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-anulada {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.form-card {
+  margin: 0 0 16px;
+  padding: 16px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 8px;
+  background: var(--surface-color, #fff);
+}
+
+.form-card h2,
+.form-card h3 {
+  margin: 0 0 12px;
+}
+
+.form-card h2 {
+  font-size: 1rem;
+}
+
+.form-card h3 {
+  font-size: .9rem;
+  color: #374151;
+}
+
+.form-grid,
+.route-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.form-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.route-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form-grid .full-row {
+  grid-column: 1 / -1;
+}
+
+.route-grid > div {
+  display: grid;
+  gap: 10px;
+}
+
+.cartas-porte-form label,
+.cartas-porte-filters label {
+  display: grid;
+  gap: 5px;
+  font-weight: 600;
+}
+
+.cartas-porte-form input,
+.cartas-porte-form select,
+.cartas-porte-form textarea,
+.cartas-porte-filters input,
+.cartas-porte-filters select {
+  width: 100%;
+}
+
+.cartas-porte-form textarea {
+  min-height: 68px;
+  resize: vertical;
+}
+
+.card-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.items-list {
+  display: grid;
+  gap: 12px;
+}
+
+.cargo-item {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.cargo-item .wide {
+  grid-column: span 2;
+}
+
+.cargo-item [data-remove-item] {
+  align-self: end;
+}
+
+.sticky-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  gap: 10px;
+  padding: 12px 0;
+  background: linear-gradient(to top, #fff 70%, rgba(255, 255, 255, 0));
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary-grid div {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.summary-grid span {
+  color: #6b7280;
+  font-size: .82rem;
+}
+
+.print-preview {
+  width: 100%;
+  height: 860px;
+  border: 1px solid #d1d5db;
+  background: white;
+}
+
+@media (max-width: 980px) {
+  .form-grid,
+  .route-grid,
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cartas-porte-table .table-row,
+  .cargo-item {
+    grid-template-columns: 1fr;
+  }
+
+  .cargo-item .wide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .form-grid,
+  .route-grid,
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cartas-porte-filters {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .sticky-actions {
+    flex-direction: column;
+  }
+}

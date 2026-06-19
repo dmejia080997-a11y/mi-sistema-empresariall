@@ -1,0 +1,15 @@
+<%- include('../partials/head', { title: 'Editar BL ' + bl.numero_bl, extraStyles: ['/css/bl.css'] }) %>
+<%- include('../partials/header', { currentModule: 'bl' }) %>
+<%- include('../partials/toasts') %>
+
+<main class="container bl-page">
+  <div class="page-header">
+    <div>
+      <h1>Editar <%= bl.numero_bl %></h1>
+      <p class="muted"><%= levelMeta[bl.nivel_bl].label %></p>
+    </div>
+    <a class="btn" href="/bill-of-lading/<%= bl.id %>">Ver</a>
+  </div>
+  <%- include('_form', { bl, action: '/bill-of-lading/' + bl.id + '/update', error: typeof error !== 'undefined' ? error : null, levels, statuses, modalities, freightTerms, levelMeta }) %>
+</main>
+<script src="/js/bl/form.js" defer></script>

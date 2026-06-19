@@ -853,6 +853,9 @@ app.get('/manifests', requireAuth, requirePermission('manifests', 'view'), (req,
     (err, manifests) => {
       res.render('manifests', {
         manifests: err ? [] : manifests || [],
+        formatManifestNumber,
+        formatManifestStatus,
+        manifestStatusClass,
         error: null,
         success: null
       });
@@ -860,23 +863,390 @@ app.get('/manifests', requireAuth, requirePermission('manifests', 'view'), (req,
   );
 });
 
+const MANIFEST_TRANSPORT_TYPES = ['BL', 'AWB', 'CARTA_PORTE'];
+const MANIFEST_NUMBER_MODES = ['automatic', 'manual'];
+
+function normalizeManifestTransportType(type) {
+  const normalized = normalizeString(type).toUpperCase();
+  if (normalized === 'MAWB') return 'AWB';
+  return MANIFEST_TRANSPORT_TYPES.includes(normalized) ? normalized : 'BL';
+}
+
+function normalizeManifestNumberMode(mode) {
+  const normalized = normalizeString(mode).toLowerCase();
+  return MANIFEST_NUMBER_MODES.includes(normalized) ? normalized : 'automatic';
+}
+
+function normalizeManifestNumber(number) {
+  return normalizeString(number).toUpperCase();
+}
+
+function formatManifestNumber(manifest) {
+  if (!manifest) return '-';
+  return manifest.manifest_number || `MAN-${String(manifest.id || '').padStart(5, '0')}`;
+}
+
+function formatManifestStatus(manifest, t) {
+  if (manifest && manifest.status === 'closed') return t('manifests.status.closed');
+  if (manifest && manifest.status === 'draft') return t('manifests.status.draft');
+  return t('manifests.status.open');
+}
+
+function manifestStatusClass(manifest) {
+  if (manifest && manifest.status === 'closed') return 'status-closed';
+  if (manifest && manifest.status === 'draft') return 'status-default';
+  return 'status-open';
+}
+
+function fetchCompanyLetterhead(companyId, callback) {
+  db.get(
+    `SELECT id, name, commercial_name, legal_name, address, tax_address, nit, email, phone, logo
+     FROM companies
+     WHERE id = ?`,
+    [companyId],
+    (err, company) => {
+      if (err || !company) {
+        return callback({
+          name: 'Mi empresa',
+          lines: [],
+          logoPath: null
+        });
+      }
+      const displayName = normalizeString(company.commercial_name || company.name || company.legal_name) || 'Mi empresa';
+      const lines = [];
+      const legalName = normalizeString(company.legal_name);
+      const nit = normalizeString(company.nit);
+      const address = normalizeString(company.tax_address || company.address);
+      const phone = normalizeString(company.phone);
+      const email = normalizeString(company.email);
+      if (legalName && legalName !== displayName) lines.push(legalName);
+      if (nit) lines.push(`NIT: ${nit}`);
+      if (address) lines.push(address);
+      const contactLine = [phone ? `Tel: ${phone}` : '', email].filter(Boolean).join(' | ');
+      if (contactLine) lines.push(contactLine);
+      return callback({
+        name: displayName,
+        lines,
+        logoPath: resolveCompanyLogoPath(company.logo)
+      });
+    }
+  );
+}
+
+function resolveCompanyLogoPath(storedPath) {
+  if (!storedPath || !fs || !path) return null;
+  const raw = String(storedPath).trim();
+  if (!raw || /^https?:\/\//i.test(raw)) return null;
+  const ext = path.extname(raw).toLowerCase();
+  if (!['.png', '.jpg', '.jpeg'].includes(ext)) return null;
+
+  const candidates = [];
+  if (path.isAbsolute(raw)) {
+    candidates.push(path.resolve(raw));
+  } else {
+    const cleaned = raw.replace(/^uploads[\\/]/, '').replace(/^data[\\/]uploads[\\/]/, '');
+    candidates.push(path.resolve(process.cwd(), raw));
+    candidates.push(path.resolve(process.cwd(), 'data', 'uploads', cleaned));
+  }
+  return candidates.find((candidate) => {
+    try {
+      return fs.existsSync(candidate);
+    } catch (err) {
+      return false;
+    }
+  }) || null;
+}
+
+function drawManifestPdfLetterhead(doc, letterhead) {
+  const pageTop = doc.page.margins.top;
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  let textX = left;
+  let textWidth = right - left;
+
+  if (letterhead && letterhead.logoPath) {
+    try {
+      doc.image(letterhead.logoPath, left, pageTop, { fit: [92, 52], align: 'left', valign: 'center' });
+      textX = left + 108;
+      textWidth = right - textX;
+    } catch (err) {
+      textX = left;
+      textWidth = right - left;
+    }
+  }
+
+  doc.font('Helvetica-Bold').fontSize(13).text((letterhead && letterhead.name) || 'Mi empresa', textX, pageTop, {
+    width: textWidth,
+    align: textX === left ? 'center' : 'left'
+  });
+  doc.font('Helvetica').fontSize(8);
+  ((letterhead && letterhead.lines) || []).slice(0, 4).forEach((line) => {
+    doc.text(line, textX, doc.y + 1, {
+      width: textWidth,
+      align: textX === left ? 'center' : 'left'
+    });
+  });
+  doc.moveTo(left, pageTop + 62).lineTo(right, pageTop + 62).strokeColor('#999999').lineWidth(0.5).stroke();
+  doc.strokeColor('#000000').lineWidth(1);
+  doc.y = pageTop + 76;
+}
+
+function generateAutomaticManifestNumber(companyId, manifestId, callback) {
+  const year = new Date().getFullYear();
+  const number = `MAN-${year}-${String(manifestId).padStart(5, '0')}`;
+  db.get(
+    'SELECT id FROM manifests WHERE company_id = ? AND manifest_number = ? AND id != ?',
+    [companyId, number, manifestId],
+    (err, row) => {
+      if (err) return callback(err);
+      if (!row) return callback(null, number);
+      return callback(null, `${number}-${manifestId}`);
+    }
+  );
+}
+
+function ensureUniqueManifestNumber(companyId, manifestNumber, excludeId, callback) {
+  if (!manifestNumber) return callback(null);
+  const params = [companyId, manifestNumber];
+  let sql = 'SELECT id FROM manifests WHERE company_id = ? AND manifest_number = ?';
+  if (excludeId) {
+    sql += ' AND id != ?';
+    params.push(excludeId);
+  }
+  db.get(sql, params, (err, row) => {
+    if (err) return callback(err);
+    if (row) return callback(new Error('duplicate_manifest_number'));
+    return callback(null);
+  });
+}
+
+function fetchAvailableTransportDocumentsForManifest(companyId, selectedType, currentManifestId, callback) {
+  const type = selectedType ? normalizeManifestTransportType(selectedType) : null;
+  const typeClause = type ? 'WHERE docs.type = ?' : '';
+  const params = [
+    companyId,
+    currentManifestId || null,
+    currentManifestId || null,
+    companyId,
+    currentManifestId || null,
+    currentManifestId || null,
+    companyId,
+    currentManifestId || null,
+    currentManifestId || null
+  ];
+  if (type) params.push(type);
+  db.all(
+    `SELECT docs.*
+     FROM (
+       SELECT cp.id,
+              'CARTA_PORTE' AS type,
+              cp.numero AS document_number,
+              cp.estado AS status,
+              cp.fecha_emision AS issue_date,
+              COALESCE(cp.destinatario_nombre, cp.remitente_nombre) AS client_name,
+              cp.remitente_nombre AS shipper,
+              cp.destinatario_nombre AS consignee,
+              cp.created_at
+       FROM cartas_porte cp
+       WHERE cp.company_id = ?
+         AND cp.estado != 'Anulada'
+         AND NOT EXISTS (
+           SELECT 1
+           FROM manifests m
+           WHERE m.company_id = cp.company_id
+             AND m.transport_document_type = 'CARTA_PORTE'
+             AND m.transport_document_id = cp.id
+             AND (? IS NULL OR m.id != ?)
+         )
+       UNION ALL
+       SELECT bl.id,
+              'BL' AS type,
+              bl.numero_bl AS document_number,
+              bl.estado AS status,
+              bl.fecha_emision AS issue_date,
+              COALESCE(bl.consignee_nombre, bl.shipper_nombre) AS client_name,
+              bl.shipper_nombre AS shipper,
+              bl.consignee_nombre AS consignee,
+              bl.created_at
+       FROM bills_of_lading bl
+       WHERE bl.company_id = ?
+         AND bl.estado != 'Anulado'
+         AND NOT EXISTS (
+           SELECT 1
+           FROM manifests m
+           WHERE m.company_id = bl.company_id
+             AND m.transport_document_type = 'BL'
+             AND m.transport_document_id = bl.id
+             AND (? IS NULL OR m.id != ?)
+         )
+       UNION ALL
+       SELECT awb.id,
+              'AWB' AS type,
+              awb.numero_awb AS document_number,
+              awb.estado AS status,
+              awb.fecha_emision AS issue_date,
+              COALESCE(awb.consignee_nombre, awb.shipper_nombre) AS client_name,
+              awb.shipper_nombre AS shipper,
+              awb.consignee_nombre AS consignee,
+              awb.created_at
+       FROM air_waybills awb
+       WHERE awb.company_id = ?
+         AND awb.estado != 'Anulada'
+         AND NOT EXISTS (
+           SELECT 1
+           FROM manifests m
+           WHERE m.company_id = awb.company_id
+             AND m.transport_document_type IN ('AWB', 'MAWB')
+             AND m.transport_document_id = awb.id
+             AND (? IS NULL OR m.id != ?)
+         )
+     ) docs
+     ${typeClause}
+     ORDER BY COALESCE(docs.issue_date, docs.created_at) DESC, docs.id DESC`,
+    params,
+    (err, rows) => callback(err, rows || [])
+  );
+}
+
+function resolveManifestTransportDocument(companyId, type, documentId, currentManifestId, callback) {
+  const normalizedType = normalizeManifestTransportType(type);
+  const id = Number(documentId || 0);
+  if (!Number.isInteger(id) || id <= 0) return callback(null, null);
+  const inUseClause = `
+    AND NOT EXISTS (
+      SELECT 1
+      FROM manifests m
+      WHERE m.company_id = ?
+        AND (m.transport_document_type = ? OR (? = 'AWB' AND m.transport_document_type = 'MAWB'))
+        AND m.transport_document_id = ?
+        AND (? IS NULL OR m.id != ?)
+    )`;
+  const currentId = currentManifestId || null;
+  if (normalizedType === 'CARTA_PORTE') {
+    return db.get(
+      `SELECT id, 'CARTA_PORTE' AS type, numero AS document_number
+       FROM cartas_porte
+       WHERE id = ? AND company_id = ? AND estado != 'Anulada'
+       ${inUseClause}`,
+      [id, companyId, companyId, normalizedType, normalizedType, id, currentId, currentId],
+      callback
+    );
+  }
+  if (normalizedType === 'AWB') {
+    return db.get(
+      `SELECT id, 'AWB' AS type, numero_awb AS document_number
+       FROM air_waybills
+       WHERE id = ? AND company_id = ? AND estado != 'Anulada'
+       ${inUseClause}`,
+      [id, companyId, companyId, normalizedType, normalizedType, id, currentId, currentId],
+      callback
+    );
+  }
+  return db.get(
+    `SELECT id, 'BL' AS type, numero_bl AS document_number
+     FROM bills_of_lading
+     WHERE id = ? AND company_id = ? AND estado != 'Anulado'
+     ${inUseClause}`,
+    [id, companyId, companyId, normalizedType, normalizedType, id, currentId, currentId],
+    callback
+  );
+}
+
 app.get('/manifests/new', requireAuth, requirePermission('manifests', 'create'), (req, res) => {
-  res.render('manifests-new', { error: null, success: null });
+  const companyId = getCompanyId(req);
+  const selectedType = normalizeManifestTransportType(req.query.type || 'BL');
+  fetchAvailableTransportDocumentsForManifest(companyId, null, null, (err, transportDocuments) => {
+    res.render('manifests-new', {
+      error: err ? res.locals.t('errors.server_try_again') : null,
+      success: null,
+      selectedType,
+      selectedDocumentId: '',
+      manifestNumberMode: 'automatic',
+      manifestNumber: '',
+      notes: '',
+      transportDocuments: err ? [] : transportDocuments
+    });
+  });
 });
 
 app.post('/manifests/create', requireAuth, requirePermission('manifests', 'create'), (req, res) => {
   const companyId = getCompanyId(req);
-  const airwayBillNumber = normalizeString(req.body.airway_bill_number) || null;
+  const transportDocumentType = normalizeManifestTransportType(req.body.transport_document_type);
+  const transportDocumentId = Number(req.body.transport_document_id || 0);
+  const manifestNumberMode = normalizeManifestNumberMode(req.body.manifest_number_mode);
+  const manifestNumber = normalizeManifestNumber(req.body.manifest_number);
+  const saveMode = normalizeString(req.body.save_mode);
+  const isDraft = saveMode === 'draft';
   const notes = normalizeString(req.body.notes) || null;
 
-  db.run(
-    'INSERT INTO manifests (company_id, airway_bill_number, notes, status, created_by) VALUES (?, ?, ?, ?, ?)',
-    [companyId, airwayBillNumber, notes, 'open', req.session && req.session.user ? req.session.user.id : null],
-    function (err) {
-      if (err) return res.render('manifests-new', { error: res.locals.t('errors.server_try_again'), success: null });
-      return res.redirect(`/manifests/${this.lastID}`);
+  const renderNewManifestError = (error) =>
+    fetchAvailableTransportDocumentsForManifest(companyId, null, null, (listErr, transportDocuments) =>
+      res.render('manifests-new', {
+        error,
+        success: null,
+        selectedType: transportDocumentType,
+        selectedDocumentId: transportDocumentId || '',
+        manifestNumberMode,
+        manifestNumber,
+        notes: notes || '',
+        transportDocuments: listErr ? [] : transportDocuments
+      })
+    );
+
+  if (manifestNumberMode === 'manual' && !manifestNumber) {
+    return renderNewManifestError('Ingrese el numero manual del manifiesto.');
+  }
+
+  const createManifest = (transportDocument) => {
+    ensureUniqueManifestNumber(companyId, manifestNumberMode === 'manual' ? manifestNumber : null, null, (numberErr) => {
+      if (numberErr) {
+        const message = numberErr.message === 'duplicate_manifest_number'
+          ? 'Ya existe un manifiesto con ese numero.'
+          : res.locals.t('errors.server_try_again');
+        return renderNewManifestError(message);
+      }
+      db.run(
+        `INSERT INTO manifests
+         (company_id, manifest_number, manifest_number_mode, transport_document_type, transport_document_id, airway_bill_number, notes, status, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          companyId,
+          manifestNumberMode === 'manual' ? manifestNumber : null,
+          manifestNumberMode,
+          transportDocument ? transportDocument.type : null,
+          transportDocument ? transportDocument.id : null,
+          transportDocument ? transportDocument.document_number : null,
+          notes,
+          isDraft ? 'draft' : 'open',
+          req.session && req.session.user ? req.session.user.id : null
+        ],
+        function (err) {
+          if (err) return renderNewManifestError(res.locals.t('errors.server_try_again'));
+          const newManifestId = this.lastID;
+          if (manifestNumberMode === 'manual') return res.redirect(`/manifests/${newManifestId}`);
+          generateAutomaticManifestNumber(companyId, newManifestId, (autoErr, autoNumber) => {
+            if (autoErr) return res.redirect(`/manifests/${newManifestId}`);
+            db.run(
+              'UPDATE manifests SET manifest_number = ? WHERE id = ? AND company_id = ?',
+              [autoNumber, newManifestId, companyId],
+              () => res.redirect(`/manifests/${newManifestId}`)
+            );
+          });
+        }
+      );
+    });
+  };
+
+  if (isDraft && (!Number.isInteger(transportDocumentId) || transportDocumentId <= 0)) {
+    return createManifest(null);
+  }
+
+  resolveManifestTransportDocument(companyId, transportDocumentType, transportDocumentId, null, (docErr, transportDocument) => {
+    if (docErr || !transportDocument) {
+      return renderNewManifestError(docErr ? res.locals.t('errors.server_try_again') : 'Seleccione una guia disponible.');
     }
-  );
+    return createManifest(transportDocument);
+  });
 });
 
 app.get('/manifests/:id', requireAuth, requirePermission('manifests', 'view'), (req, res) => {
@@ -889,16 +1259,24 @@ app.get('/manifests/:id', requireAuth, requirePermission('manifests', 'view'), (
     const lastScanPieceId = req.session ? req.session.manifest_last_piece_id : null;
     if (req.session) req.session.manifest_last_piece_id = null;
 
-    res.render('manifest-detail', {
-      manifest: data.manifest,
-      pieces: data.pieces,
-      availablePackages: data.availablePackages,
-      summary: data.summary,
-      lastScanPieceId,
-      canEditManifest: hasPermission(req.session.permissionMap || null, 'manifests', 'edit'),
-      isAdmin: req.session && req.session.user && req.session.user.role === 'admin',
-      error: null,
-      success: null
+    const selectedType = normalizeManifestTransportType(data.manifest.transport_document_type || 'BL');
+    fetchAvailableTransportDocumentsForManifest(companyId, null, manifestId, (docsErr, transportDocuments) => {
+      res.render('manifest-detail', {
+        manifest: data.manifest,
+        pieces: data.pieces,
+        availablePackages: data.availablePackages,
+        summary: data.summary,
+        transportDocuments: docsErr ? [] : transportDocuments,
+        selectedType,
+        lastScanPieceId,
+        formatManifestNumber,
+        formatManifestStatus,
+        manifestStatusClass,
+        canEditManifest: hasPermission(req.session.permissionMap || null, 'manifests', 'edit'),
+        isAdmin: req.session && req.session.user && req.session.user.role === 'admin',
+        error: null,
+        success: null
+      });
     });
   });
 });
@@ -906,13 +1284,44 @@ app.get('/manifests/:id', requireAuth, requirePermission('manifests', 'view'), (
 app.post('/manifests/:id/airway-bill', requireAuth, requirePermission('manifests', 'edit'), (req, res) => {
   const companyId = getCompanyId(req);
   const manifestId = Number(req.params.id);
-  const airwayBillNumber = normalizeString(req.body.airway_bill_number) || null;
+  const transportDocumentType = normalizeManifestTransportType(req.body.transport_document_type);
+  const transportDocumentId = Number(req.body.transport_document_id || 0);
+  if (!Number.isInteger(manifestId) || manifestId <= 0) return res.redirect('/manifests');
+
+  resolveManifestTransportDocument(companyId, transportDocumentType, transportDocumentId, manifestId, (err, transportDocument) => {
+    if (err || !transportDocument) {
+      setFlash(req, 'error', err ? res.locals.t('errors.server_try_again') : 'Seleccione una guia disponible.');
+      return res.redirect(`/manifests/${manifestId}`);
+    }
+    db.run(
+      `UPDATE manifests
+       SET transport_document_type = ?, transport_document_id = ?, airway_bill_number = ?, status = CASE WHEN status = 'draft' THEN 'open' ELSE status END
+       WHERE id = ? AND company_id = ?`,
+      [transportDocument.type, transportDocument.id, transportDocument.document_number, manifestId, companyId],
+      () => res.redirect(`/manifests/${manifestId}`)
+    );
+  });
+});
+
+app.post('/manifests/:id/unlink-transport-document', requireAuth, requirePermission('manifests', 'edit'), (req, res) => {
+  const companyId = getCompanyId(req);
+  const manifestId = Number(req.params.id);
   if (!Number.isInteger(manifestId) || manifestId <= 0) return res.redirect('/manifests');
 
   db.run(
-    'UPDATE manifests SET airway_bill_number = ? WHERE id = ? AND company_id = ?',
-    [airwayBillNumber, manifestId, companyId],
-    () => res.redirect(`/manifests/${manifestId}`)
+    `UPDATE manifests
+     SET transport_document_type = NULL,
+         transport_document_id = NULL,
+         airway_bill_number = NULL,
+         status = 'draft',
+         closed_by = NULL,
+         closed_at = NULL
+     WHERE id = ? AND company_id = ?`,
+    [manifestId, companyId],
+    () => {
+      setFlash(req, 'success', 'Guia desvinculada. El manifiesto quedo como borrador.');
+      res.redirect(`/manifests/${manifestId}`);
+    }
   );
 });
 
@@ -1047,24 +1456,72 @@ app.get('/manifests/:id/export/pdf', requireAuth, requirePermission('manifests',
 
   buildManifestDetailData(manifestId, companyId, false, (err, data) => {
     if (err || !data) return res.redirect('/manifests');
-    const doc = new PDFDocument({ margin: 24 });
-    res.setHeader('Content-Type', 'application/pdf');
-    doc.fontSize(16).text('Manifest', { align: 'center' });
-    doc.moveDown();
-    doc.fontSize(12).text(`Airway Bill: ${data.manifest.airway_bill_number || '-'}`);
-    doc.text(`Status: ${data.manifest.status}`);
-    doc.text(`Pieces: ${data.summary.totalPieces}`);
-    doc.text(`Packages: ${data.summary.totalPackages}`);
-    doc.text(`Weight: ${Number(data.summary.totalWeight || 0).toFixed(2)}`);
-    doc.moveDown();
-    data.pieces.forEach((piece) => {
-      doc.fontSize(12).text(`Piece #${piece.piece_number}`);
-      (piece.packages || []).forEach((pkg) => {
-        doc.fontSize(10).text(`- ${pkg.internal_code || pkg.tracking_number || pkg.id}`);
-      });
+    fetchCompanyLetterhead(companyId, (letterhead) => {
+      const fileNumber = formatManifestNumber(data.manifest).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const doc = new PDFDocument({ size: 'LETTER', margin: 36 });
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="manifiesto-${fileNumber}.pdf"`);
+      doc.pipe(res);
+
+      drawManifestPdfLetterhead(doc, letterhead);
+      doc.fontSize(18).font('Helvetica-Bold').text('MANIFIESTO DE CARGA', { align: 'center' });
+      doc.font('Helvetica');
       doc.moveDown(0.5);
+      doc.fontSize(10).text(`Numero de manifiesto: ${formatManifestNumber(data.manifest)}`);
+      doc.text(`Documento transporte: ${data.manifest.transport_document_type || '-'} ${data.manifest.airway_bill_number || '-'}`);
+      doc.text(`Estado: ${formatManifestStatus(data.manifest, res.locals.t)}`);
+      doc.text(`Fecha: ${data.manifest.created_at || '-'}`);
+      doc.moveDown();
+
+      doc.fontSize(11).text(`Total piezas: ${data.summary.totalPieces}`, { continued: true });
+      doc.text(`   Total paquetes: ${data.summary.totalPackages}`, { continued: true });
+      doc.text(`   Peso total lbs: ${Number(data.summary.totalWeight || 0).toFixed(2)}`);
+      if (data.manifest.notes) {
+        doc.moveDown(0.5);
+        doc.fontSize(10).text(`Notas: ${data.manifest.notes}`);
+      }
+      doc.moveDown();
+
+      const drawHeader = () => {
+        const y = doc.y;
+        doc.fontSize(8).font('Helvetica-Bold');
+        doc.text('Pieza', 36, y, { width: 42 });
+        doc.text('Codigo', 78, y, { width: 85 });
+        doc.text('Tracking', 163, y, { width: 120 });
+        doc.text('Cliente', 283, y, { width: 145 });
+        doc.text('Estado', 428, y, { width: 80 });
+        doc.text('Peso', 508, y, { width: 50, align: 'right' });
+        doc.font('Helvetica');
+        doc.y = y + 12;
+        doc.moveDown(0.4);
+        doc.moveTo(36, doc.y).lineTo(558, doc.y).stroke();
+        doc.moveDown(0.3);
+      };
+
+      drawHeader();
+      let hasRows = false;
+      data.pieces.forEach((piece) => {
+        (piece.packages || []).forEach((pkg) => {
+          hasRows = true;
+          if (doc.y > 720) {
+            doc.addPage();
+            drawManifestPdfLetterhead(doc, letterhead);
+            drawHeader();
+          }
+          const y = doc.y;
+          doc.fontSize(8);
+          doc.text(String(piece.piece_number || ''), 36, y, { width: 42 });
+          doc.text(pkg.internal_code || '-', 78, y, { width: 85 });
+          doc.text(pkg.tracking_number || '-', 163, y, { width: 120 });
+          doc.text(`${pkg.customer_code ? `${pkg.customer_code} - ` : ''}${pkg.customer_name || '-'}`, 283, y, { width: 145 });
+          doc.text(pkg.status || '-', 428, y, { width: 80 });
+          doc.text(pkg.weight_lbs ? String(pkg.weight_lbs) : '-', 508, y, { width: 50, align: 'right' });
+          doc.y = y + 20;
+        });
+      });
+      if (!hasRows) doc.fontSize(10).text('No hay paquetes en este manifiesto.');
+      doc.end();
     });
-    doc.end();
   });
 });
 
@@ -1075,35 +1532,62 @@ app.get('/manifests/:id/export/excel', requireAuth, requirePermission('manifests
 
   buildManifestDetailData(manifestId, companyId, false, (err, data) => {
     if (err || !data) return res.redirect('/manifests');
-    const rows = [];
-    data.pieces.forEach((piece) => {
-      (piece.packages || []).forEach((pkg) => {
-        rows.push({
-          piece_number: piece.piece_number,
-          internal_code: pkg.internal_code || '',
-          tracking_number: pkg.tracking_number || '',
-          customer_code: pkg.customer_code || '',
-          customer_name: pkg.customer_name || '',
-          status: pkg.status || '',
-          weight_lbs: pkg.weight_lbs || ''
+    fetchCompanyLetterhead(companyId, (letterhead) => {
+      const manifestNumber = formatManifestNumber(data.manifest);
+      const transportDocument = `${data.manifest.transport_document_type || ''} ${data.manifest.airway_bill_number || ''}`.trim();
+      const sheetRows = [
+        [(letterhead && letterhead.name) || 'Mi empresa'],
+        ...((letterhead && letterhead.lines) || []).map((line) => [line]),
+        [],
+        ['MANIFIESTO DE CARGA'],
+        ['Numero de manifiesto', manifestNumber],
+        ['Documento transporte', transportDocument],
+        ['Estado', formatManifestStatus(data.manifest, res.locals.t)],
+        ['Fecha', data.manifest.created_at || '-'],
+        ['Total piezas', data.summary.totalPieces],
+        ['Total paquetes', data.summary.totalPackages],
+        ['Peso total lbs', Number(data.summary.totalWeight || 0).toFixed(2)]
+      ];
+      if (data.manifest.notes) sheetRows.push(['Notas', data.manifest.notes]);
+      sheetRows.push([]);
+      sheetRows.push(['Pieza', 'Codigo interno', 'Tracking', 'Codigo cliente', 'Cliente', 'Estado paquete', 'Peso lbs']);
+
+      let hasRows = false;
+      data.pieces.forEach((piece) => {
+        (piece.packages || []).forEach((pkg) => {
+          hasRows = true;
+          sheetRows.push([
+            piece.piece_number || '',
+            pkg.internal_code || '',
+            pkg.tracking_number || '',
+            pkg.customer_code || '',
+            pkg.customer_name || '',
+            pkg.status || '',
+            pkg.weight_lbs || ''
+          ]);
         });
       });
+      if (!hasRows) sheetRows.push(['', 'No hay paquetes en este manifiesto.', '', '', '', '', '']);
+
+      const worksheet = XLSX.utils.aoa_to_sheet(sheetRows);
+      worksheet['!cols'] = [
+        { wch: 16 }, { wch: 22 }, { wch: 26 }, { wch: 18 }, { wch: 34 }, { wch: 18 }, { wch: 12 }
+      ];
+      worksheet['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }
+      ];
+      const titleRowIndex = sheetRows.findIndex((row) => row[0] === 'MANIFIESTO DE CARGA');
+      if (titleRowIndex >= 0) {
+        worksheet['!merges'].push({ s: { r: titleRowIndex, c: 0 }, e: { r: titleRowIndex, c: 6 } });
+      }
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Manifiesto');
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      const fileNumber = manifestNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="manifiesto-${fileNumber}.xlsx"`);
+      return res.send(buffer);
     });
-    const csv = stringify(rows, {
-      header: true,
-      columns: [
-        { key: 'piece_number', header: 'piece_number' },
-        { key: 'internal_code', header: 'internal_code' },
-        { key: 'tracking_number', header: 'tracking_number' },
-        { key: 'customer_code', header: 'customer_code' },
-        { key: 'customer_name', header: 'customer_name' },
-        { key: 'status', header: 'status' },
-        { key: 'weight_lbs', header: 'weight_lbs' }
-      ]
-    });
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="manifest.csv"');
-    return res.send(csv);
   });
 });
 
@@ -1125,17 +1609,66 @@ app.get('/manifests/:id/pieces/:pieceId/sticker/pdf', requireAuth, requirePermis
 });
 app.get('/airway-bills', requireAuth, requirePermission('airway_bills', 'view'), (req, res) => {
   const companyId = getCompanyId(req);
+  const allowedTypes = ['bl', 'awb', 'carta_porte'];
+  const allowedStatuses = ['draft', 'closed', 'issued', 'applied', 'cancelled'];
+  const filters = {
+    document_type: allowedTypes.includes(normalizeString(req.query.document_type)) ? normalizeString(req.query.document_type) : 'all',
+    status: allowedStatuses.includes(normalizeString(req.query.status)) ? normalizeString(req.query.status) : 'active'
+  };
+  const clauses = ['a.company_id = ?'];
+  const params = [companyId];
+  if (filters.document_type !== 'all') {
+    clauses.push('a.document_type = ?');
+    params.push(filters.document_type);
+  }
+  if (filters.status === 'active') {
+    clauses.push("a.status != 'cancelled'");
+  } else {
+    clauses.push('a.status = ?');
+    params.push(filters.status);
+  }
   db.all(
-    'SELECT id, awb_number, awb_type, shipper_name, consignee_name, status, created_at FROM awbs WHERE company_id = ? ORDER BY created_at DESC',
-    [companyId],
+    `SELECT a.id, a.document_type, a.awb_number, a.awb_type, a.shipper_name, a.consignee_name, a.status, a.created_at,
+            GROUP_CONCAT(COALESCE(m.airway_bill_number, '#' || m.id), ', ') AS applied_manifests
+     FROM awbs a
+     LEFT JOIN awb_manifests am ON am.awb_id = a.id
+     LEFT JOIN manifests m ON m.id = am.manifest_id AND m.company_id = a.company_id
+     WHERE ${clauses.join(' AND ')}
+     GROUP BY a.id
+     ORDER BY a.created_at DESC`,
+    params,
     (err, awbs) => {
       res.render('awbs', {
         awbs: err ? [] : awbs || [],
+        filters,
         error: null,
         success: null
       });
     }
   );
+});
+
+app.post('/manifests/:id/save-draft', requireAuth, requirePermission('manifests', 'edit'), (req, res) => {
+  const companyId = getCompanyId(req);
+  const manifestId = Number(req.params.id);
+  if (!Number.isInteger(manifestId) || manifestId <= 0) return res.redirect('/manifests');
+
+  db.run(
+    "UPDATE manifests SET status = 'draft', closed_by = NULL, closed_at = NULL WHERE id = ? AND company_id = ? AND status != 'closed'",
+    [manifestId, companyId],
+    () => {
+      setFlash(req, 'success', 'Manifiesto guardado como borrador.');
+      res.redirect(`/manifests/${manifestId}`);
+    }
+  );
+});
+
+app.get('/airway-bills/cancelled', requireAuth, requirePermission('airway_bills', 'view'), (req, res) => {
+  res.redirect('/airway-bills?status=cancelled');
+});
+
+app.get('/airway-bills/applied', requireAuth, requirePermission('airway_bills', 'view'), (req, res) => {
+  res.redirect('/airway-bills?status=applied');
 });
 
 app.get('/airway-bills/new', requireAuth, requirePermission('airway_bills', 'create'), (req, res) => {
@@ -1146,8 +1679,12 @@ app.post('/airway-bills/create', requireAuth, requirePermission('airway_bills', 
   const companyId = getCompanyId(req);
   const awbNumber = normalizeString(req.body.awb_number);
   if (!awbNumber) return res.render('awb-new', { error: res.locals.t('errors.required_fields'), success: null, items: [{}, {}, {}] });
+  const documentType = ['bl', 'awb', 'carta_porte'].includes(normalizeString(req.body.document_type))
+    ? normalizeString(req.body.document_type)
+    : 'awb';
 
   const payload = {
+    document_type: documentType,
     awb_type: normalizeString(req.body.awb_type) || null,
     awb_number: awbNumber,
     awb_date: normalizeString(req.body.awb_date) || null,
@@ -1192,16 +1729,17 @@ app.post('/airway-bills/create', requireAuth, requirePermission('airway_bills', 
 
   db.run(
     `INSERT INTO awbs
-     (company_id, awb_type, awb_number, awb_date, issuing_carrier, agent_name, agent_iata_code, agent_cass_code,
+     (company_id, document_type, awb_type, awb_number, awb_date, issuing_carrier, agent_name, agent_iata_code, agent_cass_code,
       shipper_name, shipper_address, consignee_name, consignee_address, accounting_information, reference_number,
       optional_shipping_info_1, optional_shipping_info_2, airport_of_departure, airport_of_destination, carrier_code,
       flight_number, departure_airport, departure_date, arrival_airport, arrival_date, currency, charges_code,
       weight_valuation_charge_type, other_charges_type, declared_value_carriage, declared_value_customs,
       insurance_amount, handling_information, special_handling_details, ssr, osi, total_pieces, gross_weight,
       chargeable_weight, goods_description, status, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)`,
     [
       companyId,
+      payload.document_type,
       payload.awb_type,
       payload.awb_number,
       payload.awb_date,
@@ -1330,7 +1868,7 @@ app.post('/airway-bills/:id/update', requireAuth, requirePermission('airway_bill
 
   db.run(
     `UPDATE awbs
-     SET awb_type = ?, awb_number = ?, awb_date = ?, issuing_carrier = ?, agent_name = ?, agent_iata_code = ?,
+     SET document_type = ?, awb_type = ?, awb_number = ?, awb_date = ?, issuing_carrier = ?, agent_name = ?, agent_iata_code = ?,
          agent_cass_code = ?, shipper_name = ?, shipper_address = ?, consignee_name = ?, consignee_address = ?,
          accounting_information = ?, reference_number = ?, optional_shipping_info_1 = ?, optional_shipping_info_2 = ?,
          airport_of_departure = ?, airport_of_destination = ?, carrier_code = ?, flight_number = ?, departure_airport = ?,
@@ -1340,6 +1878,7 @@ app.post('/airway-bills/:id/update', requireAuth, requirePermission('airway_bill
          gross_weight = ?, chargeable_weight = ?, goods_description = ?, updated_at = CURRENT_TIMESTAMP
      WHERE id = ? AND company_id = ?`,
     [
+      ['bl', 'awb', 'carta_porte'].includes(normalizeString(req.body.document_type)) ? normalizeString(req.body.document_type) : 'awb',
       normalizeString(req.body.awb_type) || null,
       normalizeString(req.body.awb_number) || null,
       normalizeString(req.body.awb_date) || null,
@@ -1431,6 +1970,55 @@ app.post('/airway-bills/:id/issue', requireAuth, requirePermission('airway_bills
     [awbId, companyId],
     () => res.redirect(`/airway-bills/${awbId}`)
   );
+});
+
+app.post('/airway-bills/:id/apply', requireAuth, requirePermission('airway_bills', 'edit'), (req, res) => {
+  const companyId = getCompanyId(req);
+  const awbId = Number(req.params.id);
+  if (!awbId) return res.redirect('/airway-bills');
+
+  db.get(
+    `SELECT COUNT(*) AS linked_count
+     FROM awb_manifests am
+     JOIN manifests m ON m.id = am.manifest_id
+     WHERE am.awb_id = ? AND m.company_id = ?`,
+    [awbId, companyId],
+    (err, row) => {
+      if (err || !row || Number(row.linked_count || 0) < 1) return res.redirect(`/airway-bills/${awbId}`);
+      db.run(
+        "UPDATE awbs SET status = 'applied', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND company_id = ?",
+        [awbId, companyId],
+        () => res.redirect('/airway-bills?status=applied')
+      );
+    }
+  );
+});
+
+app.post('/airway-bills/:id/cancel', requireAuth, requirePermission('airway_bills', 'edit'), (req, res) => {
+  const companyId = getCompanyId(req);
+  const awbId = Number(req.params.id);
+  if (!awbId) return res.redirect('/airway-bills');
+
+  db.run(
+    "UPDATE awbs SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND company_id = ?",
+    [awbId, companyId],
+    () => res.redirect('/airway-bills/cancelled')
+  );
+});
+
+app.post('/airway-bills/:id/delete', requireAuth, requirePermission('airway_bills', 'edit'), (req, res) => {
+  const companyId = getCompanyId(req);
+  const awbId = Number(req.params.id);
+  if (!awbId) return res.redirect('/airway-bills');
+
+  db.get('SELECT id FROM awbs WHERE id = ? AND company_id = ?', [awbId, companyId], (err, awb) => {
+    if (err || !awb) return res.redirect('/airway-bills');
+    db.serialize(() => {
+      db.run('DELETE FROM awb_manifests WHERE awb_id = ?', [awbId]);
+      db.run('DELETE FROM awb_items WHERE awb_id = ?', [awbId]);
+      db.run('DELETE FROM awbs WHERE id = ? AND company_id = ?', [awbId, companyId], () => res.redirect('/airway-bills'));
+    });
+  });
 });
 
 app.post('/airway-bills/:id/reopen', requireAuth, requirePermission('airway_bills', 'edit'), (req, res) => {

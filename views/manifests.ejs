@@ -47,6 +47,9 @@
 <div class="table">
 <div class="table-row header">
 <div>
+<%= t('manifests.manifest_number') %>
+</div>
+<div>
 <%= t('manifests.airway_bill') %>
 </div>
 <div>
@@ -73,11 +76,14 @@
 <% (manifests || []).forEach((manifest) => { %>
 <div class="table-row">
 <div>
-<%= manifest.airway_bill_number || '-' %>
+<%= formatManifestNumber(manifest) %>
 </div>
 <div>
-<span class="status-badge <%= manifest.status === 'closed' ? 'status-closed' : 'status-open' %>">
-<%= manifest.status === 'closed' ? t('manifests.status.closed') : t('manifests.status.open') %>
+<%= manifest.transport_document_type ? `${manifest.transport_document_type === 'CARTA_PORTE' ? 'Carta Porte' : (manifest.transport_document_type === 'AWB' || manifest.transport_document_type === 'MAWB' ? 'AWB' : manifest.transport_document_type)} - ` : '' %><%= manifest.airway_bill_number || '-' %>
+</div>
+<div>
+<span class="status-badge <%= manifestStatusClass(manifest) %>">
+<%= formatManifestStatus(manifest, t) %>
 </span>
 </div>
 <div>

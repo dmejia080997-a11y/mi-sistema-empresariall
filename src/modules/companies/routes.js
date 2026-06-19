@@ -171,7 +171,8 @@ function registerCompanyRoutes(app, deps) {
     });
   });
 
-  app.post('/companies/create', requireMaster, companyLogoUpload.single('logo_file'), csrfMiddleware, (req, res) => {
+  app.post('/companies/create', requireMaster, handleCompanyLogoUpload('logo_file'), csrfMiddleware, (req, res) => {
+    const uploadError = req.companyLogoUploadError;
     loadBusinessActivities((activities) => {
       const {
         name,
@@ -257,6 +258,21 @@ function registerCompanyRoutes(app, deps) {
       };
 
       const errors = [];
+      const renderCreateError = (errorsToShow) => {
+        cleanupUploadedFile(req.file);
+        return res.status(400).render('companies', {
+          formData,
+          errors: Array.isArray(errorsToShow) ? errorsToShow : [errorsToShow],
+          activities
+        });
+      };
+      if (uploadError) {
+        errors.push(uploadError.code === 'LIMIT_FILE_SIZE'
+          ? 'El logo no puede superar los 5 MB.'
+          : 'No se pudo procesar el archivo del logo.');
+      }
+      const logoValidationError = validateCompanyLogoFile(req.file);
+      if (logoValidationError) errors.push(logoValidationError);
       const normalizedName = normalizeString(name);
       const normalizedUsernameInput = normalizeString(username);
       const normalizedEmail = normalizeString(email);
@@ -294,17 +310,13 @@ function registerCompanyRoutes(app, deps) {
       }
 
       if (errors.length > 0) {
-        return res.status(400).render('companies', { formData, errors, activities });
+        return renderCreateError(errors);
       }
 
       const allowedModulesRaw = selectedActivity ? parseJsonList(selectedActivity.modules_json) : [];
       const allowedModules = normalizeAllowedModules(allowedModulesRaw);
       if (!allowedModules.length) {
-        return res.status(400).render('companies', {
-          formData,
-          errors: ['La actividad seleccionada no tiene mÃ³dulos habilitados.'],
-          activities
-        });
+        return renderCreateError(['La actividad seleccionada no tiene mÃ³dulos habilitados.']);
       }
 
       const resolveUsername = (callback) => {
@@ -315,11 +327,7 @@ function registerCompanyRoutes(app, deps) {
       resolveUsername((usernameErr, resolvedUsername) => {
         if (usernameErr) {
           console.error('[companies/create] username resolve failed', usernameErr);
-          return res.status(400).render('companies', {
-            formData,
-            errors: ['No se pudo generar el usuario de la empresa. Intenta nuevamente.'],
-            activities
-          });
+          return renderCreateError(['No se pudo generar el usuario de la empresa. Intenta nuevamente.']);
         }
 
         db.get(
@@ -328,18 +336,10 @@ function registerCompanyRoutes(app, deps) {
           (nitErr, nitRow) => {
             if (nitErr) {
               console.error('[companies/create] nit check failed', nitErr);
-              return res.status(400).render('companies', {
-                formData,
-                errors: ['No se pudo validar el NIT. Intenta nuevamente.'],
-                activities
-              });
+              return renderCreateError(['No se pudo validar el NIT. Intenta nuevamente.']);
             }
             if (nitRow) {
-              return res.status(400).render('companies', {
-                formData,
-                errors: ['El NIT/TAX ID ya existe. Verifica el dato.'],
-                activities
-              });
+              return renderCreateError(['El NIT/TAX ID ya existe. Verifica el dato.']);
             }
 
             const validateUsername = (cb) => {
@@ -358,18 +358,10 @@ function registerCompanyRoutes(app, deps) {
             validateUsername((dupErr) => {
               if (dupErr) {
                 if (dupErr.message === 'duplicate-username') {
-                  return res.status(400).render('companies', {
-                    formData,
-                    errors: ['El usuario de la empresa ya existe. Elige otro.'],
-                    activities
-                  });
+                  return renderCreateError(['El usuario de la empresa ya existe. Elige otro.']);
                 }
                 console.error('[companies/create] username check failed', dupErr);
-                return res.status(400).render('companies', {
-                  formData,
-                  errors: ['No se pudo validar el usuario. Intenta nuevamente.'],
-                  activities
-                });
+                return renderCreateError(['No se pudo validar el usuario. Intenta nuevamente.']);
               }
 
               const tempPassword = !password ? `TMP-${crypto.randomBytes(4).toString('hex')}` : null;
@@ -383,13 +375,13 @@ function registerCompanyRoutes(app, deps) {
               db.run(
                 `
               INSERT INTO companies
-              (name, legal_name, address, tax_address, nit, employees, business_type, currency, base_currency, allowed_currencies, email, phone, logo, username, password_hash,
+              (name, legal_name, address, tax_address, nit, employees, business_type, currency, base_currency, allowed_currencies, accounting_method, accounting_framework, email, phone, logo, username, password_hash,
                activity_id, allowed_modules,
                contact_general_first_name, contact_general_last_name, contact_general_phone, contact_general_mobile, contact_general_email, contact_general_position,
                contact_payments_first_name, contact_payments_last_name, contact_payments_phone, contact_payments_mobile, contact_payments_email, contact_payments_position,
                contact_ops_first_name, contact_ops_last_name, contact_ops_phone, contact_ops_mobile, contact_ops_email, contact_ops_position,
                primary_color, secondary_color, active_from, active_until, admin_name, admin_position, active_mode, is_active)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                       ?, ?,
                       ?, ?, ?, ?, ?, ?,
                       ?, ?, ?, ?, ?, ?,
@@ -407,6 +399,8 @@ function registerCompanyRoutes(app, deps) {
                   baseCurrency,
                   baseCurrency,
                   allowedCurrencies,
+                  'accrual',
+                  'NIF',
                   normalizedEmail,
                   normalizedPhone,
                   resolvedLogo,
@@ -444,26 +438,26 @@ function registerCompanyRoutes(app, deps) {
                 function (err) {
                   if (err) {
                     console.error('[companies/create] insert failed', err);
-                    return res.status(400).render('companies', {
-                      formData,
-                      errors: ['No se pudo crear la empresa. Intenta nuevamente.'],
-                      activities
-                    });
+                    return renderCreateError(['No se pudo crear la empresa. Intenta nuevamente.']);
                   }
                   const companyId = this.lastID;
-                  return createCompanyAdminIfMissing({
-                    companyId,
-                    tempPassword,
-                    passwordHash,
-                    req,
-                    onSuccess: () => {
-                      setFlash(req, 'success', 'Empresa creada correctamente.');
-                      return res.redirect('/master');
-                    },
-                    onError: () => {
-                      setFlash(req, 'error', 'No se pudo crear la empresa.');
-                      return res.redirect('/master');
-                    }
+                  return seedAccountingCategories(companyId, () => {
+                    return seedNifCatalog(companyId, () => {
+                      return createCompanyAdminIfMissing({
+                        companyId,
+                        tempPassword,
+                        passwordHash,
+                        req,
+                        onSuccess: () => {
+                          setFlash(req, 'success', 'Empresa creada correctamente.');
+                          return res.redirect('/master');
+                        },
+                        onError: () => {
+                          setFlash(req, 'error', 'No se pudo crear la empresa.');
+                          return res.redirect('/master');
+                        }
+                      });
+                    });
                   });
                 }
               );

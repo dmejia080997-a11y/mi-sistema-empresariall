@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>AWB <%= awb.numero_awb %></title>
+  <link rel="stylesheet" href="/css/awb.css" />
+</head>
+<body class="awb-print-body">
+  <main class="awb-print-page">
+    <header class="awb-print-header">
+      <div>
+        <% if (companyBrand && companyBrand.logo) { %>
+          <img src="<%= companyBrand.logo %>" alt="Logo" class="awb-print-logo" />
+        <% } else { %>
+          <h2><%= companyBrand && companyBrand.name ? companyBrand.name : 'Empresa' %></h2>
+        <% } %>
+        <p><strong><%= companyBrand && (companyBrand.legal_name || companyBrand.name) || '' %></strong><br /><%= companyBrand && companyBrand.address || '' %><br />NIT: <%= companyBrand && companyBrand.nit || '-' %> · Tel: <%= companyBrand && companyBrand.phone || '-' %><br /><%= companyBrand && companyBrand.email || '' %></p>
+      </div>
+      <div>
+        <h1>AIR WAYBILL</h1>
+        <p><strong><%= awb.tipo_awb %> · <%= awb.type_label %></strong></p>
+        <p>No. <strong><%= awb.numero_awb %></strong></p>
+        <p>Fecha: <%= awb.fecha_emision || '-' %> · Estado: <%= awb.estado %></p>
+        <% if (awb.parent_numero_awb) { %><p>MAWB padre: <%= awb.parent_numero_awb %></p><% } %>
+      </div>
+    </header>
+
+    <section class="print-grid-three">
+      <div><h3>1. Shipper</h3><p><%= awb.shipper_nombre || '-' %><br /><%= awb.shipper_nit || '' %><br /><%= awb.shipper_direccion || '' %><br /><%= [awb.shipper_ciudad, awb.shipper_pais].filter(Boolean).join(', ') %><br /><%= awb.shipper_telefono || '' %> <%= awb.shipper_email || '' %><br /><%= awb.shipper_contacto || '' %></p></div>
+      <div><h3>2. Consignee</h3><p><%= awb.consignee_nombre || '-' %><br /><%= awb.consignee_nit || '' %><br /><%= awb.consignee_direccion || '' %><br /><%= [awb.consignee_ciudad, awb.consignee_pais].filter(Boolean).join(', ') %><br /><%= awb.consignee_telefono || '' %> <%= awb.consignee_email || '' %><br /><%= awb.consignee_contacto || '' %></p></div>
+      <div><h3>3. Notify Party</h3><p><%= awb.notify_nombre || '-' %><br /><%= awb.notify_direccion || '' %><br /><%= awb.notify_telefono || '' %><br /><%= awb.notify_email || '' %></p></div>
+    </section>
+
+    <section class="print-box"><h3>4. Issuing Carrier Agent</h3><p><%= awb.agent_nombre || '-' %> · IATA <%= awb.agent_iata || '-' %> · <%= awb.agent_telefono || '' %> · <%= awb.agent_email || '' %><br /><%= awb.agent_direccion || '' %></p></section>
+
+    <section class="print-grid-four">
+      <div><span>5. Airport of Departure</span><strong><%= awb.airport_origin || '-' %></strong></div>
+      <div><span>6. Airport of Destination</span><strong><%= awb.airport_destination || '-' %></strong></div>
+      <div><span>7. Routing</span><strong><%= [awb.airport_transit_1, awb.airport_transit_2, awb.airport_transit_3].filter(Boolean).join(' / ') || '-' %></strong></div>
+      <div><span>8. Airline</span><strong><%= awb.airline_name || '-' %> <%= awb.airline_code || '' %></strong></div>
+      <div><span>9. Flight 1</span><strong><%= awb.flight_number_1 || '-' %> <%= awb.flight_date_1 || '' %></strong></div>
+      <div><span>Flight 2</span><strong><%= awb.flight_number_2 || '-' %> <%= awb.flight_date_2 || '' %></strong></div>
+      <div><span>Flight 3</span><strong><%= awb.flight_number_3 || '-' %> <%= awb.flight_date_3 || '' %></strong></div>
+      <div><span>Destination Agent</span><strong><%= awb.destination_agent || '-' %></strong></div>
+    </section>
+
+    <section class="print-box">
+      <h3>10. Nature and Quantity of Goods</h3>
+      <table>
+        <thead><tr><th>Pieces</th><th>Package Type</th><th>Description</th><th>Dimensions</th><th>Gross Weight</th><th>Volumetric Weight</th><th>Chargeable Weight</th><th>CBM</th><th>HS Code</th></tr></thead>
+        <tbody>
+          <% (awb.cargo_items || []).forEach((row) => { %>
+            <tr><td><%= row.pieces || 0 %></td><td><%= row.package_type || '-' %></td><td><%= row.description_goods || '-' %></td><td><%= row.dimensions || '-' %></td><td><%= row.gross_weight || 0 %></td><td><%= row.volume_weight || 0 %></td><td><%= row.chargeable_weight || 0 %></td><td><%= row.volume_cbm || 0 %></td><td><%= row.hs_code || '-' %></td></tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <p class="print-totals">Totales: piezas <%= awb.total_pieces || 0 %> · peso bruto <%= awb.total_gross_weight || 0 %> · peso volumétrico <%= awb.total_volume_weight || 0 %> · peso cobrable <%= awb.total_chargeable_weight || 0 %> · CBM <%= awb.total_cbm || 0 %> · valor <%= awb.currency || '' %> <%= awb.total_declared_value || 0 %></p>
+    </section>
+
+    <section class="print-grid-three">
+      <div><h3>11. Charges</h3><p>Prepaid: <%= awb.currency || '' %> <%= awb.freight_prepaid || 0 %><br />Collect: <%= awb.currency || '' %> <%= awb.freight_collect || 0 %><br />Other: <%= awb.currency || '' %> <%= awb.other_charges || 0 %></p></div>
+      <div><h3>12-13. Declared Value / Handling</h3><p>Insurance: <%= awb.currency || '' %> <%= awb.insurance_amount || 0 %><br /><%= (awb.cargo_items || []).map((row) => row.handling_information).filter(Boolean).join(' / ') || '-' %></p></div>
+      <div><h3>14. Dangerous Goods</h3><p><%= (awb.cargo_items || []).some((row) => row.dangerous_goods) ? 'YES' : 'NO' %><br /><%= (awb.cargo_items || []).map((row) => [row.un_number, row.imo_class, row.packing_group].filter(Boolean).join(' / ')).filter(Boolean).join('; ') || '-' %></p></div>
+    </section>
+
+    <section class="print-grid-three">
+      <div><h3>15. Conditions</h3><p><%= awb.condiciones_transporte || '-' %></p></div>
+      <div><h3>Special Instructions</h3><p><%= awb.instrucciones_especiales || '-' %></p></div>
+      <div><h3>Observations</h3><p><%= awb.observaciones || '-' %></p></div>
+    </section>
+
+    <section class="signature-grid">
+      <div><span></span><p>Shipper Signature</p></div>
+      <div><span></span><p>Carrier Signature</p></div>
+      <div><span></span><p>Authorized Signature</p></div>
+      <div><span></span><p>Date</p></div>
+    </section>
+  </main>
+  <% if (typeof autoPrint !== 'undefined' && autoPrint) { %><script>window.addEventListener('load', function(){ window.print(); });</script><% } %>
+</body>
+</html>

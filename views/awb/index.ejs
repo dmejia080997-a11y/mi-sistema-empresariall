@@ -1,0 +1,56 @@
+<%- include('../partials/head', { title: 'Guías Aéreas / AWB', extraStyles: ['/css/awb.css'] }) %>
+<%- include('../partials/header', { currentModule: 'awb' }) %>
+<%- include('../partials/toasts') %>
+
+<main class="container awb-page">
+  <div class="page-header">
+    <div>
+      <h1>Guías Aéreas / AWB</h1>
+      <p class="muted">Documentos de Transporte</p>
+    </div>
+    <div class="actions">
+      <a class="btn" href="/air-waybills/tree">Ver jerarquía</a>
+      <% if (can('awb', 'crear')) { %><a class="btn primary" href="/air-waybills/new">Nueva AWB</a><% } %>
+    </div>
+  </div>
+
+  <form class="filters awb-filters" method="GET" action="/air-waybills">
+    <label>Número AWB<input name="numero_awb" value="<%= filters.numero_awb || '' %>" /></label>
+    <label>Tipo<select name="tipo_awb"><option value="">Todos</option><% types.forEach((type) => { %><option value="<%= type %>" <%= filters.tipo_awb === type ? 'selected' : '' %>><%= typeMeta[type].label %></option><% }) %></select></label>
+    <label>MAWB padre<input name="parent_awb_id" value="<%= filters.parent_awb_id || '' %>" /></label>
+    <label>Shipper<input name="shipper" value="<%= filters.shipper || '' %>" /></label>
+    <label>Consignee<input name="consignee" value="<%= filters.consignee || '' %>" /></label>
+    <label>Aerolínea<input name="airline" value="<%= filters.airline || '' %>" /></label>
+    <label>Vuelo<input name="flight" value="<%= filters.flight || '' %>" /></label>
+    <label>Origen<input name="airport_origin" value="<%= filters.airport_origin || '' %>" /></label>
+    <label>Destino<input name="airport_destination" value="<%= filters.airport_destination || '' %>" /></label>
+    <label>Desde<input type="date" name="fecha_desde" value="<%= filters.fecha_desde || '' %>" /></label>
+    <label>Hasta<input type="date" name="fecha_hasta" value="<%= filters.fecha_hasta || '' %>" /></label>
+    <label>Estado<select name="estado"><option value="">Todos</option><% statuses.forEach((status) => { %><option value="<%= status %>" <%= filters.estado === status ? 'selected' : '' %>><%= status %></option><% }) %></select></label>
+    <div class="filter-actions"><button class="btn" type="submit">Filtrar</button><a class="btn small" href="/air-waybills">Limpiar</a></div>
+  </form>
+
+  <div class="table awb-table">
+    <div class="table-row table-head"><div>Número</div><div>Tipo</div><div>Padre</div><div>Shipper</div><div>Consignee</div><div>Ruta/Vuelo</div><div>Totales</div><div>Estado</div><div>Acciones</div></div>
+    <% if (!awbs.length) { %><div class="empty-state">No hay AWB registradas.</div><% } %>
+    <% awbs.forEach((awb) => { %>
+      <div class="table-row">
+        <div><strong><%= awb.numero_awb %></strong><small><%= awb.fecha_emision || '-' %></small></div>
+        <div><%= awb.tipo_awb %></div>
+        <div><%= awb.parent_numero_awb || '-' %></div>
+        <div><%= awb.shipper_nombre || '-' %></div>
+        <div><%= awb.consignee_nombre || '-' %></div>
+        <div><%= awb.airport_origin || '-' %> / <%= awb.airport_destination || '-' %><small><%= awb.flight_number_1 || '-' %></small></div>
+        <div><%= awb.total_pieces || 0 %> pcs · <%= awb.total_chargeable_weight || 0 %> kg</div>
+        <div><span class="status-pill status-<%= String(awb.estado || '').toLowerCase() %>"><%= awb.estado %></span></div>
+        <div class="row-actions">
+          <% if (can('awb', 'ver')) { %><a class="btn small" href="/air-waybills/<%= awb.id %>">Ver</a><% } %>
+          <% if (awb.estado === 'Borrador' && can('awb', 'editar')) { %><a class="btn small" href="/air-waybills/<%= awb.id %>/edit">Editar</a><% } %>
+          <% if (can('awb', 'imprimir')) { %><a class="btn small" href="/air-waybills/<%= awb.id %>/print" target="_blank" rel="noopener">Imprimir</a><% } %>
+          <% if (can('awb', 'descargar_pdf')) { %><a class="btn small" href="/air-waybills/<%= awb.id %>/pdf">PDF</a><% } %>
+          <% if (awb.tipo_awb === 'MAWB' && can('awb', 'crear_hija')) { %><form method="POST" action="/air-waybills/<%= awb.id %>/create-child"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn small" type="submit">Crear HAWB</button></form><% } %>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+</main>

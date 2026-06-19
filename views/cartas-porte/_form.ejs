@@ -1,0 +1,140 @@
+<% const v = (name) => (carta && carta[name]) || ''; %>
+<% if (error) { %><div class="alert error"><%= error %></div><% } %>
+<form class="cartas-porte-form" method="POST" action="<%= action %>">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+  <section class="form-card">
+    <h2>Datos generales</h2>
+    <div class="form-grid">
+      <label>Fecha de emision<input type="date" name="fecha_emision" value="<%= v('fecha_emision') %>" required /></label>
+      <label>Idioma de la carta
+        <select name="idioma">
+          <option value="es" <%= v('idioma') !== 'en' ? 'selected' : '' %>>Español</option>
+          <option value="en" <%= v('idioma') === 'en' ? 'selected' : '' %>>Ingles</option>
+        </select>
+      </label>
+      <label>Tipo de servicio<input name="tipo_servicio" value="<%= v('tipo_servicio') %>" /></label>
+      <label>Tipo de transporte<input name="tipo_transporte" value="<%= v('tipo_transporte') %>" placeholder="Terrestre" /></label>
+      <label>Lugar de emision<input name="lugar_emision" value="<%= v('lugar_emision') %>" /></label>
+    </div>
+  </section>
+
+  <section class="form-card">
+    <h2>Remitente / Exportador</h2>
+    <div class="form-grid">
+      <label>Nombre<input name="remitente_nombre" value="<%= v('remitente_nombre') %>" /></label>
+      <label>NIT<input name="remitente_nit" value="<%= v('remitente_nit') %>" /></label>
+      <label>Telefono<input name="remitente_telefono" value="<%= v('remitente_telefono') %>" /></label>
+      <label>Email<input type="email" name="remitente_email" value="<%= v('remitente_email') %>" /></label>
+      <label class="full-row">Direccion<textarea name="remitente_direccion"><%= v('remitente_direccion') %></textarea></label>
+      <label>Contacto<input name="remitente_contacto" value="<%= v('remitente_contacto') %>" /></label>
+    </div>
+  </section>
+
+  <section class="form-card">
+    <h2>Consignatario / Destinatario</h2>
+    <div class="form-grid">
+      <label>Nombre<input name="destinatario_nombre" value="<%= v('destinatario_nombre') %>" /></label>
+      <label>NIT<input name="destinatario_nit" value="<%= v('destinatario_nit') %>" /></label>
+      <label>Telefono<input name="destinatario_telefono" value="<%= v('destinatario_telefono') %>" /></label>
+      <label>Email<input type="email" name="destinatario_email" value="<%= v('destinatario_email') %>" /></label>
+      <label class="full-row">Direccion<textarea name="destinatario_direccion"><%= v('destinatario_direccion') %></textarea></label>
+      <label>Contacto<input name="destinatario_contacto" value="<%= v('destinatario_contacto') %>" /></label>
+    </div>
+  </section>
+
+  <section class="form-card">
+    <h2>Transportista</h2>
+    <div class="form-grid">
+      <label>Nombre<input name="transportista_nombre" value="<%= v('transportista_nombre') %>" /></label>
+      <label>NIT<input name="transportista_nit" value="<%= v('transportista_nit') %>" /></label>
+      <label>Telefono<input name="transportista_telefono" value="<%= v('transportista_telefono') %>" /></label>
+      <label>Email<input type="email" name="transportista_email" value="<%= v('transportista_email') %>" /></label>
+      <label class="full-row">Direccion<textarea name="transportista_direccion"><%= v('transportista_direccion') %></textarea></label>
+    </div>
+  </section>
+
+  <section class="form-card">
+    <h2>Conductor y vehiculo</h2>
+    <div class="form-grid">
+      <label>Conductor<input name="conductor_nombre" value="<%= v('conductor_nombre') %>" /></label>
+      <label>DPI<input name="conductor_dpi" value="<%= v('conductor_dpi') %>" /></label>
+      <label>Licencia<input name="conductor_licencia" value="<%= v('conductor_licencia') %>" /></label>
+      <label>Placa vehiculo<input name="placa_vehiculo" value="<%= v('placa_vehiculo') %>" /></label>
+      <label>Marca vehiculo<input name="marca_vehiculo" value="<%= v('marca_vehiculo') %>" /></label>
+      <label>Tipo vehiculo<input name="tipo_vehiculo" value="<%= v('tipo_vehiculo') %>" /></label>
+      <label>Placa remolque<input name="placa_remolque" value="<%= v('placa_remolque') %>" /></label>
+      <label>Numero contenedor<input name="numero_contenedor" value="<%= v('numero_contenedor') %>" /></label>
+      <label>Numero marchamo<input name="numero_marchamo" value="<%= v('numero_marchamo') %>" /></label>
+    </div>
+  </section>
+
+  <section class="form-card">
+    <h2>Origen y destino</h2>
+    <div class="route-grid">
+      <div>
+        <h3>Origen</h3>
+        <label>Direccion<textarea name="origen_direccion"><%= v('origen_direccion') %></textarea></label>
+        <label>Municipio<input name="origen_municipio" value="<%= v('origen_municipio') %>" /></label>
+        <label>Departamento<input name="origen_departamento" value="<%= v('origen_departamento') %>" /></label>
+        <label>Pais<input name="origen_pais" value="<%= v('origen_pais') %>" /></label>
+      </div>
+      <div>
+        <h3>Destino</h3>
+        <label>Direccion<textarea name="destino_direccion"><%= v('destino_direccion') %></textarea></label>
+        <label>Municipio<input name="destino_municipio" value="<%= v('destino_municipio') %>" /></label>
+        <label>Departamento<input name="destino_departamento" value="<%= v('destino_departamento') %>" /></label>
+        <label>Pais<input name="destino_pais" value="<%= v('destino_pais') %>" /></label>
+      </div>
+    </div>
+    <div class="form-grid dates-grid">
+      <label>Fecha recoleccion<input type="date" name="fecha_recoleccion" value="<%= v('fecha_recoleccion') %>" /></label>
+      <label>Hora recoleccion<input type="time" name="hora_recoleccion" value="<%= v('hora_recoleccion') %>" /></label>
+      <label>Fecha entrega estimada<input type="date" name="fecha_entrega_estimada" value="<%= v('fecha_entrega_estimada') %>" /></label>
+      <label>Hora entrega estimada<input type="time" name="hora_entrega_estimada" value="<%= v('hora_entrega_estimada') %>" /></label>
+    </div>
+  </section>
+
+  <section class="form-card">
+    <div class="card-title-row">
+      <h2>Datos de carga</h2>
+      <button class="btn small" type="button" data-add-item>Agregar item</button>
+    </div>
+    <div class="items-list" data-items-list>
+      <% (carta.items || [{ moneda: 'USD' }]).forEach((item, index) => { %>
+        <div class="cargo-item" data-item-row>
+          <label>Cantidad<input type="number" step="0.01" name="items[<%= index %>][cantidad_bultos]" value="<%= item.cantidad_bultos || '' %>" /></label>
+          <label>Embalaje<input name="items[<%= index %>][tipo_embalaje]" value="<%= item.tipo_embalaje || '' %>" /></label>
+          <label class="wide">Descripcion<textarea name="items[<%= index %>][descripcion_mercancia]"><%= item.descripcion_mercancia || '' %></textarea></label>
+          <label>Peso bruto<input type="number" step="0.01" name="items[<%= index %>][peso_bruto]" value="<%= item.peso_bruto || '' %>" /></label>
+          <label>Peso neto<input type="number" step="0.01" name="items[<%= index %>][peso_neto]" value="<%= item.peso_neto || '' %>" /></label>
+          <label>Volumen<input type="number" step="0.01" name="items[<%= index %>][volumen]" value="<%= item.volumen || '' %>" /></label>
+          <label>Valor declarado<input type="number" step="0.01" name="items[<%= index %>][valor_declarado]" value="<%= item.valor_declarado || '' %>" /></label>
+          <label>Moneda<input name="items[<%= index %>][moneda]" value="<%= item.moneda || 'USD' %>" /></label>
+          <label>HS Code<input name="items[<%= index %>][hs_code]" value="<%= item.hs_code || '' %>" /></label>
+          <label class="wide">Marcas/Numeros<textarea name="items[<%= index %>][marcas_numeros]"><%= item.marcas_numeros || '' %></textarea></label>
+          <label class="wide">Observaciones<textarea name="items[<%= index %>][observaciones]"><%= item.observaciones || '' %></textarea></label>
+          <button class="btn small danger" type="button" data-remove-item>Quitar</button>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+
+  <section class="form-card">
+    <h2>Condiciones, observaciones y recepcion</h2>
+    <div class="form-grid">
+      <label class="full-row">Condiciones de transporte<textarea name="condiciones_transporte"><%= v('condiciones_transporte') %></textarea></label>
+      <label class="full-row">Instrucciones especiales<textarea name="instrucciones_especiales"><%= v('instrucciones_especiales') %></textarea></label>
+      <label class="full-row">Observaciones<textarea name="observaciones"><%= v('observaciones') %></textarea></label>
+      <label>Fecha y hora de recepcion<input type="datetime-local" name="fecha_hora_recepcion" value="<%= v('fecha_hora_recepcion') %>" /></label>
+      <label>Nombre de quien recibe<input name="recibe_nombre" value="<%= v('recibe_nombre') %>" /></label>
+      <label>DPI de quien recibe<input name="recibe_dpi" value="<%= v('recibe_dpi') %>" /></label>
+    </div>
+  </section>
+
+  <div class="form-actions sticky-actions">
+    <button class="btn" type="submit" name="action" value="borrador">Guardar borrador</button>
+    <button class="btn primary" type="submit" name="action" value="emitir">Emitir</button>
+    <a class="btn" href="/cartas-porte">Cancelar</a>
+  </div>
+</form>

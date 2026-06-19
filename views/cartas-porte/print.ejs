@@ -1,0 +1,190 @@
+<%
+  const L = labels || {};
+  const fullAddress = (...parts) => parts.filter(Boolean).join(', ');
+  const fmt = (value) => value || '-';
+  const companyName = (companyBrand && (companyBrand.commercial_name || companyBrand.legal_name || companyBrand.name)) || (L.company || 'Empresa');
+%>
+<!DOCTYPE html>
+<html lang="<%= carta.idioma === 'en' ? 'en' : 'es' %>">
+<head>
+<meta charset="UTF-8" />
+<title><%= L.documentTitle || 'CARTA PORTE' %> <%= carta.numero %></title>
+<style>
+  @page { size: letter; margin: 11mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #f3f4f6; color: #111827; font-family: Arial, sans-serif; font-size: 10px; }
+  .print-toolbar { max-width: 8.5in; margin: 10px auto; text-align: right; }
+  .print-toolbar button { border: 1px solid #111827; background: #111827; color: white; padding: 7px 12px; border-radius: 4px; cursor: pointer; }
+  .sheet { width: 8.5in; min-height: 11in; margin: 0 auto; padding: 0.34in; background: white; box-shadow: 0 10px 30px rgba(15, 23, 42, .12); }
+  .doc-header { display: grid; grid-template-columns: 1.35fr 1fr .9fr; gap: 14px; border-bottom: 2px solid #111827; padding-bottom: 12px; }
+  .brand { display: grid; grid-template-columns: 82px 1fr; gap: 12px; align-items: center; }
+  .brand-logo { max-width: 82px; max-height: 58px; object-fit: contain; }
+  .brand-fallback { border: 1px solid #9ca3af; padding: 10px; min-height: 58px; display: grid; place-items: center; text-align: center; font-weight: 700; }
+  .company-data strong { display: block; font-size: 12px; margin-bottom: 4px; }
+  .title { text-align: center; align-self: center; }
+  .title h1 { margin: 0 0 8px; font-size: 24px; letter-spacing: 0; }
+  .meta { border: 1px solid #111827; }
+  .meta div { display: grid; grid-template-columns: 70px 1fr; border-bottom: 1px solid #111827; }
+  .meta div:last-child { border-bottom: 0; }
+  .meta span, .meta strong { padding: 5px; }
+  .meta span { background: #e5e7eb; font-weight: 700; }
+  h2 { margin: 12px 0 6px; padding: 5px 7px; background: #e5e7eb; border: 1px solid #9ca3af; font-size: 10px; text-transform: uppercase; }
+  .grid-2, .grid-3, .grid-4 { display: grid; gap: 6px; }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .field { border: 1px solid #d1d5db; min-height: 34px; padding: 5px; }
+  .field span { display: block; color: #4b5563; font-size: 8px; text-transform: uppercase; font-weight: 700; margin-bottom: 3px; }
+  .field strong { font-size: 10px; font-weight: 500; white-space: pre-wrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 8px; }
+  th, td { border: 1px solid #9ca3af; padding: 4px; vertical-align: top; }
+  th { background: #e5e7eb; text-transform: uppercase; }
+  .totals { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 6px; }
+  .notes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 34px; }
+  .signature { border-top: 1px solid #111827; text-align: center; padding-top: 6px; min-height: 50px; }
+  .reception { margin-top: 12px; }
+  @media print {
+    body { background: white; }
+    .print-toolbar { display: none; }
+    .sheet { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
+  }
+</style>
+</head>
+<body>
+<div class="print-toolbar"><button type="button" onclick="window.print()"><%= carta.idioma === 'en' ? 'Print' : 'Imprimir' %></button></div>
+<main class="sheet">
+  <header class="doc-header">
+    <div class="brand">
+      <% if (companyBrand && companyBrand.logo) { %>
+        <img class="brand-logo" src="<%= companyBrand.logo %>" alt="Logo" />
+      <% } else { %>
+        <div class="brand-fallback"><%= companyName %></div>
+      <% } %>
+      <div class="company-data">
+        <strong><%= companyName %></strong>
+        <div><%= fmt(companyBrand && companyBrand.address) %></div>
+        <div>NIT: <%= fmt(companyBrand && companyBrand.nit) %></div>
+        <div>Tel: <%= fmt(companyBrand && companyBrand.phone) %></div>
+        <div>Correo: <%= fmt(companyBrand && companyBrand.email) %></div>
+      </div>
+    </div>
+    <div class="title">
+      <h1><%= L.documentTitle || 'CARTA PORTE' %></h1>
+      <div><%= L.transportDocument || 'Documento de transporte terrestre' %></div>
+    </div>
+    <div class="meta">
+      <div><span><%= L.number || 'Numero' %></span><strong><%= carta.numero %></strong></div>
+      <div><span><%= L.issueDate || 'Fecha' %></span><strong><%= carta.fecha_emision %></strong></div>
+      <div><span><%= L.status || 'Estado' %></span><strong><%= carta.estado %></strong></div>
+    </div>
+  </header>
+
+  <h2>1. <%= L.sender || 'Datos del remitente' %></h2>
+  <section class="grid-3">
+    <div class="field"><span><%= L.name || 'Nombre' %></span><strong><%= fmt(carta.remitente_nombre) %></strong></div>
+    <div class="field"><span><%= L.taxId || 'NIT' %></span><strong><%= fmt(carta.remitente_nit) %></strong></div>
+    <div class="field"><span><%= L.contact || 'Contacto' %></span><strong><%= fmt(carta.remitente_contacto) %></strong></div>
+    <div class="field"><span><%= L.phone || 'Telefono' %></span><strong><%= fmt(carta.remitente_telefono) %></strong></div>
+    <div class="field"><span><%= L.email || 'Email' %></span><strong><%= fmt(carta.remitente_email) %></strong></div>
+    <div class="field"><span><%= L.address || 'Direccion' %></span><strong><%= fmt(carta.remitente_direccion) %></strong></div>
+  </section>
+
+  <h2>2. <%= L.recipient || 'Datos del destinatario' %></h2>
+  <section class="grid-3">
+    <div class="field"><span><%= L.name || 'Nombre' %></span><strong><%= fmt(carta.destinatario_nombre) %></strong></div>
+    <div class="field"><span><%= L.taxId || 'NIT' %></span><strong><%= fmt(carta.destinatario_nit) %></strong></div>
+    <div class="field"><span><%= L.contact || 'Contacto' %></span><strong><%= fmt(carta.destinatario_contacto) %></strong></div>
+    <div class="field"><span><%= L.phone || 'Telefono' %></span><strong><%= fmt(carta.destinatario_telefono) %></strong></div>
+    <div class="field"><span><%= L.email || 'Email' %></span><strong><%= fmt(carta.destinatario_email) %></strong></div>
+    <div class="field"><span><%= L.address || 'Direccion' %></span><strong><%= fmt(carta.destinatario_direccion) %></strong></div>
+  </section>
+
+  <h2>3. <%= L.carrier || 'Datos del transportista' %></h2>
+  <section class="grid-3">
+    <div class="field"><span><%= L.name || 'Nombre' %></span><strong><%= fmt(carta.transportista_nombre) %></strong></div>
+    <div class="field"><span><%= L.taxId || 'NIT' %></span><strong><%= fmt(carta.transportista_nit) %></strong></div>
+    <div class="field"><span><%= L.phone || 'Telefono' %></span><strong><%= fmt(carta.transportista_telefono) %></strong></div>
+    <div class="field"><span><%= L.email || 'Email' %></span><strong><%= fmt(carta.transportista_email) %></strong></div>
+    <div class="field"><span><%= L.address || 'Direccion' %></span><strong><%= fmt(carta.transportista_direccion) %></strong></div>
+    <div class="field"><span><%= L.serviceTransport || 'Servicio' %></span><strong><%= [carta.tipo_servicio, carta.tipo_transporte].filter(Boolean).join(' / ') || '-' %></strong></div>
+  </section>
+
+  <h2>4. <%= L.carrierVehicle || 'Datos del conductor y vehiculo' %></h2>
+  <section class="grid-4">
+    <div class="field"><span><%= L.driver || 'Conductor' %></span><strong><%= fmt(carta.conductor_nombre) %></strong></div>
+    <div class="field"><span><%= L.driverIdLicense || 'DPI' %></span><strong><%= fmt(carta.conductor_dpi) %></strong></div>
+    <div class="field"><span><%= carta.idioma === 'en' ? 'License' : 'Licencia' %></span><strong><%= fmt(carta.conductor_licencia) %></strong></div>
+    <div class="field"><span><%= carta.idioma === 'en' ? 'Plate' : 'Placa' %></span><strong><%= fmt(carta.placa_vehiculo) %></strong></div>
+    <div class="field"><span><%= carta.idioma === 'en' ? 'Make' : 'Marca' %></span><strong><%= fmt(carta.marca_vehiculo) %></strong></div>
+    <div class="field"><span><%= L.vehicle || 'Tipo vehiculo' %></span><strong><%= fmt(carta.tipo_vehiculo) %></strong></div>
+    <div class="field"><span><%= carta.idioma === 'en' ? 'Trailer' : 'Remolque' %></span><strong><%= fmt(carta.placa_remolque) %></strong></div>
+    <div class="field"><span><%= L.trailerContainerSeal || 'Contenedor / Marchamo' %></span><strong><%= [carta.numero_contenedor, carta.numero_marchamo].filter(Boolean).join(' / ') || '-' %></strong></div>
+  </section>
+
+  <h2>5. <%= L.routeDates || 'Origen y destino' %></h2>
+  <section class="grid-2">
+    <div class="field"><span><%= L.origin || 'Origen' %></span><strong><%= fullAddress(carta.origen_direccion, carta.origen_municipio, carta.origen_departamento, carta.origen_pais) || '-' %></strong></div>
+    <div class="field"><span><%= L.destination || 'Destino' %></span><strong><%= fullAddress(carta.destino_direccion, carta.destino_municipio, carta.destino_departamento, carta.destino_pais) || '-' %></strong></div>
+  </section>
+
+  <h2>6. <%= carta.idioma === 'en' ? 'Pickup and delivery dates' : 'Fechas de recoleccion y entrega' %></h2>
+  <section class="grid-4">
+    <div class="field"><span><%= L.pickup || 'Fecha recoleccion' %></span><strong><%= fmt(carta.fecha_recoleccion) %></strong></div>
+    <div class="field"><span><%= carta.idioma === 'en' ? 'Pickup time' : 'Hora recoleccion' %></span><strong><%= fmt(carta.hora_recoleccion) %></strong></div>
+    <div class="field"><span><%= L.estimatedDelivery || 'Fecha entrega estimada' %></span><strong><%= fmt(carta.fecha_entrega_estimada) %></strong></div>
+    <div class="field"><span><%= carta.idioma === 'en' ? 'Estimated delivery time' : 'Hora entrega estimada' %></span><strong><%= fmt(carta.hora_entrega_estimada) %></strong></div>
+  </section>
+
+  <h2>7. <%= L.goods || 'Tabla de mercancias' %></h2>
+  <table>
+    <thead>
+      <tr><th><%= L.qty || 'Cantidad' %></th><th><%= L.packaging || 'Embalaje' %></th><th><%= L.description || 'Descripcion' %></th><th><%= L.grossWeight || 'Peso bruto' %></th><th><%= L.netWeight || 'Peso neto' %></th><th><%= L.volume || 'Volumen' %></th><th><%= L.value || 'Valor declarado' %></th><th>HS Code</th><th><%= L.marks || 'Marcas/Numeros' %></th></tr>
+    </thead>
+    <tbody>
+      <% (carta.items && carta.items.length ? carta.items : [{}]).forEach((item) => { %>
+        <tr>
+          <td><%= item.cantidad_bultos || '' %></td>
+          <td><%= item.tipo_embalaje || '' %></td>
+          <td><%= item.descripcion_mercancia || '' %></td>
+          <td><%= item.peso_bruto || '' %></td>
+          <td><%= item.peso_neto || '' %></td>
+          <td><%= item.volumen || '' %></td>
+          <td><%= [item.valor_declarado, item.moneda].filter(Boolean).join(' ') %></td>
+          <td><%= item.hs_code || '' %></td>
+          <td><%= item.marcas_numeros || '' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+
+  <h2>8. <%= L.totals || 'Totales' %></h2>
+  <section class="totals">
+    <div class="field"><span><%= L.packages || 'Total bultos' %></span><strong><%= carta.total_bultos || 0 %></strong></div>
+    <div class="field"><span><%= L.grossWeight || 'Peso bruto' %></span><strong><%= carta.total_peso_bruto || 0 %></strong></div>
+    <div class="field"><span><%= L.netWeight || 'Peso neto' %></span><strong><%= carta.total_peso_neto || 0 %></strong></div>
+    <div class="field"><span><%= L.volume || 'Volumen' %></span><strong><%= carta.total_volumen || 0 %></strong></div>
+    <div class="field"><span><%= L.value || 'Valor declarado' %></span><strong><%= carta.total_valor_declarado || 0 %></strong></div>
+  </section>
+
+  <h2>9. <%= carta.idioma === 'en' ? 'Conditions and notes' : 'Condiciones y observaciones' %></h2>
+  <section class="notes">
+    <div class="field"><span><%= L.transportConditions || 'Condiciones de transporte' %></span><strong><%= fmt(carta.condiciones_transporte) %></strong></div>
+    <div class="field"><span><%= L.notesInstructions || 'Observaciones e instrucciones' %></span><strong><%= [carta.observaciones, carta.instrucciones_especiales].filter(Boolean).join('\n') || '-' %></strong></div>
+  </section>
+
+  <h2>10. <%= carta.idioma === 'en' ? 'Signatures' : 'Firmas' %></h2>
+  <section class="signatures">
+    <div class="signature"><%= L.signaturePrefix || 'Firma y sello del' %> <%= L.senderParty || 'remitente' %></div>
+    <div class="signature"><%= L.signaturePrefix || 'Firma y sello del' %> <%= L.carrierParty || 'transportista' %></div>
+    <div class="signature"><%= L.signaturePrefix || 'Firma y sello del' %> <%= L.recipientParty || 'destinatario' %></div>
+  </section>
+  <section class="grid-3 reception">
+    <div class="field"><span><%= L.receptionDate || 'Fecha y hora de recepcion' %></span><strong><%= fmt(carta.fecha_hora_recepcion) %></strong></div>
+    <div class="field"><span><%= L.receiverName || 'Nombre de quien recibe' %></span><strong><%= fmt(carta.recibe_nombre) %></strong></div>
+    <div class="field"><span><%= L.receiverId || 'DPI de quien recibe' %></span><strong><%= fmt(carta.recibe_dpi) %></strong></div>
+  </section>
+</main>
+<% if (autoPrint) { %><script>window.print();</script><% } %>
+</body>
+</html>

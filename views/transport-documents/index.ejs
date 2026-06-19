@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<%- include('../partials/head', { title: 'Documentos de Transporte', extraStyles: ['/css/transport-documents.css'] }) %>
+</head>
+<body class="page">
+<%- include('../partials/header', { currentModule: 'transport_documents' }) %>
+<main class="container">
+  <div class="page-header">
+    <div>
+      <h1>Documentos de Transporte</h1>
+      <p class="muted">Menu unificado para Carta Porte, Bill of Lading y Guias Aereas.</p>
+    </div>
+    <div class="actions">
+      <a class="btn primary" href="/transport-documents/new">Nuevo documento</a>
+    </div>
+  </div>
+
+  <% if (flash) { %><div class="alert <%= flash.type %>"><%= flash.message %></div><% } %>
+  <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+
+  <section class="transport-document-menu" aria-label="Tipos de documentos de transporte">
+    <a class="transport-document-card" href="/transport-documents/new?type=CARTA_PORTE">
+      <span>CP</span>
+      <strong>Carta Porte</strong>
+      <small>Documento de transporte terrestre.</small>
+    </a>
+    <a class="transport-document-card" href="/transport-documents/new?type=BL">
+      <span>BL</span>
+      <strong>Bill of Lading</strong>
+      <small>Documento de transporte maritimo.</small>
+    </a>
+    <a class="transport-document-card" href="/transport-documents/new?type=MAWB">
+      <span>AWB</span>
+      <strong>Guias Aereas</strong>
+      <small>Air Waybill / guia aerea.</small>
+    </a>
+  </section>
+
+  <section class="panel">
+    <div class="transport-documents-section-header">
+      <h2>Listado</h2>
+    </div>
+    <form class="filters" method="GET" action="/transport-documents">
+      <label>Tipo
+        <select name="type">
+          <option value="all" <%= filters.type === 'all' ? 'selected' : '' %>>Todos</option>
+          <% Object.keys(typeLabels).forEach((key) => { %>
+            <option value="<%= key %>" <%= filters.type === key ? 'selected' : '' %>><%= typeLabels[key] %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Cliente
+        <input name="client" value="<%= filters.client || '' %>" />
+      </label>
+      <label>Fecha
+        <input type="date" name="issue_date" value="<%= filters.issue_date || '' %>" />
+      </label>
+      <label>Estado
+        <select name="status">
+          <option value="all" <%= filters.status === 'all' ? 'selected' : '' %>>Todos</option>
+          <% Object.keys(statusLabels).forEach((key) => { %>
+            <option value="<%= key %>" <%= filters.status === key ? 'selected' : '' %>><%= statusLabels[key] %></option>
+          <% }) %>
+        </select>
+      </label>
+      <button class="btn small" type="submit">Filtrar</button>
+      <a class="btn small" href="/transport-documents">Limpiar</a>
+    </form>
+
+    <div class="table transport-documents-table">
+      <div class="table-row header">
+        <div>Tipo</div><div>Numero</div><div>Fecha</div><div>Cliente</div><div>Origen</div><div>Destino</div><div>Estado</div><div>Acciones</div>
+      </div>
+      <% if (!documents || !documents.length) { %>
+        <div class="table-row empty">No hay documentos de transporte.</div>
+      <% } %>
+      <% (documents || []).forEach((doc) => { %>
+        <div class="table-row">
+          <div><%= typeLabels[doc.type] || doc.type %></div>
+          <div><%= doc.document_number || '-' %></div>
+          <div><%= doc.issue_date || '-' %></div>
+          <div><%= doc.client_name || '-' %></div>
+          <div><%= doc.origin || '-' %></div>
+          <div><%= doc.destination || '-' %></div>
+          <div><span class="status-badge status-<%= doc.status %>"><%= statusLabels[doc.status] || doc.status %></span></div>
+          <div class="actions">
+            <a class="btn small" href="/transport-documents/<%= doc.id %>">Ver</a>
+            <% if (doc.status !== 'voided') { %><a class="btn small" href="/transport-documents/<%= doc.id %>/edit">Editar</a><% } %>
+            <a class="btn small" href="/transport-documents/<%= doc.id %>/print" target="_blank">Imprimir</a>
+            <a class="btn small" href="/transport-documents/<%= doc.id %>/pdf" target="_blank">PDF</a>
+            <form method="POST" action="/transport-documents/<%= doc.id %>/duplicate">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <button class="btn small" type="submit">Duplicar</button>
+            </form>
+            <% if (doc.status !== 'voided') { %>
+              <form method="POST" action="/transport-documents/<%= doc.id %>/void" onsubmit="return confirm('Anular este documento?');">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <button class="btn small danger" type="submit">Anular</button>
+              </form>
+            <% } %>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+</main>
+<script src="/status-footer.js" defer></script>
+</body>
+</html>

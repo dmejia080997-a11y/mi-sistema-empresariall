@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+<%- include('../partials/head', { title: 'Documento de Transporte', extraStyles: ['/css/transport-documents.css'] }) %>
+</head>
+<body class="page">
+<%- include('../partials/header', { currentModule: 'transport_documents' }) %>
+<main class="container">
+  <div class="page-header">
+    <div>
+      <h1><%= typeLabels[document.type] || document.type %></h1>
+      <p class="muted"><%= document.document_number %> · <%= statusLabels[document.status] || document.status %></p>
+    </div>
+    <div class="actions">
+      <a class="btn" href="/transport-documents">Listado</a>
+      <% if (document.status !== 'voided') { %><a class="btn" href="/transport-documents/<%= document.id %>/edit">Editar</a><% } %>
+      <a class="btn" href="/transport-documents/<%= document.id %>/print" target="_blank">Imprimir</a>
+      <a class="btn primary" href="/transport-documents/<%= document.id %>/pdf" target="_blank">PDF</a>
+    </div>
+  </div>
+  <% if (flash) { %><div class="alert <%= flash.type %>"><%= flash.message %></div><% } %>
+  <section class="panel">
+    <div class="grid-2">
+      <p><strong>Fecha:</strong> <%= document.issue_date || '-' %></p>
+      <p><strong>Cliente:</strong> <%= document.client_name || '-' %></p>
+      <p><strong>Shipper:</strong> <%= document.shipper || '-' %></p>
+      <p><strong>Consignee:</strong> <%= document.consignee || '-' %></p>
+      <p><strong>Origen:</strong> <%= document.origin || '-' %></p>
+      <p><strong>Destino:</strong> <%= document.destination || '-' %></p>
+    </div>
+  </section>
+  <iframe title="Vista previa" src="/transport-documents/<%= document.id %>/print" style="width:100%;height:820px;border:1px solid #d1d5db;background:white;"></iframe>
+</main>
+</body>
+</html>
