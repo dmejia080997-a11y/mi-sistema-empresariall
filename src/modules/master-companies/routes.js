@@ -18,6 +18,7 @@ function registerMasterCompanyRoutes(app, deps) {
     createCompanySlug,
     seedAccountingCategories,
     seedNifCatalog,
+    companyDatabaseService,
     getIsStartingUp
   } = deps;
 
@@ -109,6 +110,17 @@ function registerMasterCompanyRoutes(app, deps) {
     );
   }
 
+  async function createTenantAdminIfAvailable({ companyId, passwordHash }) {
+    if (!companyDatabaseService || typeof companyDatabaseService.getCompanyDatabase !== 'function') return;
+    const tenantDb = await companyDatabaseService.getCompanyDatabase(companyId);
+    await tenantDb.query(
+      `INSERT INTO users (username, password_hash, role, company_id, is_active)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT DO NOTHING`,
+      ['admin', passwordHash, 'admin', companyId, 1]
+    );
+  }
+
   app.post('/master/create-company', requireMaster, (req, res) => {
     const {
       name,
@@ -186,6 +198,14 @@ function registerMasterCompanyRoutes(app, deps) {
     const currencyLegacy = baseCurrency;
     const isActive = status === 'inactive' ? 0 : 1;
 
+    Promise.resolve()
+      .then(() => {
+        if (!companyDatabaseService || typeof companyDatabaseService.createCompanyDatabase !== 'function') {
+          throw new Error('El servicio de base de datos por empresa no esta disponible.');
+        }
+        return companyDatabaseService.createCompanyDatabase({ name });
+      })
+      .then((databaseConfig) => {
     db.run(
       `INSERT INTO companies 
     (name,address,nit,employees,business_type,country,base_currency,allowed_currencies,tax_rate,tax_name,costing_method,multi_currency_enabled,accounting_method,accounting_framework,currency,logo,primary_color,secondary_color,email,phone,username,password_hash,
@@ -249,10 +269,36 @@ function registerMasterCompanyRoutes(app, deps) {
       function(err) {
         if (err) {
           console.log(err);
+          if (databaseConfig && databaseConfig.database_name && companyDatabaseService.dropPhysicalDatabase) {
+            companyDatabaseService.dropPhysicalDatabase(databaseConfig.database_name).catch((dropErr) => {
+              console.error('[master/create-company] tenant database cleanup after insert failed', dropErr);
+            });
+          }
           return res.status(400).send(res.locals.t('errors.company_create_failed'));
         }
 
         const companyId = this.lastID;
+        const rollbackCreatedCompany = async (error) => {
+          console.error('[master/create-company] provisioning finalize failed', error);
+          try {
+            await new Promise((resolve) => db.run('DELETE FROM companies WHERE id = ?', [companyId], () => resolve()));
+          } catch (cleanupErr) {
+            console.error('[master/create-company] company cleanup failed', cleanupErr);
+          }
+          try {
+            if (databaseConfig && databaseConfig.database_name && companyDatabaseService.dropPhysicalDatabase) {
+              await companyDatabaseService.dropPhysicalDatabase(databaseConfig.database_name);
+            }
+          } catch (dropErr) {
+            console.error('[master/create-company] tenant database cleanup failed', dropErr);
+          }
+          return res.status(400).send(res.locals.t('errors.company_create_failed'));
+        };
+        Promise.resolve()
+          .then(() => companyDatabaseService.saveCompanyDatabaseConfig(companyId, databaseConfig))
+          .then(() => companyDatabaseService.auditCompanyDatabaseCreated(companyId, databaseConfig, req.session && req.session.user ? req.session.user.id : null))
+          .then(() => createTenantAdminIfAvailable({ companyId, passwordHash }))
+          .then(() => {
         return seedAccountingCategories(companyId, () => {
           return seedNifCatalog(companyId, () => {
             return createCompanyAdminIfMissing({
@@ -268,8 +314,15 @@ function registerMasterCompanyRoutes(app, deps) {
             });
           });
         });
+          })
+          .catch(rollbackCreatedCompany);
       }
     );
+      })
+      .catch((provisionErr) => {
+        console.error('[master/create-company] tenant provisioning failed', provisionErr);
+        return res.status(400).send(res.locals.t('errors.company_create_failed'));
+      });
   });
 
   app.get('/master/companies/:id', requireMaster, (req, res) => {
@@ -331,6 +384,14 @@ function registerMasterCompanyRoutes(app, deps) {
           if (userErr || !user) {
             return res.redirect('/master');
           }
+          Promise.resolve()
+            .then(() => {
+              if (!companyDatabaseService || typeof companyDatabaseService.getCompanyDatabase !== 'function') {
+                throw new Error('El servicio de base de datos por empresa no esta disponible.');
+              }
+              return companyDatabaseService.getCompanyDatabase(company.id);
+            })
+            .then(() => {
           const companyName = typeof company.name === 'string' ? company.name.trim() : '';
           const companySlug = createCompanySlug(companyName);
           req.session.company_id = company.id;
@@ -365,6 +426,9 @@ function registerMasterCompanyRoutes(app, deps) {
             accounting_method: company.accounting_method || null,
             activity_id: company.activity_id || null,
             default_launcher: company.default_launcher || null,
+            database_name: company.database_name || null,
+            database_type: company.database_type || null,
+            database_status: company.database_status || null,
             allowed_modules: (() => {
               const raw = parseJsonList(company.allowed_modules);
               return raw.length ? normalizeAllowedModules(raw) : null;
@@ -382,6 +446,12 @@ function registerMasterCompanyRoutes(app, deps) {
             }
             return res.redirect('/dashboard');
           });
+            })
+            .catch((dbErr) => {
+              console.error('[master enter] company database error', dbErr);
+              setFlash(req, 'error', 'No se pudo conectar a la base PostgreSQL de esta empresa.');
+              return res.redirect('/master');
+            });
         }
       );
     });

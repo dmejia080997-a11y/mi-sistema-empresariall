@@ -11,7 +11,6 @@ const express = require('express');
 const session = require('express-session');
 const SQLiteStore = require('connect-sqlite3')(session);
 const bcrypt = require('bcryptjs');
-const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
 const ejs = require('ejs');
 const multer = require('multer');
@@ -65,6 +64,8 @@ const { registerMasterRoutes } = require('./src/modules/master/routes');
 const { registerMasterAuthRoutes } = require('./src/modules/master-auth/routes');
 const { registerMasterCompanyRoutes } = require('./src/modules/master-companies/routes');
 const { createAccountingAutomation } = require('./src/services/accounting-automation');
+const { createCompanyDatabaseService } = require('./src/services/company-database-service');
+const { createAppDatabase, getActiveDatabaseInfo } = require('./src/config/database');
 const QRCode = require('qrcode');
 const PDFDocument = require('pdfkit');
 const bwipjs = require('bwip-js');
@@ -75,7 +76,6 @@ const SESSION_COOKIE_NAME = getSessionCookieName(IS_PROD);
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const MAX_PORT_RETRIES = 20;
-const DB_PATH = path.join(__dirname, 'data', 'app.db');
 const GLOBAL_DOCK_PARTIAL_PATH = path.join(__dirname, 'views', 'partials', 'global-dock.ejs');
 const DESIGN_SYSTEM_ASSETS = [
   '<link rel="stylesheet" href="/css/theme.css" data-design-system-asset />',
@@ -1135,18 +1135,16 @@ const companyLogoUpload = multer({
   }
 });
 
-const db = new sqlite3.Database(DB_PATH);
+const db = createAppDatabase();
+const activeDatabaseInfo = getActiveDatabaseInfo();
+console.log(activeDatabaseInfo.client === 'postgres' ? 'Using PostgreSQL database' : 'Using SQLite database');
 const accountingAutomation = createAccountingAutomation(db);
-if (sqlite3.Statement && sqlite3.Statement.prototype && sqlite3.Statement.prototype.emit) {
-  const originalStmtEmit = sqlite3.Statement.prototype.emit;
-  sqlite3.Statement.prototype.emit = function (event, ...args) {
-    if (event === 'error') {
-      console.error('[sqlite] statement error', args[0]);
-      return true;
-    }
-    return originalStmtEmit.call(this, event, ...args);
-  };
-}
+const companyDatabaseService = createCompanyDatabaseService({
+  masterDb: db,
+  databaseUrl: process.env.DATABASE_URL,
+  databaseSsl: process.env.DATABASE_SSL,
+  logger: console
+});
 
 let transactionQueue = Promise.resolve();
 
@@ -3992,7 +3990,14 @@ db.serialize(() => {
     { name: 'contact_ops_position', type: 'TEXT' },
     { name: 'admin_name', type: 'TEXT' },
     { name: 'admin_position', type: 'TEXT' },
-    { name: 'active_mode', type: 'TEXT' }
+    { name: 'active_mode', type: 'TEXT' },
+    { name: 'database_name', type: 'TEXT' },
+    { name: 'database_host', type: 'TEXT' },
+    { name: 'database_port', type: 'TEXT' },
+    { name: 'database_user', type: 'TEXT' },
+    { name: 'database_password_ref', type: 'TEXT' },
+    { name: 'database_type', type: 'TEXT' },
+    { name: 'database_status', type: 'TEXT' }
   ]);
   db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_username ON companies (username)');
 
@@ -11228,7 +11233,8 @@ registerAuthRoutes(app, {
   buildFileUrl,
   DEFAULT_LANG,
   SUPPORTED_LANGS,
-  SESSION_COOKIE_NAME
+  SESSION_COOKIE_NAME,
+  companyDatabaseService
 });
 
 registerMasterAuthRoutes(app, {
@@ -11367,6 +11373,7 @@ registerCompanyRoutes(app, {
   createCompanySlug,
   seedAccountingCategories,
   seedNifCatalog,
+  companyDatabaseService,
   getIsStartingUp: () => isStartingUp
 });
 
@@ -11387,6 +11394,7 @@ registerMasterCompanyRoutes(app, {
   createCompanySlug,
   seedAccountingCategories,
   seedNifCatalog,
+  companyDatabaseService,
   getIsStartingUp: () => isStartingUp
 });
 

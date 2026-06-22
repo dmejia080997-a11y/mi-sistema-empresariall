@@ -31,6 +31,7 @@ function registerCompanyRoutes(app, deps) {
     createCompanySlug,
     seedAccountingCategories,
     seedNifCatalog,
+    companyDatabaseService,
     getIsStartingUp
   } = deps;
 
@@ -161,6 +162,17 @@ function registerCompanyRoutes(app, deps) {
           }
         );
       }
+    );
+  }
+
+  async function createTenantAdminIfAvailable({ companyId, passwordHash }) {
+    if (!companyDatabaseService || typeof companyDatabaseService.getCompanyDatabase !== 'function') return;
+    const tenantDb = await companyDatabaseService.getCompanyDatabase(companyId);
+    await tenantDb.query(
+      `INSERT INTO users (username, password_hash, role, company_id, is_active)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT DO NOTHING`,
+      ['admin', passwordHash, 'admin', companyId, 1]
     );
   }
 
@@ -372,6 +384,14 @@ function registerCompanyRoutes(app, deps) {
               const isActive = status === 'inactive' ? 0 : 1;
               const resolvedLogo = req.file ? req.file.path : null;
 
+              Promise.resolve()
+                .then(() => {
+                  if (!companyDatabaseService || typeof companyDatabaseService.createCompanyDatabase !== 'function') {
+                    throw new Error('El servicio de base de datos por empresa no esta disponible.');
+                  }
+                  return companyDatabaseService.createCompanyDatabase({ name: normalizedName });
+                })
+                .then((databaseConfig) => {
               db.run(
                 `
               INSERT INTO companies
@@ -438,9 +458,35 @@ function registerCompanyRoutes(app, deps) {
                 function (err) {
                   if (err) {
                     console.error('[companies/create] insert failed', err);
+                    if (databaseConfig && databaseConfig.database_name && companyDatabaseService.dropPhysicalDatabase) {
+                      companyDatabaseService.dropPhysicalDatabase(databaseConfig.database_name).catch((dropErr) => {
+                        console.error('[companies/create] tenant database cleanup after insert failed', dropErr);
+                      });
+                    }
                     return renderCreateError(['No se pudo crear la empresa. Intenta nuevamente.']);
                   }
                   const companyId = this.lastID;
+                  const rollbackCreatedCompany = async (error) => {
+                    console.error('[companies/create] provisioning finalize failed', error);
+                    try {
+                      await new Promise((resolve) => db.run('DELETE FROM companies WHERE id = ?', [companyId], () => resolve()));
+                    } catch (cleanupErr) {
+                      console.error('[companies/create] company cleanup failed', cleanupErr);
+                    }
+                    try {
+                      if (databaseConfig && databaseConfig.database_name && companyDatabaseService.dropPhysicalDatabase) {
+                        await companyDatabaseService.dropPhysicalDatabase(databaseConfig.database_name);
+                      }
+                    } catch (dropErr) {
+                      console.error('[companies/create] tenant database cleanup failed', dropErr);
+                    }
+                    return renderCreateError(['No se pudo crear la base PostgreSQL de la empresa. No se registro la empresa.']);
+                  };
+                  Promise.resolve()
+                    .then(() => companyDatabaseService.saveCompanyDatabaseConfig(companyId, databaseConfig))
+                    .then(() => companyDatabaseService.auditCompanyDatabaseCreated(companyId, databaseConfig, req.session && req.session.user ? req.session.user.id : null))
+                    .then(() => createTenantAdminIfAvailable({ companyId, passwordHash }))
+                    .then(() => {
                   return seedAccountingCategories(companyId, () => {
                     return seedNifCatalog(companyId, () => {
                       return createCompanyAdminIfMissing({
@@ -459,8 +505,15 @@ function registerCompanyRoutes(app, deps) {
                       });
                     });
                   });
+                    })
+                    .catch(rollbackCreatedCompany);
                 }
               );
+                })
+                .catch((provisionErr) => {
+                  console.error('[companies/create] tenant provisioning failed', provisionErr);
+                  return renderCreateError(['No se pudo crear la base PostgreSQL de la empresa. Verifica DATABASE_URL y permisos de PostgreSQL.']);
+                });
             });
           }
         );

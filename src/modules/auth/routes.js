@@ -22,7 +22,8 @@ function registerAuthRoutes(app, deps) {
     DEFAULT_LANG,
     SUPPORTED_LANGS,
     SESSION_COOKIE_NAME,
-    buildFileUrl
+    buildFileUrl,
+    companyDatabaseService
   } = deps;
 
   function normalizeCompanyNit(value) {
@@ -87,6 +88,16 @@ function registerAuthRoutes(app, deps) {
        LIMIT 1`,
       callback
     );
+  }
+
+  function ensureCompanyDatabaseReady(company, callback) {
+    if (!company || company.database_type !== 'postgresql') return callback(null);
+    if (!companyDatabaseService || typeof companyDatabaseService.getCompanyDatabase !== 'function') {
+      return callback(new Error('El servicio de base de datos por empresa no esta disponible.'));
+    }
+    return companyDatabaseService.getCompanyDatabase(company.id)
+      .then(() => callback(null))
+      .catch(callback);
   }
 
   app.get('/', (req, res) => {
@@ -206,6 +217,12 @@ function registerAuthRoutes(app, deps) {
         return renderLogin(res, { error: res.locals.t('errors.company_expired'), loginCompany });
       }
 
+      ensureCompanyDatabaseReady(company, (dbReadyErr) => {
+        if (dbReadyErr) {
+          console.error('[login] company database error', dbReadyErr);
+          return renderLogin(res, { error: 'No se pudo conectar a la base PostgreSQL de la empresa.', loginCompany });
+        }
+
       db.get(
         'SELECT * FROM users WHERE username = ? AND company_id = ? LIMIT 1',
         [username, company.id],
@@ -283,6 +300,9 @@ function registerAuthRoutes(app, deps) {
               accounting_method: company.accounting_method || null,
               activity_id: company.activity_id || null,
               default_launcher: company.default_launcher || null,
+              database_name: company.database_name || null,
+              database_type: company.database_type || null,
+              database_status: company.database_status || null,
               allowed_modules: allowedModulesValue
             };
             req.session.customer = null;
@@ -305,6 +325,7 @@ function registerAuthRoutes(app, deps) {
           });
         }
       );
+      });
     });
   });
 
