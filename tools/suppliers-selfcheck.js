@@ -1,7 +1,7 @@
-const sqlite3 = require('sqlite3').verbose();
 const { ensureSupplierSchema } = require('../src/modules/suppliers/routes');
+const { createSqliteDatabase } = require('../src/config/database');
 
-const db = new sqlite3.Database(':memory:');
+const db = createSqliteDatabase({ filename: ':memory:' });
 const run = (sql, params = []) => new Promise((resolve, reject) => db.run(sql, params, function done(error) {
   if (error) reject(error);
   else resolve({ lastID: this.lastID, changes: this.changes });

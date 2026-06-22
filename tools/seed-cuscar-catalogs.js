@@ -1,8 +1,8 @@
-﻿const path = require('path');
-const fs = require('fs');
-const sqlite3 = require('sqlite3').verbose();
+require('dotenv').config();
 
-const DB_PATH = path.join(__dirname, '..', 'data', 'app.db');
+const path = require('path');
+const fs = require('fs');
+const { createAppDatabase } = require('../src/config/database');
 const CATALOG_PATH = path.join(__dirname, '..', 'data', 'cuscar-catalogs.json');
 
 function readJson(filePath) {
@@ -52,7 +52,7 @@ if (!fs.existsSync(CATALOG_PATH)) {
 }
 
 const seedData = readJson(CATALOG_PATH);
-const db = new sqlite3.Database(DB_PATH);
+const db = createAppDatabase();
 
 function seedCatalogRows(catalog, rows, companyId, done) {
   let pending = rows.length;

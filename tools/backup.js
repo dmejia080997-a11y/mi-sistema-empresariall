@@ -7,6 +7,7 @@ const {
   STORAGE_BACKUPS_DIR,
   STORAGE_LOGS_DIR
 } = require('../src/core/storage-paths');
+const { getSqliteConfig } = require('../src/config/database');
 
 function stamp() {
   return new Date().toISOString().replace(/[:.]/g, '-');
@@ -39,8 +40,10 @@ function main() {
   ensureDir(backupDir);
 
   const copied = [];
-  if (copyFileIfExists(path.join(ROOT_DIR, 'data', 'app.db'), path.join(backupDir, 'data', 'app.db'))) {
-    copied.push('data/app.db');
+  const sqlitePath = getSqliteConfig().filename;
+  const sqliteBackupName = path.basename(sqlitePath);
+  if (copyFileIfExists(sqlitePath, path.join(backupDir, 'data', sqliteBackupName))) {
+    copied.push(path.relative(ROOT_DIR, sqlitePath).replace(/\\/g, '/'));
   }
   if (copyFileIfExists(path.join(ROOT_DIR, 'data', 'sessions.db'), path.join(backupDir, 'data', 'sessions.db'))) {
     copied.push('data/sessions.db');

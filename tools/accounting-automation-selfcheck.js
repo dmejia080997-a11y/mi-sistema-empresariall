@@ -1,7 +1,7 @@
-const sqlite3 = require('sqlite3').verbose();
 const { createAccountingAutomation } = require('../src/services/accounting-automation');
+const { createSqliteDatabase } = require('../src/config/database');
 
-const db = new sqlite3.Database(':memory:');
+const db = createSqliteDatabase({ filename: ':memory:' });
 const run = (sql, params = []) => new Promise((resolve, reject) => db.run(sql, params, function done(error) {
   error ? reject(error) : resolve({ lastID: this.lastID, changes: this.changes });
 }));

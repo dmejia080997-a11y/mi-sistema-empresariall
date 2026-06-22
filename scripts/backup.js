@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { getSqliteConfig } = require('../src/config/database');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const BACKUPS_DIR = path.join(ROOT_DIR, 'storage', 'backups');
@@ -42,8 +43,10 @@ function main() {
   ensureDir(backupDir);
 
   const copied = [];
-  if (copyFileIfExists(path.join(ROOT_DIR, 'data', 'app.db'), path.join(backupDir, 'data', 'app.db'))) {
-    copied.push('data/app.db');
+  const sqlitePath = getSqliteConfig().filename;
+  const sqliteBackupName = path.basename(sqlitePath);
+  if (copyFileIfExists(sqlitePath, path.join(backupDir, 'data', sqliteBackupName))) {
+    copied.push(path.relative(ROOT_DIR, sqlitePath).replace(/\\/g, '/'));
   }
   if (copyFileIfExists(path.join(ROOT_DIR, 'data', 'sessions.db'), path.join(backupDir, 'data', 'sessions.db'))) {
     copied.push('data/sessions.db');

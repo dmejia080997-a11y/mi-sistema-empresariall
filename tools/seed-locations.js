@@ -1,11 +1,9 @@
 require('dotenv').config();
 
-const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
 const { Country, State, City } = require('country-state-city');
+const { createAppDatabase } = require('../src/config/database');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'app.db');
-const db = new sqlite3.Database(DB_PATH);
+const db = createAppDatabase();
 
 function run(sql, params = []) {
   return new Promise((resolve, reject) => {

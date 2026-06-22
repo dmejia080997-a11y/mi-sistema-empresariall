@@ -2,11 +2,9 @@ require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
-const { createPostgresPool, getDatabaseConfig } = require('../src/config/database');
+const { createPostgresPool, createSqliteDatabase, getDatabaseConfig, getSqliteConfig } = require('../src/config/database');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
-const SQLITE_DB_PATH = path.join(ROOT_DIR, 'data', 'app.db');
 const BACKUP_ROOT = path.join(ROOT_DIR, 'storage', 'backups');
 
 const summary = {
@@ -62,14 +60,15 @@ function savepointName(tableName) {
 }
 
 async function createBackup() {
-  if (!fs.existsSync(SQLITE_DB_PATH)) {
-    throw new Error(`SQLite database not found: ${SQLITE_DB_PATH}`);
+  const sqlitePath = getSqliteConfig().filename;
+  if (!fs.existsSync(sqlitePath)) {
+    throw new Error(`SQLite database not found: ${sqlitePath}`);
   }
 
   const backupDir = path.join(BACKUP_ROOT, `sqlite-before-postgres-migration-${stamp()}`);
   fs.mkdirSync(backupDir, { recursive: true });
   const backupPath = path.join(backupDir, 'app.db');
-  fs.copyFileSync(SQLITE_DB_PATH, backupPath);
+  fs.copyFileSync(sqlitePath, backupPath);
   console.log(`SQLite backup created: ${backupPath}`);
 }
 
@@ -209,7 +208,7 @@ async function main() {
 
   await createBackup();
 
-  const sqliteDb = new sqlite3.Database(SQLITE_DB_PATH, sqlite3.OPEN_READONLY);
+  const sqliteDb = createSqliteDatabase(getSqliteConfig());
   const pg = createPostgresPool(config);
 
   try {
