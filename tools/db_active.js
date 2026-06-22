@@ -1,36 +1,39 @@
 require('dotenv').config();
 
-const fs = require('fs');
-const { getActiveDatabaseInfo, getDatabaseConfig, createPostgresPool } = require('../src/config/database');
+const path = require('path');
 
-async function main() {
-  const config = getDatabaseConfig();
-  const info = getActiveDatabaseInfo();
+const ROOT_DIR = path.resolve(__dirname, '..');
+const DEFAULT_SQLITE_PATH = path.join(ROOT_DIR, 'data', 'app.db');
 
-  if (info.client === 'postgres') {
-    const pool = createPostgresPool(config);
-    try {
-      const result = await pool.query('SELECT current_database() AS database, current_user AS "user", inet_server_addr() AS host, inet_server_port() AS port');
-      const row = result.rows[0] || {};
-      console.log('engine=postgresql');
-      console.log(`database=${row.database || info.database}`);
-      console.log(`host=${row.host || info.host}`);
-      console.log(`port=${row.port || info.port}`);
-      console.log(`user=${row.user || info.user}`);
-    } finally {
-      await pool.end();
-    }
-    return;
-  }
-
-  console.log('engine=sqlite');
-  console.log('host=local-file');
-  console.log(`database=${info.filename}`);
-  console.log(`exists=${fs.existsSync(info.filename) ? 'yes' : 'no'}`);
+function getDatabaseUrl() {
+  return String(process.env.DATABASE_URL || '').trim();
 }
 
-main().catch((err) => {
-  console.error('Could not determine active database.');
-  console.error(err && err.message ? err.message : err);
-  process.exit(1);
-});
+function getSqlitePath() {
+  return path.resolve(ROOT_DIR, process.env.DATABASE_PATH || DEFAULT_SQLITE_PATH);
+}
+
+function maskDatabaseUrl(databaseUrl) {
+  if (!databaseUrl) return '(not configured)';
+
+  try {
+    const parsed = new URL(databaseUrl);
+    if (parsed.password) {
+      parsed.password = '****';
+    }
+    return parsed.toString();
+  } catch (err) {
+    return databaseUrl.replace(/(:\/\/[^:\s]+:)([^@\s]+)(@)/, '$1****$3');
+  }
+}
+
+const databaseUrl = getDatabaseUrl();
+const hasDatabaseUrl = Boolean(databaseUrl);
+
+console.log(`DATABASE_URL exists: ${hasDatabaseUrl ? 'yes' : 'no'}`);
+console.log(`Active engine: ${hasDatabaseUrl ? 'PostgreSQL' : 'SQLite'}`);
+console.log(`DATABASE_URL: ${maskDatabaseUrl(databaseUrl)}`);
+
+if (!hasDatabaseUrl) {
+  console.log(`SQLite path: ${getSqlitePath()}`);
+}
