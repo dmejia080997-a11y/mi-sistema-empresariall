@@ -104,10 +104,30 @@ async function createPostgresTable(pg, tableName, columns) {
 
   await pg.query(`CREATE TABLE IF NOT EXISTS ${quoteIdent(tableName)} (${definitions.join(', ')})`);
   await ensurePostgresColumns(pg, tableName, columns);
+  await ensureUsersChatPresenceDefault(pg, tableName);
   if (!existed) summary.tablesCreated += 1;
   const hasConflictTarget = pkColumns.length > 0
     && (!existed || await postgresHasUniqueConstraint(pg, tableName, pkColumns));
   return { pkColumns, hasConflictTarget };
+}
+
+async function ensureUsersChatPresenceDefault(pg, tableName) {
+  if (tableName !== 'users') return;
+
+  const result = await pg.query(
+    `SELECT 1
+     FROM information_schema.columns
+     WHERE table_schema = current_schema()
+       AND table_name = 'users'
+       AND column_name = 'chat_presence_status'`
+  );
+
+  if (result.rowCount === 0) return;
+
+  await pg.query(
+    `ALTER TABLE ${quoteIdent(tableName)}
+     ALTER COLUMN ${quoteIdent('chat_presence_status')} SET DEFAULT 'offline'`
+  );
 }
 
 async function postgresTableExists(pg, tableName) {

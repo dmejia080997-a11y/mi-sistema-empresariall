@@ -128,7 +128,7 @@ function registerCompanyRoutes(app, deps) {
         });
         console.log(`[createCompanyAdminIfMissing] insert username=admin company_id=${companyId}`);
         db.run(
-          "INSERT OR IGNORE INTO users (username, password_hash, role, company_id) VALUES ('admin', ?, 'admin', ?)",
+          "INSERT OR IGNORE INTO users (username, password_hash, role, company_id, chat_presence_status) VALUES ('admin', ?, 'admin', ?, 'offline')",
           [adminPasswordHash, companyId],
           function (insertErr) {
             if (insertErr) {
@@ -169,10 +169,10 @@ function registerCompanyRoutes(app, deps) {
     if (!companyDatabaseService || typeof companyDatabaseService.getCompanyDatabase !== 'function') return;
     const tenantDb = await companyDatabaseService.getCompanyDatabase(companyId);
     await tenantDb.query(
-      `INSERT INTO users (username, password_hash, role, company_id, is_active)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO users (username, password_hash, role, company_id, is_active, chat_presence_status)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT DO NOTHING`,
-      ['admin', passwordHash, 'admin', companyId, 1]
+      ['admin', passwordHash, 'admin', companyId, 1, 'offline']
     );
   }
 

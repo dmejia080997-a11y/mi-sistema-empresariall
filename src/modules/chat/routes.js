@@ -1304,7 +1304,7 @@ function initializeChatModule(db) {
 
     ensureColumns('users', [
       { name: 'chat_display_name', type: 'TEXT' },
-      { name: 'chat_presence_status', type: "TEXT NOT NULL DEFAULT 'online'" },
+      { name: 'chat_presence_status', type: "TEXT NOT NULL DEFAULT 'offline'" },
       { name: 'chat_profile_photo_path', type: 'TEXT' },
       { name: 'chat_profile_completed_at', type: 'DATETIME' }
     ]);

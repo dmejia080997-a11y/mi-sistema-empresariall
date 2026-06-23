@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   is_active INTEGER NOT NULL DEFAULT 1,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   chat_display_name TEXT,
-  chat_presence_status TEXT NOT NULL DEFAULT 'online',
+  chat_presence_status TEXT NOT NULL DEFAULT 'offline',
   chat_profile_photo_path TEXT,
   chat_profile_completed_at DATETIME
 );

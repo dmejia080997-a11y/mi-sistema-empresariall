@@ -124,8 +124,8 @@ app.post('/users/create', requireAuth, requirePermission('users', 'create'), (re
       });
       console.log(`[users/create] insert username=${safeUsername} company_id=${companyId}`);
       db.run(
-        'INSERT OR IGNORE INTO users (username, password_hash, role, company_id, is_active) VALUES (?, ?, ?, ?, ?)',
-        [safeUsername, passwordHash, safeRole, companyId, isActive],
+        'INSERT OR IGNORE INTO users (username, password_hash, role, company_id, is_active, chat_presence_status) VALUES (?, ?, ?, ?, ?, ?)',
+        [safeUsername, passwordHash, safeRole, companyId, isActive, 'offline'],
         function (err) {
           if (err) {
             console.error('[users/create] insert failed', {
