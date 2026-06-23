@@ -1362,9 +1362,10 @@ function initializeChatModule(db) {
     db.run('CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications (company_id, type, created_at)');
 
     db.run(
-      `INSERT OR IGNORE INTO permission_modules (code, name, description) VALUES
+      `INSERT INTO permission_modules (code, name, description) VALUES
        ('chat', 'Chat interno', 'Mensajeria interna entre usuarios de la misma empresa'),
-       ('notifications', 'Notificaciones', 'Centro de notificaciones del sistema')`
+       ('notifications', 'Notificaciones', 'Centro de notificaciones del sistema')
+       ON CONFLICT (code) DO NOTHING`
     );
 
     db.run(

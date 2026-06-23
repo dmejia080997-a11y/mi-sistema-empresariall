@@ -10,6 +10,8 @@
     "backup:all": "node tools/backup_all.js",
     "restore:test": "node tools/restore_test.js",
     "alerts:check": "node tools/health_alerts.js",
+    "modules:check": "node tools/modules_check.js",
+    "modules:dedupe": "node tools/modules_dedupe.js",
     "db:active": "node tools/db_active.js",
     "migrate-uploads": "node tools/migrate_uploads.js",
     "db:test": "node tools/db_test.js",

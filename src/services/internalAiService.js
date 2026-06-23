@@ -590,8 +590,9 @@ async function audit(db, context, action, details) {
 }
 
 async function ensurePermissions(db) {
-  await run(db, `INSERT OR IGNORE INTO permission_modules (code, name, description)
-    VALUES ('ai_internal', 'Asistente', 'Asistente de reportes internos sin conexión externa')`).catch(() => {});
+  await run(db, `INSERT INTO permission_modules (code, name, description)
+    VALUES ('ai_internal', 'Asistente', 'Asistente de reportes internos sin conexión externa')
+    ON CONFLICT (code) DO NOTHING`).catch(() => {});
   const actions = [
     ['ai_view', 'Ver asistente'], ['ai_ask', 'Preguntar al asistente'], ['ai_export', 'Exportar desde asistente'],
     ['ai_view_sales', 'Ver ventas en asistente'], ['ai_view_accounts_receivable', 'Ver cuentas por cobrar en asistente'],

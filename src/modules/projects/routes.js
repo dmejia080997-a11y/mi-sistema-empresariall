@@ -2139,8 +2139,9 @@ async function ensureProjectsSchema({ db, parseCurrencyList }) {
 async function ensureProjectsPermissionData(db) {
   await runDb(
     db,
-    `INSERT OR IGNORE INTO permission_modules (code, name, description)
-     VALUES ('projects', 'Proyectos', 'Gestión de proyectos, cronogramas, tareas, gastos y cotizaciones')`
+    `INSERT INTO permission_modules (code, name, description)
+     VALUES ('projects', 'Proyectos', 'Gestión de proyectos, cronogramas, tareas, gastos y cotizaciones')
+     ON CONFLICT (code) DO NOTHING`
   );
   await runDb(
     db,

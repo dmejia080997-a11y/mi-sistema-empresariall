@@ -5268,7 +5268,7 @@ db.serialize(() => {
 
   db.serialize(() => {
     db.run(
-      `INSERT OR IGNORE INTO permission_modules (code, name, description) VALUES
+      `INSERT INTO permission_modules (code, name, description) VALUES
       ('dashboard','Dashboard','Panel principal'),
       ('packages','Paquetes','GestiÃ³n de paquetes'),
       ('carrier_reception','Recepcion de paquetes de carrier','Recepcion rÃ¡pida de paquetes carrier'),
@@ -5299,7 +5299,8 @@ db.serialize(() => {
       ('meta_inbox','Centro de Mensajes / Meta Inbox','Bandeja oficial para Messenger, comentarios y Lead Ads de Meta'),
       ('reports','Reportes','Reportes del sistema'),
       ('users','Usuarios','AdministraciÃ³n de usuarios'),
-      ('settings','ConfiguraciÃ³n','ConfiguraciÃ³n general')`
+      ('settings','ConfiguraciÃ³n','ConfiguraciÃ³n general')
+      ON CONFLICT (code) DO NOTHING`
     );
 
     db.run(
@@ -8545,8 +8546,9 @@ function getUserPermissions(userId, companyId, callback) {
 function ensureDashboardPermissionData(callback) {
   db.serialize(() => {
     db.run(
-      `INSERT OR IGNORE INTO permission_modules (code, name, description) VALUES
-      ('dashboard','Dashboard','Panel principal')`
+      `INSERT INTO permission_modules (code, name, description) VALUES
+      ('dashboard','Dashboard','Panel principal')
+      ON CONFLICT (code) DO NOTHING`
     );
     db.run(
       `INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES

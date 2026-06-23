@@ -353,7 +353,7 @@ async function ensureMetaInboxSchema(db) {
   for (const statement of sql.split(';').map((part) => part.trim()).filter(Boolean)) {
     await runDb(db, statement);
   }
-  await runDb(db, "INSERT OR IGNORE INTO permission_modules (code, name, description) VALUES ('meta_inbox', 'Centro de Mensajes / Meta Inbox', 'Bandeja oficial para Messenger, comentarios y Lead Ads de Meta')");
+  await runDb(db, "INSERT INTO permission_modules (code, name, description) VALUES ('meta_inbox', 'Centro de Mensajes / Meta Inbox', 'Bandeja oficial para Messenger, comentarios y Lead Ads de Meta') ON CONFLICT (code) DO NOTHING");
   await runDb(db, `INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
     ('reply', 'Responder', 'Responder mensajes y comentarios'),
     ('assign', 'Asignar', 'Asignar conversaciones a usuarios'),

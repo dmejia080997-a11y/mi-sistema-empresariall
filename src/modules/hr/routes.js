@@ -2176,7 +2176,7 @@ function initializeHrModule(db) {
     db.run('CREATE INDEX IF NOT EXISTS idx_hr_vacations_company_employee ON hr_vacations (company_id, employee_id, vacation_start)');
     db.run('CREATE INDEX IF NOT EXISTS idx_hr_descriptions_company_dept ON hr_job_descriptions (company_id, department)');
 
-    db.run(`INSERT OR IGNORE INTO permission_modules (code, name, description) VALUES ('rrhh', 'RRHH', 'Gestión integral de recursos humanos')`);
+    db.run(`INSERT INTO permission_modules (code, name, description) VALUES ('rrhh', 'RRHH', 'Gestión integral de recursos humanos') ON CONFLICT (code) DO NOTHING`);
     db.run(
       `INSERT OR IGNORE INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id

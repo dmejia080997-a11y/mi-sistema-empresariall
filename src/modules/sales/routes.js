@@ -552,8 +552,9 @@ async function ensureSalesSchema(db) {
 }
 
 async function ensureSalesPermissionData(db) {
-  await runDb(db, `INSERT OR IGNORE INTO permission_modules (code, name, description)
-    VALUES ('sales', 'Ventas / CRM', 'CRM comercial, oportunidades, cotizaciones, pedidos, ventas, comisiones y metas')`);
+  await runDb(db, `INSERT INTO permission_modules (code, name, description)
+    VALUES ('sales', 'Ventas / CRM', 'CRM comercial, oportunidades, cotizaciones, pedidos, ventas, comisiones y metas')
+    ON CONFLICT (code) DO NOTHING`);
   await runDb(db, `INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
     ('view','Ver','Acceso de lectura'),
     ('create','Crear','Crear registros'),

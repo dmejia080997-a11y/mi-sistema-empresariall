@@ -1138,7 +1138,7 @@ async function auditProduction(db, req, action, tableName, recordId, oldValue, n
 }
 
 async function ensureProductionSchema(db) {
-  await runDb(db, `INSERT OR IGNORE INTO permission_modules (code, name, description) VALUES ('production', 'Produccion y Manufactura', 'Ordenes de produccion, BOM, costos y producto terminado')`);
+  await runDb(db, `INSERT INTO permission_modules (code, name, description) VALUES ('production', 'Produccion y Manufactura', 'Ordenes de produccion, BOM, costos y producto terminado') ON CONFLICT (code) DO NOTHING`);
   await runDb(db, `INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
     ('view','Ver','Acceso de lectura'),
     ('create_order','Crear orden','Crear ordenes de produccion'),

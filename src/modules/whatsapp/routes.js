@@ -720,8 +720,9 @@ async function ensureWhatsappSchema(db) {
         'CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_tags_company_name ON whatsapp_tags (company_id, name)',
         'CREATE INDEX IF NOT EXISTS idx_whatsapp_tags_conversation ON whatsapp_conversation_tags (company_id, conversation_id)',
         'CREATE INDEX IF NOT EXISTS idx_whatsapp_notes_conversation ON whatsapp_conversation_notes (company_id, conversation_id)',
-        `INSERT OR IGNORE INTO permission_modules (code, name, description)
-         VALUES ('whatsapp', 'WhatsApp / Mensajeria', 'Bandeja CRM para WhatsApp Business Cloud API')`,
+        `INSERT INTO permission_modules (code, name, description)
+         VALUES ('whatsapp', 'WhatsApp / Mensajeria', 'Bandeja CRM para WhatsApp Business Cloud API')
+         ON CONFLICT (code) DO NOTHING`,
         `INSERT OR IGNORE INTO module_actions (module_id, action_id)
          SELECT pm.id, pa.id
          FROM permission_modules pm, permission_actions pa

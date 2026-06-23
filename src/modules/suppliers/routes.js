@@ -412,7 +412,7 @@ function registerSupplierRoutes(app, deps) {
 }
 
 async function ensureSupplierSchema(db) {
-  await runDb(db, `INSERT OR IGNORE INTO permission_modules (code, name, description) VALUES ('suppliers', 'Proveedores', 'Gestion de proveedores nacionales e internacionales')`);
+  await runDb(db, `INSERT INTO permission_modules (code, name, description) VALUES ('suppliers', 'Proveedores', 'Gestion de proveedores nacionales e internacionales') ON CONFLICT (code) DO NOTHING`);
   await runDb(db, `INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
     ('view','Ver','Acceso de lectura'), ('create','Crear','Crear proveedores'), ('edit','Editar','Editar proveedores'),
     ('delete','Inactivar','Inactivar proveedores'), ('approve','Aprobar','Aprobar proveedores'), ('block','Bloquear','Bloquear proveedores'),
