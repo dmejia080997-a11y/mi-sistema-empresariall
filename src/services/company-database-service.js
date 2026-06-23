@@ -1,10 +1,15 @@
 const { Pool } = require('pg');
+const {
+  TENANT_MIGRATIONS_DIR,
+  applyDirectoryMigrations
+} = require('./migration-service');
 
 const TENANT_EXCLUDED_TABLES = new Set([
   'companies',
   'company_inactivation_notes',
   'business_activities',
-  'migration_events'
+  'migration_events',
+  'schema_migrations'
 ]);
 
 function sqliteGet(db, sql, params = []) {
@@ -290,6 +295,11 @@ function createCompanyDatabaseService(options) {
       if (!columns.length) continue;
       await pool.query(buildCreateTableSql(tableName, columns));
     }
+    await applyDirectoryMigrations(
+      pool,
+      TENANT_MIGRATIONS_DIR,
+      'tenant:nuevo'
+    );
   }
 
   async function getCompanyDatabase(companyId) {

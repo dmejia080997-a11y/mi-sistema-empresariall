@@ -1,13 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-npm run backup
+npm run backup:all
 git pull origin main
 npm install
-
-if npm run | grep -qE '^[[:space:]]*migrate$'; then
-  npm run migrate
-fi
-
-pm2 restart all
+npm run migrate:safe
+pm2 restart all --update-env
 pm2 save

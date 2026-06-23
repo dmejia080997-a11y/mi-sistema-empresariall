@@ -13,7 +13,8 @@ const TENANT_EXCLUDED_TABLES = new Set([
   'companies',
   'company_inactivation_notes',
   'business_activities',
-  'migration_events'
+  'migration_events',
+  'schema_migrations'
 ]);
 
 const RELATED_COPY_RULES = {
