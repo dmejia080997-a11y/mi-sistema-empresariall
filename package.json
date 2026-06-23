@@ -8,6 +8,8 @@
     "dev": "nodemon server.js",
     "backup": "node scripts/backup.js",
     "backup:all": "node tools/backup_all.js",
+    "restore:test": "node tools/restore_test.js",
+    "alerts:check": "node tools/health_alerts.js",
     "db:active": "node tools/db_active.js",
     "migrate-uploads": "node tools/migrate_uploads.js",
     "db:test": "node tools/db_test.js",

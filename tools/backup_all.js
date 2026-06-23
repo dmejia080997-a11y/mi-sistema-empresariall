@@ -5,6 +5,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { Pool } = require('pg');
 const { getDatabaseConfig } = require('../src/config/database');
+const { sendAdminAlert, logAlert } = require('./alerts');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const BACKUP_DIR = path.join(ROOT_DIR, 'storage', 'backups', 'postgres');
@@ -38,6 +39,13 @@ function formatBytes(bytes) {
 function log(line) {
   const text = `[${new Date().toISOString()}] ${line}`;
   fs.appendFileSync(LOG_FILE, `${text}\n`);
+}
+
+async function notifyBackupFailure(message, details = {}) {
+  logAlert(`backup alert: ${message}`);
+  await sendAdminAlert('[ALERTA] Backup fallo', message, details).catch((err) => {
+    logAlert(`backup alert send failed: ${err && err.message ? err.message : err}`);
+  });
 }
 
 function ensureDirs() {
@@ -295,6 +303,11 @@ async function main() {
     console.log(`Resultado final: ${manifest.status}`);
 
     if (manifest.errors.length) {
+      await notifyBackupFailure('El backup empresarial termino con errores.', {
+        status: manifest.status,
+        errors: manifest.errors,
+        archive: archivePath
+      });
       process.exitCode = 1;
     }
   } catch (err) {
@@ -304,6 +317,10 @@ async function main() {
     manifest.errors.push({ error: message });
     writeManifest(stagingDir, manifest);
     log(`backup failed error=${message}`);
+    await notifyBackupFailure('El backup empresarial fallo.', {
+      status: manifest.status,
+      error: message
+    });
     console.error('Backup failed.');
     console.error(message);
     process.exitCode = 1;
