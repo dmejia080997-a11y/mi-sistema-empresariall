@@ -86,6 +86,15 @@ app.post('/users/create', requireAuth, requirePermission('users', 'create'), (re
 
   const passwordHash = bcrypt.hashSync(tempPassword, 10);
   console.log(`[users/create] check username=${safeUsername} company_id=${companyId}`);
+  const maxUsers = Math.max(1, Number(companySettings.license_max_users || 5));
+  db.get(
+    'SELECT COUNT(*) AS total FROM users WHERE company_id = ?',
+    [companyId],
+    (countErr, countRow) => {
+      if (countErr) return renderUsers(req, res, res.locals.t('errors.user_create_failed'));
+      if (Number(countRow && countRow.total || 0) >= maxUsers) {
+        return renderUsers(req, res, `Limite de licencia alcanzado: ${maxUsers} usuarios.`);
+      }
   db.get(
     'SELECT id FROM users WHERE company_id = ? AND username = ?',
     [companyId, safeUsername],
@@ -201,6 +210,8 @@ app.post('/users/create', requireAuth, requirePermission('users', 'create'), (re
           });
         }
       );
+    }
+  );
     }
   );
 });

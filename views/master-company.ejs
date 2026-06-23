@@ -141,6 +141,7 @@
           <span class="company-section-menu__company"><%= company.name || 'Empresa' %></span>
         </div>
         <button type="button" class="active" data-section="estado-empresa">Estado de la empresa</button>
+        <button type="button" data-section="licencia">Licencia SaaS</button>
         <button type="button" data-section="datos-generales">Datos generales</button>
         <button type="button" data-section="contactos">Contactos</button>
         <button type="button" data-section="usuarios">Usuarios asociados</button>
@@ -241,6 +242,47 @@
               <% } %>
             </section>
           </div>
+        </section>
+
+        <section class="company-section-panel" data-panel="licencia" hidden>
+          <section class="company-detail-card app-card company-form-card">
+            <div class="app-card-header">
+              <div>
+                <h2 class="company-detail-section-title">Licencia SaaS</h2>
+                <p class="muted">Plan, limites y vigencia comercial de la empresa.</p>
+              </div>
+            </div>
+            <div class="master-detail-grid company-form-grid">
+              <label class="app-field">Plan
+                <select name="license_plan">
+                  <% ['Basico', 'Profesional', 'Empresarial'].forEach(plan => { %>
+                  <option value="<%= plan %>" <%= (company.license_plan || 'Basico') === plan ? 'selected' : '' %>><%= plan %></option>
+                  <% }) %>
+                </select>
+              </label>
+              <label class="app-field">Estado
+                <select name="license_status">
+                  <option value="active" <%= (company.license_status || 'active') === 'active' ? 'selected' : '' %>>Activa</option>
+                  <option value="suspended" <%= company.license_status === 'suspended' ? 'selected' : '' %>>Suspendida</option>
+                </select>
+              </label>
+              <label class="app-field">Fecha inicio
+                <input type="date" name="license_starts_at" value="<%= company.license_starts_at ? String(company.license_starts_at).slice(0,10) : '' %>">
+              </label>
+              <label class="app-field">Fecha vencimiento
+                <input type="date" name="license_ends_at" value="<%= company.license_ends_at ? String(company.license_ends_at).slice(0,10) : '' %>">
+              </label>
+              <label class="app-field">Usuarios maximos
+                <input type="number" min="1" name="license_max_users" value="<%= company.license_max_users || 5 %>">
+              </label>
+              <label class="app-field master-field-wide">Modulos permitidos
+                <input type="text" name="license_allowed_modules" value="<%= company.license_allowed_modules || company.allowed_modules || '' %>" placeholder="inventory,sales,accounting">
+              </label>
+            </div>
+            <div class="company-panel-actions">
+              <button class="btn primary app-btn app-btn-primary" type="submit" formaction="/master/companies/<%= company.id %>/license" formmethod="POST" formenctype="application/x-www-form-urlencoded" formnovalidate>Guardar licencia</button>
+            </div>
+          </section>
         </section>
 
         <section class="company-section-panel" data-panel="datos-generales" hidden>

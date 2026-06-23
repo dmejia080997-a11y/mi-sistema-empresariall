@@ -12,6 +12,8 @@
     "alerts:check": "node tools/health_alerts.js",
     "modules:check": "node tools/modules_check.js",
     "modules:dedupe": "node tools/modules_dedupe.js",
+    "system:health": "node tools/system_health.js",
+    "licenses:check": "node tools/licenses_check.js",
     "db:active": "node tools/db_active.js",
     "migrate-uploads": "node tools/migrate_uploads.js",
     "db:test": "node tools/db_test.js",

@@ -32,6 +32,8 @@ function registerCompanyRoutes(app, deps) {
     seedAccountingCategories,
     seedNifCatalog,
     companyDatabaseService,
+    masterSaasService,
+    getClientIp,
     getIsStartingUp
   } = deps;
 
@@ -613,6 +615,16 @@ function registerCompanyRoutes(app, deps) {
               return res.redirect(redirectTarget);
             }
             const refreshSessionAndRedirect = () => {
+              if (masterSaasService) {
+                masterSaasService.logGlobalAudit(db, {
+                  company_id: Number(id),
+                  user_name: req.session && req.session.masterUser ? req.session.masterUser.username : 'master',
+                  action: 'edit_company',
+                  module: 'companies',
+                  description: `Empresa editada: ${name}`,
+                  ip_address: typeof getClientIp === 'function' ? getClientIp(req) : req.ip
+                });
+              }
               setFlash(req, 'success', req.file ? 'Logo y cambios guardados correctamente.' : 'Cambios guardados correctamente.');
               return res.redirect(redirectTarget);
             };

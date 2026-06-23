@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="<%= typeof lang !== 'undefined' ? lang : 'es' %>">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Master - Backups</title><%- include('partials/head-assets') %></head>
+<body class="page master-shell-page">
+<%- include('partials/header', { headerBrandText: 'Panel Master', homeHref: '/master', showDefaultNav: false, headerActionsHtml: `<nav class="master-tabs"><a href="/master">Empresas</a><a href="/master/monitoring">Monitoreo</a><a href="/master/backups" class="is-active">Backups</a><a href="/master/audit">Auditoria</a></nav><a href="/master/logout" class="btn app-btn">Cerrar sesion</a>` }) %>
+<main class="container master-page">
+  <div class="page-header app-page-header"><div><p class="app-page-eyebrow">Master</p><h1>Backups</h1><p class="muted">Respaldos generales del entorno multi-tenant.</p></div><form action="/master/backups/run" method="POST"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn primary app-btn app-btn-primary">Ejecutar backup ahora</button></form></div>
+  <% if (flash && flash.message) { %><div class="app-message app-message-<%= flash.type || 'info' %>"><%= flash.message %></div><% } %>
+  <section class="app-card"><h2 class="app-card-title">Ultimo backup general</h2><p><strong><%= latestBackup ? latestBackup.name : 'Sin backup' %></strong></p><p class="muted"><%= latestBackup ? `${latestBackup.sizeLabel} - ${latestBackup.createdAtLabel}` : '-' %></p></section>
+  <section class="app-card"><h2 class="app-card-title">Backups recientes</h2><div class="app-table-wrap"><table class="app-table"><thead><tr><th>Archivo</th><th>Tamano</th><th>Fecha</th><th>Estado</th></tr></thead><tbody><% backups.slice(0,30).forEach(b => { %><tr><td><%= b.name %></td><td><%= b.sizeLabel %></td><td><%= b.createdAtLabel %></td><td>Registrado</td></tr><% }) %></tbody></table></div></section>
+</main>
+</body></html>

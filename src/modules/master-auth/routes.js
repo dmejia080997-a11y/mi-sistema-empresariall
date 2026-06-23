@@ -10,7 +10,9 @@ function registerMasterAuthRoutes(app, deps) {
     MASTER_PASS,
     DEFAULT_LANG,
     SUPPORTED_LANGS,
-    SESSION_COOKIE_NAME
+    SESSION_COOKIE_NAME,
+    db,
+    masterSaasService
   } = deps;
 
   app.get('/master/login', (req, res) => {
@@ -46,6 +48,16 @@ function registerMasterAuthRoutes(app, deps) {
         }
         req.session.lang = SUPPORTED_LANGS[previousLang] ? previousLang : DEFAULT_LANG;
         req.session.master = true;
+        req.session.masterUser = { username };
+        if (masterSaasService && db) {
+          masterSaasService.logGlobalAudit(db, {
+            user_name: username,
+            action: 'login',
+            module: 'master',
+            description: 'Login Master',
+            ip_address: getClientIp(req)
+          });
+        }
         return res.redirect('/master');
       });
     }
@@ -58,6 +70,16 @@ function registerMasterAuthRoutes(app, deps) {
     }
     if (!req.session) {
       return res.redirect('/master/login');
+    }
+    const userName = req.session.masterUser && req.session.masterUser.username ? req.session.masterUser.username : 'master';
+    if (masterSaasService && db) {
+      masterSaasService.logGlobalAudit(db, {
+        user_name: userName,
+        action: 'logout',
+        module: 'master',
+        description: 'Logout Master',
+        ip_address: getClientIp(req)
+      });
     }
     return req.session.destroy((err) => {
       if (err) {

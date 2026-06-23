@@ -960,6 +960,28 @@ nav.master-tabs {
   cursor: not-allowed;
 }
 
+.master-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.master-kpi-grid > .app-card {
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+}
+
+.master-kpi-grid > .app-card strong {
+  font-size: 1.35rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
 .company-detail-layout,
 .company-detail-sidebar,
 .company-detail-main,

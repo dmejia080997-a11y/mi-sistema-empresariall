@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Panel Master - Empresas</title>
+<title>Panel Master SaaS</title>
 <%- include('partials/head-assets') %>
 </head>
 <body class="page master-shell-page">
@@ -14,298 +14,121 @@
   headerActionsHtml: `
     <nav class="master-tabs" aria-label="Navegacion Master">
       <a href="/master" class="is-active">Empresas</a>
+      <a href="/master/monitoring">Monitoreo</a>
+      <a href="/master/backups">Backups</a>
+      <a href="/master/audit">Auditoria</a>
       <a href="/master/activities">Actividad</a>
     </nav>
     <a href="/master/logout" class="btn app-btn">Cerrar sesion</a>
   `
 }) %>
 
-<main class="container master-page master-company-list-page companies-module">
+<main class="container master-page">
   <div class="master-hero page-header app-page-header">
     <div class="app-page-header__content">
-      <p class="master-eyebrow app-page-eyebrow">Panel master</p>
-      <h1>Empresas</h1>
-      <p class="master-sub muted">Administra empresas, credenciales y el estado operativo de cada cuenta.</p>
+      <p class="master-eyebrow app-page-eyebrow">SaaS Control Center</p>
+      <h1>Administracion del sistema</h1>
+      <p class="master-sub muted">Clientes, licencias, tenants PostgreSQL, backups y salud tecnica.</p>
     </div>
     <div class="master-hero-actions app-page-actions">
-      <a href="/companies" class="btn primary app-btn app-btn-primary">Crear nueva empresa</a>
-      <a href="/master/activities" class="btn app-btn">Configurar actividades</a>
+      <a href="/companies" class="btn primary app-btn app-btn-primary">Crear empresa</a>
+      <a href="/master/monitoring" class="btn app-btn">Monitoreo</a>
     </div>
   </div>
 
   <% if (flash && flash.message) { %>
-  <div class="alert app-message app-message-<%= flash.type || 'info' %> <%= flash.type || '' %> app-flow-item">
-    <%= flash.message %>
-  </div>
+  <div class="alert app-message app-message-<%= flash.type || 'info' %> <%= flash.type || '' %>"><%= flash.message %></div>
   <% } %>
-
   <% if (tempReset && tempReset.password) { %>
-  <div class="master-card master-card--success app-card app-message app-message-success app-flow-item">
+  <div class="app-card app-message app-message-success">
     <strong>Credenciales temporales generadas</strong>
     <span>Empresa ID: <%= tempReset.company_id %></span>
     <span>Contrasena temporal: <code><%= tempReset.password %></code></span>
   </div>
   <% } %>
 
-  <section class="master-card master-reset-card app-card" aria-labelledby="master-reset-title">
-    <div class="app-card-header master-reset-card__header">
-      <div class="master-reset-card__heading">
-        <h2 id="master-reset-title" class="app-card-title">Restablecer acceso de usuario</h2>
-        <p class="muted">Actualiza la contrasena de un usuario dentro de una empresa.</p>
-      </div>
-      <span class="app-chip">Soporte rapido</span>
-    </div>
-    <p class="master-reset-note">Usa este formulario cuando un usuario no pueda entrar y necesites asignarle una nueva contrasena sin salir del panel master.</p>
-    <form action="/master/reset-user-password" method="POST" class="app-form-grid app-form-grid-fluid master-reset-form">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-      <label class="app-field">
-        <span>ID de empresa</span>
-        <input type="number" name="company_id" placeholder="Ej: 12" inputmode="numeric" autocomplete="off" required>
-      </label>
-      <label class="app-field">
-        <span>Usuario</span>
-        <input type="text" name="username" placeholder="Ej: admin" autocomplete="username" required>
-      </label>
-      <label class="app-field">
-        <span>Nueva contrasena</span>
-        <input type="password" name="password" placeholder="Nueva contrasena" autocomplete="new-password" required>
-      </label>
-      <button class="btn app-btn app-btn-secondary">Restablecer acceso</button>
-    </form>
+  <section class="app-kpi-grid master-kpi-grid">
+    <article class="app-card"><span class="muted">Empresas activas</span><strong><%= stats.activeCompanies %></strong></article>
+    <article class="app-card"><span class="muted">Suspendidas</span><strong><%= stats.suspendedCompanies %></strong></article>
+    <article class="app-card"><span class="muted">Vencidas</span><strong><%= stats.expiredCompanies %></strong></article>
+    <article class="app-card"><span class="muted">Usuarios totales</span><strong><%= stats.totalUsers %></strong></article>
+    <article class="app-card"><span class="muted">Espacio utilizado</span><strong><%= stats.totalStorageLabel %></strong></article>
+    <article class="app-card"><span class="muted">Ultimo backup</span><strong><%= latestBackup ? latestBackup.createdAtLabel : 'Sin backup' %></strong></article>
+    <article class="app-card"><span class="muted">PostgreSQL</span><strong><%= health.postgres.label %></strong></article>
+    <article class="app-card"><span class="muted">PM2</span><strong><%= health.pm2.label %></strong></article>
+    <article class="app-card"><span class="muted">Cron</span><strong><%= health.cron.label %></strong></article>
+    <article class="app-card"><span class="muted">Uptime</span><strong><%= health.uptime %></strong></article>
   </section>
 
-  <section class="app-toolbar master-list-toolbar" aria-label="Filtros de empresas">
-    <div class="app-filter-grid">
-      <label class="app-field">
-        <span>Buscar</span>
-        <input type="search" data-master-search placeholder="Nombre, NIT, usuario o direccion">
-      </label>
-      <label class="app-field">
-        <span>Estado</span>
-        <select data-master-status>
-          <option value="">Todos los estados</option>
-          <option value="active">Activas</option>
-          <option value="inactive">Inactivas</option>
-          <option value="expired">Vencidas</option>
-        </select>
-      </label>
-    </div>
-  </section>
-
-  <section aria-labelledby="master-companies-title">
-    <div class="app-card-header master-section-heading">
+  <section class="app-card">
+    <div class="app-card-header">
       <div>
-        <h2 id="master-companies-title" class="app-card-title">Empresas registradas</h2>
-        <p class="muted">Listado maestro con accesos, vigencias y acciones administrativas.</p>
+        <h2 class="app-card-title">Empresas</h2>
+        <p class="muted">Estado comercial, tecnico y de licencia por tenant.</p>
       </div>
-      <span class="app-chip"><%= (companies || []).length %> empresas</span>
+      <span class="app-chip"><%= companies.length %> empresas</span>
     </div>
-
-    <div class="master-table-wrap master-table-scroll app-table-wrap">
-      <table class="master-table app-table">
-        <colgroup>
-          <col style="width: 4%">
-          <col style="width: 11%">
-          <col style="width: 15%">
-          <col style="width: 9%">
-          <col style="width: 8%">
-          <col style="width: 9%">
-          <col style="width: 6%">
-          <col style="width: 6%">
-          <col style="width: 8%">
-          <col style="width: 8%">
-          <col style="width: 7%">
-          <col style="width: 12%">
-          <col style="width: 7%">
-        </colgroup>
+    <div class="app-table-wrap master-table-scroll">
+      <table class="app-table master-table">
         <thead>
           <tr>
-            <th class="col-id">ID</th>
-            <th class="col-company">Empresa</th>
-            <th class="col-address">Direccion</th>
-            <th class="col-user">Usuario</th>
-            <th class="col-nit">NIT</th>
-            <th class="col-business-type">Tipo</th>
-            <th class="col-currency">Moneda</th>
-            <th class="col-users">Usuarios</th>
-            <th class="col-date">Inicio</th>
-            <th class="col-date">Vence</th>
-            <th class="col-status">Estado</th>
-            <th class="col-actions">Acciones</th>
-            <th class="col-anular">Anular</th>
+            <th>ID</th>
+            <th>Empresa</th>
+            <th>Plan</th>
+            <th>Usuarios</th>
+            <th>Max</th>
+            <th>Espacio</th>
+            <th>Ultimo backup</th>
+            <th>Base PostgreSQL</th>
+            <th>Inicio</th>
+            <th>Vencimiento</th>
+            <th>Licencia</th>
+            <th>Salud</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
-          <% if (!companies || companies.length === 0) { %>
-          <tr>
-            <td colspan="13">
-              <div class="app-empty-state">No hay empresas registradas.</div>
-            </td>
-          </tr>
+          <% if (!companies.length) { %>
+          <tr><td colspan="13"><div class="app-empty-state">No hay empresas registradas.</div></td></tr>
           <% } %>
-          <% (companies || []).forEach(company => { %>
-          <tr data-company-row data-status="<%= company.status || 'active' %>" data-search="<%= [company.id, company.name, company.address, company.username, company.nit, company.business_type, company.legal_name, company.tax_address, company.base_currency || company.currency].filter(Boolean).join(' ').toLowerCase() %>">
-            <td class="col-id" data-label="ID"><%= company.id %></td>
-            <td class="col-company" data-label="Empresa">
-              <strong><%= company.name %></strong>
-              <% if (company.legal_name) { %>
-              <div class="muted"><%= company.legal_name %></div>
-              <% } %>
+          <% companies.forEach(company => { %>
+          <tr>
+            <td><%= company.id %></td>
+            <td><strong><%= company.name %></strong><div class="muted"><%= company.nit || company.username || '-' %></div></td>
+            <td><%= company.plan %></td>
+            <td><%= company.users_count || 0 %></td>
+            <td><%= company.users_max || '-' %></td>
+            <td><%= company.storage_used_label %></td>
+            <td><%= company.last_backup || '-' %></td>
+            <td><%= company.database_name || '-' %></td>
+            <td><%= company.license_starts_at || company.active_from || '-' %></td>
+            <td><%= company.license_ends_at || company.active_until || '-' %></td>
+            <td>
+              <span class="app-badge <%= company.license_status_computed === 'expired' ? 'app-badge-danger' : company.license_status_computed === 'suspended' || company.license_status_computed === 'expiring' ? 'app-badge-warning' : 'app-badge-success' %>">
+                <%= company.license_status_label %>
+              </span>
             </td>
-            <td class="col-address" data-label="Direccion"><%= company.address || '-' %></td>
-            <td class="col-user" data-label="Usuario"><%= company.username || '-' %></td>
-            <td class="col-nit" data-label="NIT"><%= company.nit || '-' %></td>
-            <td class="col-business-type" data-label="Tipo"><%= company.business_type || '-' %></td>
-            <td class="col-currency" data-label="Moneda"><%= company.base_currency || company.currency || '-' %></td>
-            <td class="col-users" data-label="Usuarios"><%= company.users_count || 0 %></td>
-            <td class="col-date" data-label="Inicio"><%= company.active_from || '-' %></td>
-            <td class="col-date" data-label="Vence"><%= company.active_until || '-' %></td>
-            <td class="col-status" data-label="Estado">
-              <% if (company.status === 'inactive') { %>
-              <span class="badge app-badge app-badge-warning badge--inactive">Inactiva</span>
-              <% } else if (company.status === 'expired') { %>
-              <span class="badge app-badge app-badge-danger badge--expired">Vencida</span>
-              <% } else { %>
-              <span class="badge app-badge app-badge-success badge--active">Activa</span>
-              <% } %>
+            <td>
+              <span class="app-badge <%= company.health === 'red' ? 'app-badge-danger' : company.health === 'yellow' ? 'app-badge-warning' : 'app-badge-success' %>">
+                <%= company.health === 'red' ? 'Rojo' : company.health === 'yellow' ? 'Amarillo' : 'Verde' %>
+              </span>
             </td>
-            <td class="col-actions" data-label="Acciones">
-              <div class="actions app-table-actions master-actions">
+            <td>
+              <div class="actions app-table-actions">
                 <a href="/master/companies/<%= company.id %>" class="btn app-btn app-btn-small">Ver</a>
                 <form action="/master/companies/<%= company.id %>/enter" method="POST">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                   <button class="btn app-btn app-btn-small">Entrar</button>
                 </form>
-                <form action="/master/companies/<%= company.id %>/reset-credentials" method="POST">
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                  <button class="btn app-btn app-btn-small">Restablecer clave</button>
-                </form>
               </div>
-            </td>
-            <td class="col-anular" data-label="Anular">
-              <% if (company.status === 'inactive') { %>
-              <form action="/master/companies/<%= company.id %>/reactivate" method="POST">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                <input type="hidden" name="return_to" value="/master" />
-                <button class="btn app-btn app-btn-success app-btn-small">Reactivar</button>
-              </form>
-              <% } else { %>
-              <details class="action-details master-action-details">
-                <summary>Anular</summary>
-                <form action="/master/companies/<%= company.id %>/deactivate" method="POST">
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                  <input type="hidden" name="return_to" value="/master" />
-                  <textarea name="inactive_reason" placeholder="Motivo de anulacion" required></textarea>
-                  <button class="btn danger app-btn app-btn-danger app-btn-small">Confirmar</button>
-                </form>
-              </details>
-              <% } %>
             </td>
           </tr>
           <% }) %>
         </tbody>
       </table>
     </div>
-
-    <div class="master-company-cards" data-master-card-list>
-      <% if (!companies || companies.length === 0) { %>
-      <div class="app-empty-state">No hay empresas registradas.</div>
-      <% } %>
-      <% (companies || []).forEach(company => { %>
-      <article class="master-company-card app-card" data-company-card data-status="<%= company.status || 'active' %>" data-search="<%= [company.id, company.name, company.address, company.username, company.nit, company.business_type, company.legal_name, company.tax_address, company.base_currency || company.currency].filter(Boolean).join(' ').toLowerCase() %>">
-        <div class="master-company-card__header">
-          <div>
-            <span class="app-chip">ID <%= company.id %></span>
-            <h3><%= company.name %></h3>
-            <p class="muted"><%= company.legal_name || company.business_type || 'Empresa registrada' %></p>
-          </div>
-          <% if (company.status === 'inactive') { %>
-          <span class="badge app-badge app-badge-warning">Inactiva</span>
-          <% } else if (company.status === 'expired') { %>
-          <span class="badge app-badge app-badge-danger">Vencida</span>
-          <% } else { %>
-          <span class="badge app-badge app-badge-success">Activa</span>
-          <% } %>
-        </div>
-        <dl class="master-company-card__meta master-company-card__meta--full">
-          <div><dt>Empresa</dt><dd><%= company.name || '-' %></dd></div>
-          <div><dt>Direccion</dt><dd><%= company.address || '-' %></dd></div>
-          <div><dt>Usuario</dt><dd><%= company.username || '-' %></dd></div>
-          <div><dt>NIT</dt><dd><%= company.nit || '-' %></dd></div>
-          <div><dt>Tipo</dt><dd><%= company.business_type || '-' %></dd></div>
-          <div><dt>Moneda</dt><dd><%= company.base_currency || company.currency || '-' %></dd></div>
-          <div><dt>Usuarios</dt><dd><%= company.users_count || 0 %></dd></div>
-          <div><dt>Inicio</dt><dd><%= company.active_from || '-' %></dd></div>
-          <div><dt>Vence</dt><dd><%= company.active_until || '-' %></dd></div>
-          <div><dt>Estado</dt><dd><%= company.status === 'inactive' ? 'Inactiva' : company.status === 'expired' ? 'Vencida' : 'Activa' %></dd></div>
-        </dl>
-        <div class="master-company-card__action-groups">
-          <section class="master-company-card__action-group" aria-label="Acciones">
-            <h4 class="master-company-card__section-title">Acciones</h4>
-            <div class="actions master-company-card__actions">
-              <a href="/master/companies/<%= company.id %>" class="btn app-btn">Ver</a>
-              <form action="/master/companies/<%= company.id %>/enter" method="POST">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                <button class="btn app-btn">Entrar</button>
-              </form>
-              <form action="/master/companies/<%= company.id %>/reset-credentials" method="POST">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                <button class="btn app-btn">Restablecer clave</button>
-              </form>
-            </div>
-          </section>
-          <section class="master-company-card__action-group" aria-label="Anular">
-            <h4 class="master-company-card__section-title">Anular</h4>
-            <% if (company.status === 'inactive') { %>
-            <form action="/master/companies/<%= company.id %>/reactivate" method="POST">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-              <input type="hidden" name="return_to" value="/master" />
-              <button class="btn app-btn app-btn-success">Reactivar</button>
-            </form>
-            <% } else { %>
-            <details class="action-details master-company-card__danger">
-              <summary>Anular</summary>
-              <form action="/master/companies/<%= company.id %>/deactivate" method="POST">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                <input type="hidden" name="return_to" value="/master" />
-                <textarea name="inactive_reason" placeholder="Motivo de anulacion" required></textarea>
-                <button class="btn danger app-btn app-btn-danger app-btn-small">Confirmar</button>
-              </form>
-            </details>
-            <% } %>
-          </section>
-        </div>
-      </article>
-      <% }) %>
-    </div>
   </section>
 </main>
-
-<script>
-  (function () {
-    const searchInput = document.querySelector('[data-master-search]');
-    const statusSelect = document.querySelector('[data-master-status]');
-    const rows = Array.from(document.querySelectorAll('[data-company-row]'));
-    const cards = Array.from(document.querySelectorAll('[data-company-card]'));
-
-    function normalize(value) {
-      return String(value || '').trim().toLowerCase();
-    }
-
-    function applyFilters() {
-      const query = normalize(searchInput && searchInput.value);
-      const status = normalize(statusSelect && statusSelect.value);
-      [...rows, ...cards].forEach((item) => {
-        const matchesSearch = !query || normalize(item.dataset.search).includes(query);
-        const matchesStatus = !status || normalize(item.dataset.status) === status;
-        item.hidden = !(matchesSearch && matchesStatus);
-      });
-    }
-
-    if (searchInput) searchInput.addEventListener('input', applyFilters);
-    if (statusSelect) statusSelect.addEventListener('change', applyFilters);
-  })();
-</script>
 <script src="/status-footer.js" defer></script>
 </body>
 </html>

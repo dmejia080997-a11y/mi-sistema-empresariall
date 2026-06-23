@@ -65,6 +65,7 @@ const { registerMasterAuthRoutes } = require('./src/modules/master-auth/routes')
 const { registerMasterCompanyRoutes } = require('./src/modules/master-companies/routes');
 const { createAccountingAutomation } = require('./src/services/accounting-automation');
 const { createCompanyDatabaseService } = require('./src/services/company-database-service');
+const masterSaasService = require('./src/services/master-saas-service');
 const { createAppDatabase, getActiveDatabaseInfo } = require('./src/config/database');
 const QRCode = require('qrcode');
 const PDFDocument = require('pdfkit');
@@ -1201,6 +1202,9 @@ function enqueueDbTransaction(run) {
 }
 
 app.use((req, res, next) => {
+  if ((req.path || '').startsWith('/master') || (req.path || '').startsWith('/companies')) {
+    return next();
+  }
   const companyId = req.session && req.session.user ? getCompanyId(req) : null;
   if (!companyId) return next();
 
@@ -4043,8 +4047,15 @@ db.serialize(() => {
     { name: 'database_user', type: 'TEXT' },
     { name: 'database_password_ref', type: 'TEXT' },
     { name: 'database_type', type: 'TEXT' },
-    { name: 'database_status', type: 'TEXT' }
+    { name: 'database_status', type: 'TEXT' },
+    { name: 'license_plan', type: "TEXT NOT NULL DEFAULT 'Basico'" },
+    { name: 'license_starts_at', type: 'DATE' },
+    { name: 'license_ends_at', type: 'DATE' },
+    { name: 'license_max_users', type: 'INTEGER NOT NULL DEFAULT 5' },
+    { name: 'license_allowed_modules', type: 'TEXT' },
+    { name: 'license_status', type: "TEXT NOT NULL DEFAULT 'active'" }
   ]);
+  masterSaasService.ensureGlobalAuditTable(db).catch((err) => console.error('[global-audit] ensure failed', err));
   db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_username ON companies (username)');
 
   ensureColumn('users', 'is_active', 'INTEGER NOT NULL DEFAULT 1');
@@ -8483,8 +8494,8 @@ function getTodayDateOnly() {
 }
 
 function isCompanyExpired(company) {
-  if (!company || !company.active_until) return false;
-  const untilDate = parseDateOnly(company.active_until);
+  if (!company || (!company.active_until && !company.license_ends_at)) return false;
+  const untilDate = parseDateOnly(company.license_ends_at || company.active_until);
   if (!untilDate) return false;
   return getTodayDateOnly() > untilDate;
 }
@@ -11283,7 +11294,9 @@ registerAuthRoutes(app, {
   SUPPORTED_LANGS,
   SESSION_COOKIE_NAME,
   companyDatabaseService,
-  runWithTenantDatabase
+  runWithTenantDatabase,
+  masterSaasService,
+  masterDb
 });
 
 registerMasterAuthRoutes(app, {
@@ -11297,7 +11310,9 @@ registerMasterAuthRoutes(app, {
   MASTER_PASS,
   DEFAULT_LANG,
   SUPPORTED_LANGS,
-  SESSION_COOKIE_NAME
+  SESSION_COOKIE_NAME,
+  db,
+  masterSaasService
 });
 
 app.get('/api/locations/countries', requireAuth, (req, res) => {
@@ -11424,6 +11439,8 @@ registerCompanyRoutes(app, {
   seedNifCatalog,
   companyDatabaseService,
   runWithTenantDatabase,
+  masterSaasService,
+  getClientIp,
   getIsStartingUp: () => isStartingUp
 });
 
@@ -11446,6 +11463,8 @@ registerMasterCompanyRoutes(app, {
   seedNifCatalog,
   companyDatabaseService,
   runWithTenantDatabase,
+  masterSaasService,
+  getClientIp,
   getIsStartingUp: () => isStartingUp
 });
 
@@ -11863,7 +11882,10 @@ registerMasterActivitiesRoutes(app, {
 registerMasterRoutes(app, {
   db,
   requireMaster,
-  buildCompanyStatus
+  buildCompanyStatus,
+  setFlash,
+  getClientIp,
+  masterSaasService
 });
 
 app.get('/dashboard', requireAuth, requirePermission('dashboard', 'view'), (req, res) => {

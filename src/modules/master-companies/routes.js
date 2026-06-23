@@ -20,6 +20,8 @@ function registerMasterCompanyRoutes(app, deps) {
     seedNifCatalog,
     companyDatabaseService,
     runWithTenantDatabase,
+    masterSaasService,
+    getClientIp,
     getIsStartingUp
   } = deps;
 
@@ -279,6 +281,16 @@ function registerMasterCompanyRoutes(app, deps) {
         }
 
         const companyId = this.lastID;
+        if (masterSaasService) {
+          masterSaasService.logGlobalAudit(db, {
+            company_id: companyId,
+            user_name: req.session && req.session.masterUser ? req.session.masterUser.username : 'master',
+            action: 'create_company',
+            module: 'companies',
+            description: `Empresa creada: ${name}`,
+            ip_address: typeof getClientIp === 'function' ? getClientIp(req) : req.ip
+          });
+        }
         const rollbackCreatedCompany = async (error) => {
           console.error('[master/create-company] provisioning finalize failed', error);
           try {
@@ -384,10 +396,6 @@ function registerMasterCompanyRoutes(app, deps) {
       if (companyErr || !company) {
         return res.redirect('/master');
       }
-      if (company.is_active === 0 || company.is_active === '0') {
-        setFlash(req, 'error', 'La empresa esta inactiva y no puede ingresar.');
-        return res.redirect('/master');
-      }
       Promise.resolve()
         .then(() => {
           if (!companyDatabaseService || typeof companyDatabaseService.getCompanyDatabase !== 'function') {
@@ -441,6 +449,10 @@ function registerMasterCompanyRoutes(app, deps) {
             database_name: company.database_name || null,
             database_type: company.database_type || null,
             database_status: company.database_status || null,
+            license_plan: company.license_plan || 'Basico',
+            license_max_users: company.license_max_users || 5,
+            license_status: company.license_status || 'active',
+            license_ends_at: company.license_ends_at || null,
             allowed_modules: (() => {
               const raw = parseJsonList(company.allowed_modules);
               return raw.length ? normalizeAllowedModules(raw) : null;
@@ -529,7 +541,63 @@ function registerMasterCompanyRoutes(app, deps) {
       'UPDATE companies SET active_from = ?, active_until = ? WHERE id = ?',
       [active_from, active_until, id],
       () => {
+        if (masterSaasService) {
+          masterSaasService.logGlobalAudit(db, {
+            company_id: id,
+            user_name: req.session && req.session.masterUser ? req.session.masterUser.username : 'master',
+            action: 'change_license',
+            module: 'licenses',
+            description: `Vigencia renovada: ${active_from || '-'} a ${active_until || '-'}`,
+            ip_address: typeof getClientIp === 'function' ? getClientIp(req) : req.ip
+          });
+        }
         setFlash(req, 'success', 'Empresa renovada correctamente.');
+        return res.redirect(`/master/companies/${id}`);
+      }
+    );
+  });
+
+  app.post('/master/companies/:id/license', requireMaster, (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.redirect('/master');
+    const plan = ['Basico', 'Profesional', 'Empresarial'].includes(req.body.license_plan)
+      ? req.body.license_plan
+      : 'Basico';
+    const startsAt = req.body.license_starts_at || null;
+    const endsAt = req.body.license_ends_at || null;
+    const maxUsers = Math.max(1, Number(req.body.license_max_users || 5));
+    const allowedModules = String(req.body.license_allowed_modules || '').trim() || null;
+    const status = ['active', 'suspended'].includes(req.body.license_status)
+      ? req.body.license_status
+      : 'active';
+    const isActive = status === 'suspended' ? 0 : 1;
+    db.run(
+      `UPDATE companies
+       SET license_plan = ?,
+           license_starts_at = ?,
+           license_ends_at = ?,
+           license_max_users = ?,
+           license_allowed_modules = ?,
+           license_status = ?,
+           is_active = ?
+       WHERE id = ?`,
+      [plan, startsAt, endsAt, maxUsers, allowedModules, status, isActive, id],
+      (err) => {
+        if (err) {
+          setFlash(req, 'error', 'No se pudo actualizar la licencia.');
+        } else {
+          setFlash(req, 'success', 'Licencia actualizada.');
+          if (masterSaasService) {
+            masterSaasService.logGlobalAudit(db, {
+              company_id: id,
+              user_name: req.session && req.session.masterUser ? req.session.masterUser.username : 'master',
+              action: 'change_license',
+              module: 'licenses',
+              description: `Plan=${plan}, estado=${status}, max_users=${maxUsers}, vence=${endsAt || '-'}`,
+              ip_address: typeof getClientIp === 'function' ? getClientIp(req) : req.ip
+            });
+          }
+        }
         return res.redirect(`/master/companies/${id}`);
       }
     );
@@ -559,6 +627,16 @@ function registerMasterCompanyRoutes(app, deps) {
           if (err) {
             setFlash(req, 'error', 'No se pudo anular la empresa.');
           } else {
+            if (masterSaasService) {
+              masterSaasService.logGlobalAudit(db, {
+                company_id: id,
+                user_name: req.session && req.session.masterUser ? req.session.masterUser.username : 'master',
+                action: 'suspend_company',
+                module: 'licenses',
+                description: `Empresa suspendida: ${reason}`,
+                ip_address: typeof getClientIp === 'function' ? getClientIp(req) : req.ip
+              });
+            }
             setFlash(req, 'success', 'Empresa anulada. La informacion queda congelada.');
           }
           return res.redirect(safeReturnTo);
@@ -576,6 +654,16 @@ function registerMasterCompanyRoutes(app, deps) {
       if (err) {
         setFlash(req, 'error', 'No se pudo reactivar la empresa.');
       } else {
+        if (masterSaasService) {
+          masterSaasService.logGlobalAudit(db, {
+            company_id: id,
+            user_name: req.session && req.session.masterUser ? req.session.masterUser.username : 'master',
+            action: 'reactivate_company',
+            module: 'licenses',
+            description: 'Empresa reactivada',
+            ip_address: typeof getClientIp === 'function' ? getClientIp(req) : req.ip
+          });
+        }
         setFlash(req, 'success', 'Empresa reactivada correctamente.');
       }
       return res.redirect(`/master/companies/${id}`);

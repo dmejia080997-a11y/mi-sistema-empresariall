@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="<%= typeof lang !== 'undefined' ? lang : 'es' %>">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Master - Monitoreo</title><%- include('partials/head-assets') %></head>
+<body class="page master-shell-page">
+<%- include('partials/header', { headerBrandText: 'Panel Master', homeHref: '/master', showDefaultNav: false, headerActionsHtml: `<nav class="master-tabs"><a href="/master">Empresas</a><a href="/master/monitoring" class="is-active">Monitoreo</a><a href="/master/backups">Backups</a><a href="/master/audit">Auditoria</a></nav><a href="/master/logout" class="btn app-btn">Cerrar sesion</a>` }) %>
+<main class="container master-page">
+  <div class="page-header app-page-header"><div><p class="app-page-eyebrow">Master</p><h1>Monitoreo</h1><p class="muted">Estado tecnico del servidor y tenants.</p></div></div>
+  <section class="app-kpi-grid master-kpi-grid">
+    <article class="app-card"><span class="muted">CPU</span><strong><%= health.cpu.loadavg.map(n => n.toFixed(2)).join(' / ') %></strong></article>
+    <article class="app-card"><span class="muted">RAM usada</span><strong><%= health.ram.usedLabel %> / <%= health.ram.totalLabel %></strong></article>
+    <article class="app-card"><span class="muted">Disco usado</span><strong><%= health.disk.usedLabel || '-' %> (<%= health.disk.usedPercent || 0 %>%)</strong></article>
+    <article class="app-card"><span class="muted">Disco disponible</span><strong><%= health.disk.availableLabel || '-' %></strong></article>
+    <article class="app-card"><span class="muted">PostgreSQL</span><strong><%= health.postgres.label %></strong></article>
+    <article class="app-card"><span class="muted">PM2</span><strong><%= health.pm2.label %></strong></article>
+    <article class="app-card"><span class="muted">Cron</span><strong><%= health.cron.label %></strong></article>
+    <article class="app-card"><span class="muted">Uptime</span><strong><%= health.uptime %></strong></article>
+  </section>
+  <section class="app-card"><h2 class="app-card-title">Ultimos errores PM2</h2><pre class="app-prewrap"><%= (health.pm2Errors || []).join('\n') || 'Sin errores recientes detectados.' %></pre></section>
+  <section class="app-card"><h2 class="app-card-title">Ultimos backups</h2><ul><% backups.slice(0,10).forEach(b => { %><li><%= b.name %> - <%= b.sizeLabel %> - <%= b.createdAtLabel %></li><% }) %></ul></section>
+</main>
+</body></html>

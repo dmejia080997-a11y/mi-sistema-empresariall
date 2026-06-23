@@ -24,7 +24,9 @@ function registerAuthRoutes(app, deps) {
     SESSION_COOKIE_NAME,
     buildFileUrl,
     companyDatabaseService,
-    runWithTenantDatabase
+    runWithTenantDatabase,
+    masterSaasService,
+    masterDb
   } = deps;
 
   function normalizeCompanyNit(value) {
@@ -306,6 +308,10 @@ function registerAuthRoutes(app, deps) {
               database_name: company.database_name || null,
               database_type: company.database_type || null,
               database_status: company.database_status || null,
+              license_plan: company.license_plan || 'Basico',
+              license_max_users: company.license_max_users || 5,
+              license_status: company.license_status || 'active',
+              license_ends_at: company.license_ends_at || null,
               allowed_modules: allowedModulesValue
             };
             req.session.customer = null;
@@ -322,6 +328,17 @@ function registerAuthRoutes(app, deps) {
                 req.session.permissionMap = permissionMap;
               }
               const redirectTarget = companySlug ? `/${companySlug}/panel` : '/login';
+              if (masterSaasService && masterDb) {
+                masterSaasService.logGlobalAudit(masterDb, {
+                  company_id: company.id,
+                  user_id: user.id,
+                  user_name: user.username,
+                  action: 'login',
+                  module: 'auth',
+                  description: 'Login de usuario',
+                  ip_address: getClientIp(req)
+                });
+              }
               console.log(`[login] usuario encontrado=true company_id=${company.id} role=${user.role || null} redirect=${redirectTarget}`);
               return res.redirect(redirectTarget);
             });
@@ -347,6 +364,18 @@ function registerAuthRoutes(app, deps) {
   app.get('/logout', (req, res) => {
     if (!req.session) {
       return res.redirect('/login');
+    }
+    const auditUser = req.session.user;
+    if (masterSaasService && masterDb && auditUser) {
+      masterSaasService.logGlobalAudit(masterDb, {
+        company_id: auditUser.company_id,
+        user_id: auditUser.id,
+        user_name: auditUser.username,
+        action: 'logout',
+        module: 'auth',
+        description: 'Logout de usuario',
+        ip_address: getClientIp(req)
+      });
     }
     return req.session.destroy((err) => {
       if (err) {
