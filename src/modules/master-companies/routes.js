@@ -19,6 +19,7 @@ function registerMasterCompanyRoutes(app, deps) {
     seedAccountingCategories,
     seedNifCatalog,
     companyDatabaseService,
+    runWithTenantDatabase,
     getIsStartingUp
   } = deps;
 
@@ -334,11 +335,22 @@ function registerMasterCompanyRoutes(app, deps) {
       if (companyErr || !company) {
         return res.redirect('/master');
       }
-      db.all(
-        'SELECT id, username, role, created_at FROM users WHERE company_id = ? ORDER BY created_at DESC',
-        [id],
-        (usersErr, users) => {
-          const safeUsers = usersErr ? [] : users;
+      const loadTenantUsers = () => {
+        if (!companyDatabaseService || typeof companyDatabaseService.getCompanyDatabase !== 'function') {
+          return Promise.resolve([]);
+        }
+        return companyDatabaseService.getCompanyDatabase(id)
+          .then((tenantDb) => new Promise((resolve) => {
+            tenantDb.all(
+              'SELECT id, username, role, created_at FROM users WHERE company_id = ? ORDER BY created_at DESC',
+              [id],
+              (usersErr, users) => resolve(usersErr ? [] : users || [])
+            );
+          }))
+          .catch(() => []);
+      };
+      loadTenantUsers().then((users) => {
+          const safeUsers = users || [];
           const status = buildCompanyStatus(company);
           db.all(
             'SELECT note_text, created_at FROM company_inactivation_notes WHERE company_id = ? ORDER BY created_at DESC, id DESC',
@@ -359,8 +371,7 @@ function registerMasterCompanyRoutes(app, deps) {
               });
             }
           );
-        }
-      );
+      });
     });
   });
 
@@ -377,21 +388,22 @@ function registerMasterCompanyRoutes(app, deps) {
         setFlash(req, 'error', 'La empresa esta inactiva y no puede ingresar.');
         return res.redirect('/master');
       }
-      db.get(
-        "SELECT * FROM users WHERE company_id = ? AND role = 'admin' ORDER BY id ASC LIMIT 1",
-        [id],
-        (userErr, user) => {
-          if (userErr || !user) {
-            return res.redirect('/master');
+      Promise.resolve()
+        .then(() => {
+          if (!companyDatabaseService || typeof companyDatabaseService.getCompanyDatabase !== 'function') {
+            throw new Error('El servicio de base de datos por empresa no esta disponible.');
           }
-          Promise.resolve()
-            .then(() => {
-              if (!companyDatabaseService || typeof companyDatabaseService.getCompanyDatabase !== 'function') {
-                throw new Error('El servicio de base de datos por empresa no esta disponible.');
+          return companyDatabaseService.getCompanyDatabase(company.id);
+        })
+        .then((tenantDb) => {
+          tenantDb.get(
+            "SELECT * FROM users WHERE company_id = ? AND role = 'admin' ORDER BY id ASC LIMIT 1",
+            [id],
+            (userErr, user) => {
+              if (userErr || !user) {
+                if (userErr) console.error('[master enter] tenant admin lookup error', userErr);
+                return res.redirect('/master');
               }
-              return companyDatabaseService.getCompanyDatabase(company.id);
-            })
-            .then(() => {
           const companyName = typeof company.name === 'string' ? company.name.trim() : '';
           const companySlug = createCompanySlug(companyName);
           req.session.company_id = company.id;
@@ -437,7 +449,7 @@ function registerMasterCompanyRoutes(app, deps) {
           req.session.user = user;
           req.session.companyId = company.id;
           const allowedModulesValue = req.session.company.allowed_modules || null;
-          getPermissionMap(user.id, company.id, allowedModulesValue, (permErr, permissionMap) => {
+          const loadPermissions = () => getPermissionMap(user.id, company.id, allowedModulesValue, (permErr, permissionMap) => {
             if (permErr) {
               console.error('[master enter] permissions error', permErr);
               req.session.permissionMap = { isAdmin: true, modules: {}, allowedModules: allowedModulesValue };
@@ -446,14 +458,18 @@ function registerMasterCompanyRoutes(app, deps) {
             }
             return res.redirect('/dashboard');
           });
-            })
-            .catch((dbErr) => {
-              console.error('[master enter] company database error', dbErr);
-              setFlash(req, 'error', 'No se pudo conectar a la base PostgreSQL de esta empresa.');
-              return res.redirect('/master');
-            });
-        }
-      );
+              if (typeof runWithTenantDatabase === 'function') {
+                return runWithTenantDatabase(tenantDb, company.id, loadPermissions);
+              }
+              return loadPermissions();
+            }
+          );
+        })
+        .catch((dbErr) => {
+          console.error('[master enter] company database error', dbErr);
+          setFlash(req, 'error', 'No se pudo conectar a la base PostgreSQL de esta empresa.');
+          return res.redirect('/master');
+        });
     });
   });
 
@@ -464,27 +480,41 @@ function registerMasterCompanyRoutes(app, deps) {
     }
     const tempPassword = `TMP-${require('crypto').randomBytes(4).toString('hex')}`;
     const passwordHash = bcrypt.hashSync(tempPassword, 10);
-    db.serialize(() => {
-      db.run('UPDATE companies SET password_hash = ? WHERE id = ?', [passwordHash, id]);
-      db.run(
-        "UPDATE users SET password_hash = ? WHERE company_id = ? AND role = 'admin'",
-        [passwordHash, id],
-        (err) => {
-          if (err) {
-            console.error('[master/reset-credentials] update admin password failed', {
-              companyId: id,
-              error: err
-            });
-          }
-          if (!err && req.session) {
-            req.session.master_reset_password = {
-              company_id: id,
-              password: tempPassword
-            };
-          }
+    db.run('UPDATE companies SET password_hash = ? WHERE id = ?', [passwordHash, id], (companyErr) => {
+      if (companyErr) {
+        console.error('[master/reset-credentials] update company password failed', companyErr);
+        return res.redirect('/master');
+      }
+      if (!companyDatabaseService || typeof companyDatabaseService.getCompanyDatabase !== 'function') {
+        console.error('[master/reset-credentials] tenant database service unavailable');
+        return res.redirect('/master');
+      }
+      return companyDatabaseService.getCompanyDatabase(id)
+        .then((tenantDb) => {
+          tenantDb.run(
+            "UPDATE users SET password_hash = ? WHERE company_id = ? AND role = 'admin'",
+            [passwordHash, id],
+            (err) => {
+              if (err) {
+                console.error('[master/reset-credentials] update tenant admin password failed', {
+                  companyId: id,
+                  error: err
+                });
+              }
+              if (!err && req.session) {
+                req.session.master_reset_password = {
+                  company_id: id,
+                  password: tempPassword
+                };
+              }
+              return res.redirect('/master');
+            }
+          );
+        })
+        .catch((err) => {
+          console.error('[master/reset-credentials] tenant database error', err);
           return res.redirect('/master');
-        }
-      );
+        });
     });
   });
 
@@ -559,11 +589,18 @@ function registerMasterCompanyRoutes(app, deps) {
       return res.redirect('/master');
     }
     const passwordHash = bcrypt.hashSync(password, 10);
-    db.run(
-      'UPDATE users SET password_hash = ? WHERE company_id = ? AND username = ?',
-      [passwordHash, companyId, username],
-      () => res.redirect('/master')
-    );
+    if (!companyDatabaseService || typeof companyDatabaseService.getCompanyDatabase !== 'function') {
+      return res.redirect('/master');
+    }
+    return companyDatabaseService.getCompanyDatabase(companyId)
+      .then((tenantDb) => {
+        tenantDb.run(
+          'UPDATE users SET password_hash = ? WHERE company_id = ? AND username = ?',
+          [passwordHash, companyId, username],
+          () => res.redirect('/master')
+        );
+      })
+      .catch(() => res.redirect('/master'));
   });
 }
 

@@ -671,13 +671,19 @@ function registerCompanyRoutes(app, deps) {
     const { password } = req.body;
     if (!password) return res.redirect('/master');
     const passwordHash = bcrypt.hashSync(password, 10);
-    db.serialize(() => {
-      db.run('UPDATE companies SET password_hash = ? WHERE id = ?', [passwordHash, id]);
-      db.run(
-        "UPDATE users SET password_hash = ? WHERE company_id = ? AND role = 'admin'",
-        [passwordHash, id],
-        () => res.redirect('/master')
-      );
+    db.run('UPDATE companies SET password_hash = ? WHERE id = ?', [passwordHash, id], (companyErr) => {
+      if (companyErr || !companyDatabaseService || typeof companyDatabaseService.getCompanyDatabase !== 'function') {
+        return res.redirect('/master');
+      }
+      return companyDatabaseService.getCompanyDatabase(id)
+        .then((tenantDb) => {
+          tenantDb.run(
+            "UPDATE users SET password_hash = ? WHERE company_id = ? AND role = 'admin'",
+            [passwordHash, id],
+            () => res.redirect('/master')
+          );
+        })
+        .catch(() => res.redirect('/master'));
     });
   });
 

@@ -3,11 +3,19 @@ require('dotenv').config();
 const { getDatabaseConfig, testPostgresConnection } = require('../src/config/database');
 
 async function main() {
-  const config = getDatabaseConfig();
+  let config;
+  try {
+    config = getDatabaseConfig();
+  } catch (err) {
+    console.log('DATABASE_URL is not configured.');
+    console.log('PostgreSQL multi-tenant mode is required.');
+    process.exitCode = 1;
+    return;
+  }
 
   if (config.client !== 'postgres') {
     console.log('DATABASE_URL is not configured.');
-    console.log(`SQLite fallback is active: ${config.filename}`);
+    console.log('PostgreSQL multi-tenant mode is required.');
     process.exitCode = 1;
     return;
   }

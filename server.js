@@ -9,12 +9,12 @@ const IS_PROD = NODE_ENV === 'production';
 const path = require('path');
 const express = require('express');
 const session = require('express-session');
-const SQLiteStore = require('connect-sqlite3')(session);
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const ejs = require('ejs');
 const multer = require('multer');
 const crypto = require('crypto');
+const { AsyncLocalStorage } = require('async_hooks');
 const csrf = require('csurf');
 const { parse } = require('csv-parse/sync');
 const { stringify } = require('csv-stringify/sync');
@@ -487,8 +487,7 @@ app.use(
   session(
     buildSessionOptions({
       isProd: IS_PROD,
-      secret: ACTIVE_SESSION_SECRET,
-      store: new SQLiteStore({ db: 'sessions.db', dir: path.join(__dirname, 'data') })
+      secret: ACTIVE_SESSION_SECRET
     })
   )
 );
@@ -1135,12 +1134,44 @@ const companyLogoUpload = multer({
   }
 });
 
-const db = createAppDatabase();
+function createTenantAwareDatabase(masterDb, getTenantDb) {
+  const resolveDb = () => getTenantDb() || masterDb;
+  const proxy = {};
+  ['get', 'all', 'run', 'exec', 'serialize', 'prepare', 'query', 'close'].forEach((method) => {
+    proxy[method] = (...args) => {
+      const target = resolveDb();
+      if (!target || typeof target[method] !== 'function') {
+        throw new Error(`Active database does not support ${method}.`);
+      }
+      return target[method](...args);
+    };
+  });
+  Object.defineProperty(proxy, 'client', {
+    enumerable: true,
+    get() {
+      return resolveDb().client || 'postgres';
+    }
+  });
+  return proxy;
+}
+
+const masterDb = createAppDatabase();
+const tenantDbContext = new AsyncLocalStorage();
+const db = createTenantAwareDatabase(masterDb, () => {
+  const store = tenantDbContext.getStore();
+  return store && store.db ? store.db : null;
+});
+function runWithTenantDatabase(tenantDb, companyId, run) {
+  return tenantDbContext.run({ db: tenantDb, companyId }, run);
+}
 const activeDatabaseInfo = getActiveDatabaseInfo();
-console.log(activeDatabaseInfo.client === 'postgres' ? 'Using PostgreSQL database' : 'Using SQLite database');
+if (activeDatabaseInfo.client !== 'postgres') {
+  throw new Error('PostgreSQL multi-tenant mode requires DATABASE_URL.');
+}
+console.log('PostgreSQL Multi-Tenant Mode Enabled');
 const accountingAutomation = createAccountingAutomation(db);
 const companyDatabaseService = createCompanyDatabaseService({
-  masterDb: db,
+  masterDb,
   databaseUrl: process.env.DATABASE_URL,
   databaseSsl: process.env.DATABASE_SSL,
   logger: console
@@ -1168,6 +1199,21 @@ function enqueueDbTransaction(run) {
         })
     );
 }
+
+app.use((req, res, next) => {
+  const companyId = req.session && req.session.user ? getCompanyId(req) : null;
+  if (!companyId) return next();
+
+  return companyDatabaseService.getCompanyDatabase(companyId)
+    .then((tenantDb) => {
+      req.db = tenantDb;
+      return tenantDbContext.run({ db: tenantDb, companyId }, next);
+    })
+    .catch((err) => {
+      console.error('[tenant-db] failed to resolve tenant database', err);
+      return res.status(503).send('No se pudo conectar a la base PostgreSQL de la empresa.');
+    });
+});
 
 function commitTransaction(finish, callback) {
   db.run('COMMIT', (err) => {
@@ -11234,7 +11280,8 @@ registerAuthRoutes(app, {
   DEFAULT_LANG,
   SUPPORTED_LANGS,
   SESSION_COOKIE_NAME,
-  companyDatabaseService
+  companyDatabaseService,
+  runWithTenantDatabase
 });
 
 registerMasterAuthRoutes(app, {
@@ -11374,6 +11421,7 @@ registerCompanyRoutes(app, {
   seedAccountingCategories,
   seedNifCatalog,
   companyDatabaseService,
+  runWithTenantDatabase,
   getIsStartingUp: () => isStartingUp
 });
 
@@ -11395,6 +11443,7 @@ registerMasterCompanyRoutes(app, {
   seedAccountingCategories,
   seedNifCatalog,
   companyDatabaseService,
+  runWithTenantDatabase,
   getIsStartingUp: () => isStartingUp
 });
 

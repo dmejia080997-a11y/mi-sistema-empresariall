@@ -16,10 +16,7 @@ function getDatabaseConfig(env = process.env) {
     };
   }
 
-  return {
-    client: 'sqlite',
-    filename: path.resolve(ROOT_DIR, env.DATABASE_PATH || DEFAULT_SQLITE_PATH)
-  };
+  throw new Error('DATABASE_URL is required. SQLite is available only as a historical backup source.');
 }
 
 function shouldUsePostgresSsl(env = process.env) {
@@ -299,18 +296,14 @@ class PostgresSqliteCompatDatabase {
 }
 
 function createSqliteDatabase(config = getSqliteConfig()) {
-  return new sqlite3.Database(config.filename);
+  const filename = config.filename || ':memory:';
+  if (filename === ':memory:') return new sqlite3.Database(filename);
+  return new sqlite3.Database(filename, sqlite3.OPEN_READONLY);
 }
 
 function createAppDatabase(env = process.env) {
   const config = getDatabaseConfig(env);
-  if (config.client === 'postgres') {
-    return new PostgresSqliteCompatDatabase(config);
-  }
-  const db = createSqliteDatabase(config);
-  db.client = 'sqlite';
-  db.filename = config.filename;
-  return db;
+  return new PostgresSqliteCompatDatabase(config);
 }
 
 function getActiveDatabaseInfo(env = process.env) {
@@ -340,19 +333,12 @@ function getSqliteConfig(env = process.env) {
 
 async function resolveDatabaseConfig(env = process.env) {
   const config = getDatabaseConfig(env);
-  if (config.client !== 'postgres') return config;
-
   const pool = createPostgresPool(config);
   try {
     await pool.query('SELECT 1');
     return config;
   } catch (err) {
-    const fallback = getSqliteConfig(env);
-    return {
-      ...fallback,
-      fallbackFrom: 'postgres',
-      fallbackReason: err && err.message ? err.message : String(err)
-    };
+    throw new Error(`PostgreSQL connection failed: ${err && err.message ? err.message : String(err)}`);
   } finally {
     await pool.end();
   }
@@ -361,7 +347,7 @@ async function resolveDatabaseConfig(env = process.env) {
 async function testPostgresConnection(env = process.env) {
   const config = getDatabaseConfig(env);
   if (config.client !== 'postgres') {
-    throw new Error('DATABASE_URL is not configured. PostgreSQL is disabled; SQLite fallback is active.');
+    throw new Error('DATABASE_URL is not configured. PostgreSQL multi-tenant mode is required.');
   }
 
   const pool = createPostgresPool(config);

@@ -23,7 +23,8 @@ function registerAuthRoutes(app, deps) {
     SUPPORTED_LANGS,
     SESSION_COOKIE_NAME,
     buildFileUrl,
-    companyDatabaseService
+    companyDatabaseService,
+    runWithTenantDatabase
   } = deps;
 
   function normalizeCompanyNit(value) {
@@ -91,12 +92,14 @@ function registerAuthRoutes(app, deps) {
   }
 
   function ensureCompanyDatabaseReady(company, callback) {
-    if (!company || company.database_type !== 'postgresql') return callback(null);
+    if (!company || company.database_type !== 'postgresql' || !company.database_name) {
+      return callback(new Error('La empresa no tiene base PostgreSQL tenant provisionada.'));
+    }
     if (!companyDatabaseService || typeof companyDatabaseService.getCompanyDatabase !== 'function') {
       return callback(new Error('El servicio de base de datos por empresa no esta disponible.'));
     }
     return companyDatabaseService.getCompanyDatabase(company.id)
-      .then(() => callback(null))
+      .then((tenantDb) => callback(null, tenantDb))
       .catch(callback);
   }
 
@@ -217,13 +220,13 @@ function registerAuthRoutes(app, deps) {
         return renderLogin(res, { error: res.locals.t('errors.company_expired'), loginCompany });
       }
 
-      ensureCompanyDatabaseReady(company, (dbReadyErr) => {
+      ensureCompanyDatabaseReady(company, (dbReadyErr, tenantDb) => {
         if (dbReadyErr) {
           console.error('[login] company database error', dbReadyErr);
           return renderLogin(res, { error: 'No se pudo conectar a la base PostgreSQL de la empresa.', loginCompany });
         }
 
-      db.get(
+      tenantDb.get(
         'SELECT * FROM users WHERE username = ? AND company_id = ? LIMIT 1',
         [username, company.id],
         (userErr, user) => {
@@ -307,7 +310,7 @@ function registerAuthRoutes(app, deps) {
             };
             req.session.customer = null;
 
-            getPermissionMap(user.id, company.id, allowedModulesValue, (permErr, permissionMap) => {
+            const loadPermissions = () => getPermissionMap(user.id, company.id, allowedModulesValue, (permErr, permissionMap) => {
               if (permErr) {
                 console.error('[login] permission map error', permErr);
                 req.session.permissionMap = {
@@ -322,6 +325,10 @@ function registerAuthRoutes(app, deps) {
               console.log(`[login] usuario encontrado=true company_id=${company.id} role=${user.role || null} redirect=${redirectTarget}`);
               return res.redirect(redirectTarget);
             });
+            if (typeof runWithTenantDatabase === 'function') {
+              return runWithTenantDatabase(tenantDb, company.id, loadPermissions);
+            }
+            return loadPermissions();
           });
         }
       );

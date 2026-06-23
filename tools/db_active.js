@@ -31,9 +31,10 @@ const databaseUrl = getDatabaseUrl();
 const hasDatabaseUrl = Boolean(databaseUrl);
 
 console.log(`DATABASE_URL exists: ${hasDatabaseUrl ? 'yes' : 'no'}`);
-console.log(`Active engine: ${hasDatabaseUrl ? 'PostgreSQL' : 'SQLite'}`);
+console.log(`Active engine: ${hasDatabaseUrl ? 'PostgreSQL' : 'none'}`);
 console.log(`DATABASE_URL: ${maskDatabaseUrl(databaseUrl)}`);
 
 if (!hasDatabaseUrl) {
-  console.log(`SQLite path: ${getSqlitePath()}`);
+  console.log('SQLite mode: historical backup only');
+  console.log(`Historical SQLite path: ${getSqlitePath()}`);
 }

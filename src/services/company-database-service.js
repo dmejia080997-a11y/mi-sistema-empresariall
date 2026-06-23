@@ -125,6 +125,7 @@ function buildCreateTableSql(tableName, columns) {
 class PgSqliteCompat {
   constructor(pool) {
     this.pool = pool;
+    this.client = 'postgres';
   }
 
   translate(sql) {
@@ -161,6 +162,39 @@ class PgSqliteCompat {
         if (callback) return callback(err);
         throw err;
       });
+  }
+
+  exec(sql, callback) {
+    const statements = String(sql || '')
+      .split(';')
+      .map((statement) => statement.trim())
+      .filter(Boolean);
+    const run = async () => {
+      for (const statement of statements) {
+        await this.pool.query(this.translate(statement));
+      }
+    };
+    run()
+      .then(() => callback && callback(null))
+      .catch((err) => callback ? callback(err) : Promise.reject(err));
+  }
+
+  serialize(callback) {
+    if (callback) callback();
+  }
+
+  prepare(sql) {
+    const db = this;
+    return {
+      run(...args) {
+        const callback = typeof args[args.length - 1] === 'function' ? args.pop() : null;
+        const params = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+        return db.run(sql, params, callback);
+      },
+      finalize(callback) {
+        if (callback) callback(null);
+      }
+    };
   }
 
   async close() {
