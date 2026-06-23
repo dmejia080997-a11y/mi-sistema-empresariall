@@ -89,8 +89,7 @@ function runPgDump(databaseUrl, databaseName, outputFile) {
     ],
     {
       cwd: ROOT_DIR,
-      encoding: 'utf8',
-      windowsHide: true
+      encoding: 'utf8'
     }
   );
 
@@ -141,33 +140,70 @@ function writeManifest(stagingDir, manifest) {
   fs.writeFileSync(path.join(stagingDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
 }
 
-function psQuote(value) {
-  return `'${String(value).replace(/'/g, "''")}'`;
+function commandExists(command) {
+  const result = spawnSync(
+    'sh',
+    ['-c', `command -v ${command} >/dev/null 2>&1`],
+    { encoding: 'utf8' }
+  );
+  return result.status === 0;
 }
 
-function createZip(stagingDir, zipPath) {
-  const command = `$items = Get-ChildItem -LiteralPath ${psQuote(stagingDir)} -Force; ` +
-    `Compress-Archive -LiteralPath $items.FullName -DestinationPath ${psQuote(zipPath)} -Force`;
+function createTarArchive(stagingDir, archivePath) {
   const result = spawnSync(
-    'powershell.exe',
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
+    'tar',
+    ['-czf', archivePath, '-C', path.dirname(stagingDir), path.basename(stagingDir)],
     {
       cwd: ROOT_DIR,
-      encoding: 'utf8',
-      windowsHide: true
+      encoding: 'utf8'
     }
   );
-
   if (result.error) throw result.error;
   if (result.status !== 0) {
-    throw new Error((result.stderr || result.stdout || 'Compress-Archive failed').trim());
+    throw new Error((result.stderr || result.stdout || 'tar compression failed').trim());
   }
-  return fs.statSync(zipPath).size;
+  return fs.statSync(archivePath).size;
+}
+
+function createZipArchive(stagingDir, archivePath) {
+  const result = spawnSync(
+    'zip',
+    ['-r', archivePath, path.basename(stagingDir)],
+    {
+      cwd: path.dirname(stagingDir),
+      encoding: 'utf8'
+    }
+  );
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error((result.stderr || result.stdout || 'zip compression failed').trim());
+  }
+  return fs.statSync(archivePath).size;
+}
+
+function createCompressedBackup(stagingDir, backupStamp) {
+  if (commandExists('tar')) {
+    const archivePath = path.join(BACKUP_DIR, `backup-all-${backupStamp}.tar.gz`);
+    return {
+      archivePath,
+      archiveSize: createTarArchive(stagingDir, archivePath)
+    };
+  }
+
+  if (commandExists('zip')) {
+    const archivePath = path.join(BACKUP_DIR, `backup-all-${backupStamp}.zip`);
+    return {
+      archivePath,
+      archiveSize: createZipArchive(stagingDir, archivePath)
+    };
+  }
+
+  throw new Error('Neither tar nor zip is available for compression.');
 }
 
 function applyRetention() {
   const backups = fs.readdirSync(BACKUP_DIR)
-    .filter((name) => /^backup-all-\d{8}-\d{6}\.zip$/i.test(name))
+    .filter((name) => /^backup-all-\d{8}-\d{6}\.(zip|tar\.gz)$/i.test(name))
     .map((name) => {
       const filePath = path.join(BACKUP_DIR, name);
       return { name, filePath, mtimeMs: fs.statSync(filePath).mtimeMs };
@@ -187,7 +223,6 @@ async function main() {
   const started = Date.now();
   const backupStamp = stamp();
   const stagingDir = path.join(BACKUP_DIR, `backup-all-${backupStamp}`);
-  const zipPath = path.join(BACKUP_DIR, `backup-all-${backupStamp}.zip`);
   const manifest = {
     created_at: new Date().toISOString(),
     status: 'running',
@@ -239,11 +274,11 @@ async function main() {
     manifest.durationMs = Date.now() - started;
     writeManifest(stagingDir, manifest);
 
-    const zipSize = createZip(stagingDir, zipPath);
+    const { archivePath, archiveSize } = createCompressedBackup(stagingDir, backupStamp);
     fs.rmSync(stagingDir, { recursive: true, force: true });
     const removed = applyRetention();
 
-    log(`backup finished zip=${zipPath} size=${zipSize} status=${manifest.status} removed=${removed.length}`);
+    log(`backup finished archive=${archivePath} size=${archiveSize} status=${manifest.status} removed=${removed.length}`);
 
     console.log('Bases respaldadas:');
     for (const db of manifest.databases) {
@@ -254,9 +289,9 @@ async function main() {
       }
     }
     console.log(`Uploads: ${uploads.copied ? 'OK' : 'NO ENCONTRADO'} (${formatBytes(uploads.size)}, ${formatDuration(uploads.durationMs)})`);
-    console.log(`Archivo: ${zipPath}`);
-    console.log(`Tamaño: ${formatBytes(zipSize)}`);
-    console.log(`Duración: ${formatDuration(manifest.durationMs)}`);
+    console.log(`Archivo: ${archivePath}`);
+    console.log(`Tamano total: ${formatBytes(archiveSize)}`);
+    console.log(`Duracion: ${formatDuration(manifest.durationMs)}`);
     console.log(`Resultado final: ${manifest.status}`);
 
     if (manifest.errors.length) {
