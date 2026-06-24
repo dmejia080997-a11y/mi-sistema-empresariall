@@ -36,7 +36,7 @@ app.post('/accounting/settings', requireAuth, requirePermission('accounting', 'm
   const costingMethodValue = costing_method || null;
   const multiCurrencyValue = multi_currency_enabled ? 1 : 0;
 
-  db.run(
+  (masterDb || db).run(
     `UPDATE companies
      SET country = ?,
          base_currency = ?,

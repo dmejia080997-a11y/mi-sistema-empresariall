@@ -22,7 +22,10 @@ function registerMasterAuthRoutes(app, deps) {
     if (req.session && req.session.master) {
       return res.redirect('/master');
     }
-    return res.render('master-login', { error: null });
+    const error = req.query && req.query.csrf === 'expired'
+      ? 'La sesión del formulario venció o cambió. Ingresa nuevamente.'
+      : null;
+    return res.render('master-login', { error });
   });
 
   app.post('/master/login', (req, res) => {

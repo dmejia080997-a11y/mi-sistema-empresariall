@@ -296,7 +296,7 @@ async function list(db, companyId, filters = {}) {
     FROM air_waybills awb
     LEFT JOIN air_waybills parent ON parent.id = awb.parent_awb_id AND parent.company_id = awb.company_id
     WHERE ${clauses.join(' AND ')}
-    ORDER BY COALESCE(awb.fecha_emision, awb.created_at) DESC, awb.id DESC`, params);
+    ORDER BY COALESCE(NULLIF(awb.fecha_emision, ''), CAST(awb.created_at AS TEXT)) DESC, awb.id DESC`, params);
   return rows.map(mapAwb);
 }
 

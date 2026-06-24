@@ -87,7 +87,32 @@ function registerMasterRoutes(app, deps) {
       const result = await db.query(
         `SELECT * FROM global_audit_logs ORDER BY created_at DESC, id DESC LIMIT 300`
       );
-      return renderMaster(req, res, 'master-audit', { auditLogs: result.rows || [] });
+      const timeZone = process.env.APP_TIMEZONE || 'America/Guatemala';
+      const auditLogs = (result.rows || []).map((log) => {
+        const createdAt = new Date(log.created_at);
+        const validDate = !Number.isNaN(createdAt.getTime());
+        return {
+          ...log,
+          created_date_label: validDate
+            ? new Intl.DateTimeFormat('es-GT', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+              timeZone
+            }).format(createdAt)
+            : 'Fecha no disponible',
+          created_time_label: validDate
+            ? new Intl.DateTimeFormat('es-GT', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: true,
+              timeZone
+            }).format(createdAt)
+            : ''
+        };
+      });
+      return renderMaster(req, res, 'master-audit', { auditLogs });
     } catch (err) {
       return next(err);
     }

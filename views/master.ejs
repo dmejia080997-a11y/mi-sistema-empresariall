@@ -48,19 +48,20 @@
   <% } %>
 
   <section class="app-kpi-grid master-kpi-grid">
-    <article class="app-card"><span class="muted">Empresas activas</span><strong><%= stats.activeCompanies %></strong></article>
-    <article class="app-card"><span class="muted">Suspendidas</span><strong><%= stats.suspendedCompanies %></strong></article>
-    <article class="app-card"><span class="muted">Vencidas</span><strong><%= stats.expiredCompanies %></strong></article>
-    <article class="app-card"><span class="muted">Usuarios totales</span><strong><%= stats.totalUsers %></strong></article>
-    <article class="app-card"><span class="muted">Espacio utilizado</span><strong><%= stats.totalStorageLabel %></strong></article>
-    <article class="app-card"><span class="muted">Ultimo backup</span><strong><%= latestBackup ? latestBackup.createdAtLabel : 'Sin backup' %></strong></article>
-    <article class="app-card"><span class="muted">PostgreSQL</span><strong><%= health.postgres.label %></strong></article>
-    <article class="app-card"><span class="muted">PM2</span><strong><%= health.pm2.label %></strong></article>
-    <article class="app-card"><span class="muted">Cron</span><strong><%= health.cron.label %></strong></article>
-    <article class="app-card"><span class="muted">Uptime</span><strong><%= health.uptime %></strong></article>
+    <article class="app-card master-kpi-card"><span class="muted">Empresas activas</span><strong><%= stats.activeCompanies %></strong></article>
+    <article class="app-card master-kpi-card"><span class="muted">Suspendidas</span><strong><%= stats.suspendedCompanies %></strong></article>
+    <article class="app-card master-kpi-card"><span class="muted">Vencidas</span><strong><%= stats.expiredCompanies %></strong></article>
+    <article class="app-card master-kpi-card"><span class="muted">Usuarios totales</span><strong><%= stats.totalUsers %></strong></article>
+    <article class="app-card master-kpi-card"><span class="muted">Espacio utilizado</span><strong><%= stats.totalStorageLabel %></strong></article>
+    <article class="app-card master-kpi-card"><span class="muted">Espacio disponible</span><strong><%= health.disk && health.disk.ok ? health.disk.availableLabel : 'No disponible' %></strong></article>
+    <article class="app-card master-kpi-card"><span class="muted">Ultimo backup</span><strong><%= latestBackup ? latestBackup.createdAtLabel : 'Sin backup' %></strong></article>
+    <article class="app-card master-kpi-card"><span class="muted">PostgreSQL</span><strong><%= health.postgres.label %></strong></article>
+    <article class="app-card master-kpi-card"><span class="muted">PM2</span><strong><%= health.pm2.label %></strong></article>
+    <article class="app-card master-kpi-card"><span class="muted">Cron</span><strong><%= health.cron.label %></strong></article>
+    <article class="app-card master-kpi-card"><span class="muted">Uptime</span><strong><%= health.uptime %></strong></article>
   </section>
 
-  <section class="app-card">
+  <section class="app-card master-companies-card">
     <div class="app-card-header">
       <div>
         <h2 class="app-card-title">Empresas</h2>

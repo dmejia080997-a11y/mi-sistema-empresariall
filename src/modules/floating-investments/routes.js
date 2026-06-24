@@ -10,6 +10,7 @@ const STATUSES = [
 function registerFloatingInvestmentRoutes(app, deps) {
   const {
     db,
+    masterDb,
     requireAuth,
     requirePermission,
     getCompanyId,
@@ -44,7 +45,7 @@ function registerFloatingInvestmentRoutes(app, deps) {
     const summary = await getDb(db, `
       SELECT COUNT(*) AS total,
              SUM(CASE WHEN status = 'recovered' THEN 1 ELSE 0 END) AS recovered,
-             SUM(CASE WHEN status <> 'recovered' AND recovery_date < date('now') THEN 1 ELSE 0 END) AS overdue
+             SUM(CASE WHEN status <> 'recovered' AND CAST(recovery_date AS date) < CURRENT_DATE THEN 1 ELSE 0 END) AS overdue
       FROM floating_investments
       WHERE company_id = ?
     `, [companyId]);
@@ -73,7 +74,7 @@ function registerFloatingInvestmentRoutes(app, deps) {
     const filters = normalizeFilters(req.query);
     const [investments, company] = await Promise.all([
       getInvestments(db, companyId, filters),
-      getCompanyBrand(db, companyId)
+      getCompanyBrand(masterDb || db, companyId)
     ]);
     const fileName = `inversion-flotante-${dateStamp()}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
@@ -175,7 +176,7 @@ function registerFloatingInvestmentRoutes(app, deps) {
     const [customer, lines, company] = await Promise.all([
       investment.customer_id ? getDb(db, 'SELECT name, customer_code FROM customers WHERE id = ? AND company_id = ?', [investment.customer_id, companyId]) : null,
       getLines(db, companyId, id),
-      getCompanyBrand(db, companyId)
+      getCompanyBrand(masterDb || db, companyId)
     ]);
     const fileName = `inversion-flotante-${id}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
@@ -442,7 +443,7 @@ function getInvestments(db, companyId, filters) {
     LEFT JOIN floating_investment_lines fil ON fil.investment_id = fi.id AND fil.company_id = fi.company_id
     LEFT JOIN suppliers s ON s.id = fil.supplier_id AND s.company_id = fil.company_id
     WHERE ${where.join(' AND ')}
-    GROUP BY fi.id
+    GROUP BY fi.id, c.name, c.customer_code
     ORDER BY date(fi.recovery_date) ASC, fi.id DESC
   `, params);
 }

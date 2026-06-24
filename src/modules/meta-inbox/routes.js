@@ -389,11 +389,11 @@ function listConversations(db, companyId, filters) {
     params.push(filters.tag);
   }
   if (filters.dateFrom) {
-    where.push('date(COALESCE(c.last_message_at, c.created_at)) >= date(?)');
+    where.push('CAST(COALESCE(c.last_message_at, c.created_at) AS date) >= CAST(? AS date)');
     params.push(filters.dateFrom);
   }
   if (filters.dateTo) {
-    where.push('date(COALESCE(c.last_message_at, c.created_at)) <= date(?)');
+    where.push('CAST(COALESCE(c.last_message_at, c.created_at) AS date) <= CAST(? AS date)');
     params.push(filters.dateTo);
   }
   if (filters.q) {
@@ -409,7 +409,7 @@ function listConversations(db, companyId, filters) {
      LEFT JOIN meta_pages p ON p.id = c.meta_page_id AND p.company_id = c.company_id
      LEFT JOIN users u ON u.id = c.assigned_user_id AND u.company_id = c.company_id
      WHERE ${where.join(' AND ')}
-     ORDER BY TIMESTAMP(COALESCE(c.last_message_at, c.updated_at, c.created_at)) DESC, c.id DESC
+     ORDER BY COALESCE(c.last_message_at, c.updated_at, c.created_at) DESC, c.id DESC
      LIMIT 250`,
     params
   );

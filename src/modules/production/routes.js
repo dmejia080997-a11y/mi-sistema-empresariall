@@ -215,7 +215,7 @@ function registerProductionRoutes(app, deps) {
       const before = Number(item.qty || 0);
       const after = before - qty;
       await runDb(db, 'UPDATE items SET qty = ? WHERE id = ? AND company_id = ?', [after, mat.product_id, companyId]);
-      await runDb(db, 'UPDATE production_order_materials SET quantity_consumed = quantity_consumed + ?, quantity_reserved = MAX(quantity_reserved, ?) WHERE id = ? AND company_id = ?', [qty, Number(mat.quantity_required || 0), mat.id, companyId]);
+      await runDb(db, 'UPDATE production_order_materials SET quantity_consumed = quantity_consumed + ?, quantity_reserved = GREATEST(quantity_reserved, ?) WHERE id = ? AND company_id = ?', [qty, Number(mat.quantity_required || 0), mat.id, companyId]);
       await insertMovement(db, req, 'production_consume', mat.product_id, qty, before, after, `Consumo produccion ${order.order_number}`, id, Number(mat.unit_cost || item.average_cost || item.last_cost || item.price || 0));
     }
     await runDb(db, "UPDATE production_orders SET status = 'in_production', real_start_date = COALESCE(real_start_date, DATE('now')), updated_at = CURRENT_TIMESTAMP WHERE id = ? AND company_id = ?", [id, companyId]);
@@ -569,16 +569,16 @@ function registerProductionRoutes(app, deps) {
     const companyId = getCompanyId(req);
     const byProduct = await allDb(db, `SELECT i.name AS product_name, COUNT(po.id) AS orders, SUM(po.quantity_finished) AS qty, SUM(po.real_cost) AS cost, AVG(po.unit_cost) AS unit_cost
       FROM production_orders po JOIN items i ON i.id = po.product_id AND i.company_id = po.company_id
-      WHERE po.company_id = ? GROUP BY po.product_id ORDER BY cost DESC`, [companyId]);
+      WHERE po.company_id = ? GROUP BY po.product_id, i.name ORDER BY cost DESC`, [companyId]);
     const byMaterial = await allDb(db, `SELECT i.name AS material_name, SUM(m.quantity_consumed) AS qty, SUM(m.quantity_consumed * m.unit_cost) AS cost
       FROM production_order_materials m JOIN items i ON i.id = m.product_id AND i.company_id = m.company_id
-      WHERE m.company_id = ? GROUP BY m.product_id ORDER BY cost DESC`, [companyId]);
+      WHERE m.company_id = ? GROUP BY m.product_id, i.name ORDER BY cost DESC`, [companyId]);
     const labor = await allDb(db, `SELECT po.order_number, SUM(l.hours) AS hours, SUM(l.total_cost) AS cost
       FROM production_labor l JOIN production_orders po ON po.id = l.production_order_id AND po.company_id = l.company_id
-      WHERE l.company_id = ? GROUP BY l.production_order_id ORDER BY cost DESC`, [companyId]);
+      WHERE l.company_id = ? GROUP BY l.production_order_id, po.order_number ORDER BY cost DESC`, [companyId]);
     const overhead = await allDb(db, `SELECT po.order_number, SUM(o.amount) AS cost
       FROM production_overhead o JOIN production_orders po ON po.id = o.production_order_id AND po.company_id = o.company_id
-      WHERE o.company_id = ? GROUP BY o.production_order_id ORDER BY cost DESC`, [companyId]);
+      WHERE o.company_id = ? GROUP BY o.production_order_id, po.order_number ORDER BY cost DESC`, [companyId]);
     res.render('production/index', baseView(req, 'reports', { reports: { byProduct, byMaterial, labor, overhead } }));
   }));
 }
@@ -753,7 +753,7 @@ async function orderDetailData(req, db) {
 async function buildDashboard(db, companyId) {
   const statuses = await allDb(db, 'SELECT status, COUNT(*) AS total FROM production_orders WHERE company_id = ? GROUP BY status', [companyId]);
   const map = Object.fromEntries(statuses.map((row) => [row.status, Number(row.total || 0)]));
-  const reserved = await getDb(db, `SELECT SUM(MAX(quantity_reserved - quantity_consumed, 0) * unit_cost) AS total FROM production_order_materials WHERE company_id = ?`, [companyId]);
+  const reserved = await getDb(db, `SELECT SUM(GREATEST(quantity_reserved - quantity_consumed, 0) * unit_cost) AS total FROM production_order_materials WHERE company_id = ?`, [companyId]);
   const finished = await getDb(db, "SELECT SUM(quantity_finished) AS qty, SUM(real_cost) AS cost FROM production_orders WHERE company_id = ? AND status = 'finished' AND TO_CHAR(COALESCE(real_end_date::timestamp, created_at), 'YYYY-MM') = TO_CHAR(CURRENT_DATE, 'YYYY-MM')", [companyId]);
   const margin = await getDb(db, "SELECT SUM((i.price - po.unit_cost) * po.quantity_finished) AS profit FROM production_orders po JOIN items i ON i.id = po.product_id AND i.company_id = po.company_id WHERE po.company_id = ? AND po.status = 'finished'", [companyId]);
   const catalog = await getDb(db, `SELECT
@@ -765,7 +765,7 @@ async function buildDashboard(db, companyId) {
   const bom = await getDb(db, "SELECT COUNT(*) AS active FROM production_boms WHERE company_id = ? AND status = 'active'", [companyId]);
   const materialDemand = await getDb(db, `SELECT
       SUM(CASE WHEN i.qty < m.quantity_required - m.quantity_consumed THEN 1 ELSE 0 END) AS shortage_lines,
-      SUM(MAX(m.quantity_required - m.quantity_consumed, 0) * m.unit_cost) AS open_cost
+      SUM(GREATEST(m.quantity_required - m.quantity_consumed, 0) * m.unit_cost) AS open_cost
     FROM production_order_materials m
     JOIN production_orders po ON po.id = m.production_order_id AND po.company_id = m.company_id
     JOIN items i ON i.id = m.product_id AND i.company_id = m.company_id
@@ -787,7 +787,7 @@ async function buildDashboard(db, companyId) {
     WHERE po.company_id = ?
       AND po.status = 'finished'
       AND TO_CHAR(COALESCE(po.real_end_date::timestamp, po.created_at), 'YYYY-MM') = TO_CHAR(CURRENT_DATE, 'YYYY-MM')
-    GROUP BY po.product_id
+    GROUP BY po.product_id, i.name
     ORDER BY qty DESC, i.name
     LIMIT 6`, [companyId]);
   const products = await allDb(db, `SELECT i.id, i.name, i.sku, i.item_code, i.production_photo_path, i.production_days, i.is_production_active,
@@ -1312,7 +1312,7 @@ async function ensureProductionSchema(db) {
 }
 
 function reservedSql() {
-  return `SELECT company_id, product_id, SUM(MAX(quantity_reserved - quantity_consumed, 0)) AS reserved_qty
+  return `SELECT company_id, product_id, SUM(GREATEST(quantity_reserved - quantity_consumed, 0)) AS reserved_qty
     FROM production_order_materials
     WHERE production_order_id IN (SELECT id FROM production_orders WHERE status IN ('pending','in_production','paused'))
     GROUP BY company_id, product_id`;

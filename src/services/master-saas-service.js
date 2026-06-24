@@ -66,6 +66,31 @@ function formatDuration(seconds) {
   return `${minutes}m`;
 }
 
+function formatBackupDate(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return {
+      dateLabel: 'Fecha no disponible',
+      timeLabel: ''
+    };
+  }
+  const timeZone = process.env.APP_TIMEZONE || 'America/Guatemala';
+  return {
+    dateLabel: new Intl.DateTimeFormat('es-GT', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      timeZone
+    }).format(date),
+    timeLabel: new Intl.DateTimeFormat('es-GT', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone
+    }).format(date)
+  };
+}
+
 function directorySize(dir) {
   let total = 0;
   if (!fs.existsSync(dir)) return total;
@@ -116,13 +141,16 @@ function listBackups() {
     .map((name) => {
       const filePath = path.join(BACKUP_DIR, name);
       const stat = fs.statSync(filePath);
+      const formattedDate = formatBackupDate(stat.mtime);
       return {
         name,
         path: filePath,
         size: stat.size,
         sizeLabel: formatBytes(stat.size),
         createdAt: stat.mtime,
-        createdAtLabel: stat.mtime.toISOString()
+        createdAtLabel: `${formattedDate.dateLabel}, ${formattedDate.timeLabel}`,
+        createdDateLabel: formattedDate.dateLabel,
+        createdTimeLabel: formattedDate.timeLabel
       };
     })
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

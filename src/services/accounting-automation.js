@@ -28,20 +28,20 @@ function createAccountingAutomation(db) {
 
 async function ensureSchema(db) {
   await run(db, `CREATE TABLE IF NOT EXISTS accounting_automation_events (
-    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, event_type TEXT NOT NULL, source_id INTEGER NOT NULL,
+    id INTEGER PRIMARY KEY, company_id INTEGER NOT NULL, event_type TEXT NOT NULL, source_id INTEGER NOT NULL,
     journal_entry_id INTEGER, status TEXT NOT NULL DEFAULT 'posted', details TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(company_id, event_type, source_id)
   )`);
   await run(db, `CREATE TABLE IF NOT EXISTS accounting_auto_accounts (
-    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, direction TEXT NOT NULL, category_key TEXT NOT NULL,
+    id INTEGER PRIMARY KEY, company_id INTEGER NOT NULL, direction TEXT NOT NULL, category_key TEXT NOT NULL,
     account_id INTEGER NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(company_id, direction, category_key)
   )`);
   await run(db, `CREATE TABLE IF NOT EXISTS accounting_account_mirrors (
-    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, chart_account_id INTEGER NOT NULL, nif_account_id INTEGER NOT NULL,
+    id INTEGER PRIMARY KEY, company_id INTEGER NOT NULL, chart_account_id INTEGER NOT NULL, nif_account_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(company_id, chart_account_id), UNIQUE(company_id, nif_account_id)
   )`);
   await run(db, `CREATE TABLE IF NOT EXISTS hr_payroll_payments (
-    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, salary_id INTEGER NOT NULL, employee_id INTEGER NOT NULL,
+    id INTEGER PRIMARY KEY, company_id INTEGER NOT NULL, salary_id INTEGER NOT NULL, employee_id INTEGER NOT NULL,
     period TEXT NOT NULL, gross_amount REAL NOT NULL DEFAULT 0, deductions REAL NOT NULL DEFAULT 0, net_amount REAL NOT NULL DEFAULT 0,
     payment_method TEXT, paid_at TEXT NOT NULL, notes TEXT, status TEXT NOT NULL DEFAULT 'paid', created_by INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -277,16 +277,26 @@ async function dynamicAccount(db, companyId, direction, category) {
 }
 async function ensureColumn(db, table, column, type) {
   if (!await tableExists(db, table)) return;
-  const columns = await all(db, `SELECT column_name AS name
-    FROM information_schema.columns
-    WHERE table_schema = current_schema() AND table_name = ?
-    ORDER BY ordinal_position`, [table]);
+  const columns = db && db.client === 'postgres'
+    ? await all(db, `SELECT column_name AS name
+      FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = ?
+      ORDER BY ordinal_position`, [table])
+    : await all(db, `PRAGMA table_info(${safeIdentifier(table)})`);
   if (!columns.some((entry) => entry.name === column)) await run(db, `ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
 }
 async function tableExists(db, table) {
-  return Boolean(await get(db, `SELECT table_name AS name
-    FROM information_schema.tables
-    WHERE table_schema = current_schema() AND table_type = 'BASE TABLE' AND table_name = ?`, [table]));
+  if (db && db.client === 'postgres') {
+    return Boolean(await get(db, `SELECT table_name AS name
+      FROM information_schema.tables
+      WHERE table_schema = current_schema() AND table_type = 'BASE TABLE' AND table_name = ?`, [table]));
+  }
+  return Boolean(await get(db, "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", [table]));
+}
+function safeIdentifier(value) {
+  const identifier = String(value || '');
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) throw new Error('Invalid SQL identifier');
+  return identifier;
 }
 function line(account, debit, credit) { return { account, debit: round2(debit), credit: round2(credit) }; }
 function amount(value) { const number = Number(value); return Number.isFinite(number) ? round2(number) : 0; }

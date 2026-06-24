@@ -120,6 +120,9 @@ function registerAuthRoutes(app, deps) {
       const companySlug = createCompanySlug(req.session.company_slug || (req.session.company && req.session.company.slug) || req.session.company_name);
       return res.redirect(companySlug ? `/${companySlug}/panel` : '/login');
     }
+    const csrfError = req.query && req.query.csrf === 'expired'
+      ? 'La sesión del formulario venció o cambió. Ingresa nuevamente.'
+      : null;
     if (req.session && req.session.login_company_id) {
       return loadLoginCompanyById(req.session.login_company_id, (err, company) => {
           if (err || !company) {
@@ -127,25 +130,25 @@ function registerAuthRoutes(app, deps) {
             return loadDefaultLoginCompany((defaultErr, defaultCompany) => {
               if (!defaultErr && defaultCompany) {
                 req.session.login_company_id = defaultCompany.id;
-                return renderLogin(res, { loginCompany: buildLoginCompany(defaultCompany) });
+                return renderLogin(res, { error: csrfError, loginCompany: buildLoginCompany(defaultCompany) });
               }
-              return renderLogin(res);
+              return renderLogin(res, { error: csrfError });
             });
           }
-          return renderLogin(res, { loginCompany: buildLoginCompany(company) });
+          return renderLogin(res, { error: csrfError, loginCompany: buildLoginCompany(company) });
         }
       );
     }
     if (req.session && req.session.skip_default_login_company) {
       delete req.session.skip_default_login_company;
-      return renderLogin(res);
+      return renderLogin(res, { error: csrfError });
     }
     return loadDefaultLoginCompany((err, company) => {
       if (!err && company) {
         req.session.login_company_id = company.id;
-        return renderLogin(res, { loginCompany: buildLoginCompany(company) });
+        return renderLogin(res, { error: csrfError, loginCompany: buildLoginCompany(company) });
       }
-      return renderLogin(res);
+      return renderLogin(res, { error: csrfError });
     });
   });
 

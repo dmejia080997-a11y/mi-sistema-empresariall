@@ -358,7 +358,7 @@ async function list(db, companyId, filters = {}) {
     FROM bills_of_lading bl
     LEFT JOIN bills_of_lading parent ON parent.id = bl.parent_bl_id AND parent.company_id = bl.company_id
     WHERE ${clauses.join(' AND ')}
-    ORDER BY COALESCE(bl.fecha_emision, bl.created_at) DESC, bl.id DESC`, params);
+    ORDER BY COALESCE(NULLIF(bl.fecha_emision, ''), CAST(bl.created_at AS TEXT)) DESC, bl.id DESC`, params);
   return rows.map(mapBl);
 }
 

@@ -1,10 +1,44 @@
 <!DOCTYPE html>
 <html lang="<%= typeof lang !== 'undefined' ? lang : 'es' %>">
-<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Master - Auditoria</title><%- include('partials/head-assets') %></head>
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Master - Auditoría</title><%- include('partials/head-assets') %></head>
 <body class="page master-shell-page">
 <%- include('partials/header', { headerBrandText: 'Panel Master', homeHref: '/master', showDefaultNav: false, headerActionsHtml: `<nav class="master-tabs"><a href="/master">Empresas</a><a href="/master/monitoring">Monitoreo</a><a href="/master/backups">Backups</a><a href="/master/audit" class="is-active">Auditoria</a></nav><a href="/master/logout" class="btn app-btn">Cerrar sesion</a>` }) %>
 <main class="container master-page">
-  <div class="page-header app-page-header"><div><p class="app-page-eyebrow">Master</p><h1>Auditoria global</h1><p class="muted">Eventos administrativos del sistema. No se elimina desde la interfaz.</p></div></div>
-  <section class="app-card"><div class="app-table-wrap"><table class="app-table"><thead><tr><th>ID</th><th>Fecha</th><th>Empresa</th><th>Usuario</th><th>Accion</th><th>Modulo</th><th>Descripcion</th><th>IP</th></tr></thead><tbody><% (auditLogs || []).forEach(log => { %><tr><td><%= log.id %></td><td><%= log.created_at %></td><td><%= log.company_id || '-' %></td><td><%= log.user_name || log.user_id || '-' %></td><td><%= log.action %></td><td><%= log.module || '-' %></td><td><%= log.description || '-' %></td><td><%= log.ip_address || '-' %></td></tr><% }) %></tbody></table></div></section>
+  <div class="page-header app-page-header"><div><p class="app-page-eyebrow">Master</p><h1>Auditoría global</h1><p class="muted">Eventos administrativos del sistema, ordenados del más reciente al más antiguo.</p></div></div>
+  <section class="app-card master-content-card">
+    <div class="app-card-header master-card-heading">
+      <div>
+        <h2 class="app-card-title">Registro de actividad</h2>
+        <p class="muted">La acción, el módulo y su descripción se agrupan para facilitar la lectura.</p>
+      </div>
+      <span class="app-badge app-badge-info"><%= (auditLogs || []).length %> eventos</span>
+    </div>
+    <div class="app-table-wrap master-readable-table-wrap">
+      <table class="app-table master-readable-table master-audit-table">
+        <thead><tr><th>Fecha y hora</th><th>Evento</th><th>Empresa</th><th>Usuario</th><th>Dirección IP</th><th>ID</th></tr></thead>
+        <tbody>
+          <% if (!(auditLogs || []).length) { %><tr class="master-empty-row"><td colspan="6">No hay eventos de auditoría registrados.</td></tr><% } %>
+          <% (auditLogs || []).forEach(log => { %>
+            <tr>
+              <td data-label="Fecha"><span class="master-date"><strong><%= log.created_date_label %></strong><small><%= log.created_time_label %></small></span></td>
+              <td data-label="Evento">
+                <div class="master-audit-event">
+                  <div class="master-audit-event-heading">
+                    <span class="app-badge app-badge-info"><%= log.action || 'Sin acción' %></span>
+                    <span class="master-audit-module"><%= log.module || 'Sistema' %></span>
+                  </div>
+                  <p><%= log.description || 'Sin descripción adicional.' %></p>
+                </div>
+              </td>
+              <td data-label="Empresa"><%= log.company_id ? `Empresa #${log.company_id}` : 'Global' %></td>
+              <td data-label="Usuario"><strong class="master-cell-value"><%= log.user_name || (log.user_id ? `Usuario #${log.user_id}` : 'Sistema') %></strong></td>
+              <td data-label="Dirección IP"><code class="master-ip"><%= log.ip_address || 'No registrada' %></code></td>
+              <td data-label="ID"><span class="master-record-id">#<%= log.id %></span></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </section>
 </main>
 </body></html>

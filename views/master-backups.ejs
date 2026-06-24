@@ -6,7 +6,43 @@
 <main class="container master-page">
   <div class="page-header app-page-header"><div><p class="app-page-eyebrow">Master</p><h1>Backups</h1><p class="muted">Respaldos generales del entorno multi-tenant.</p></div><form action="/master/backups/run" method="POST"><input type="hidden" name="_csrf" value="<%= csrfToken %>" /><button class="btn primary app-btn app-btn-primary">Ejecutar backup ahora</button></form></div>
   <% if (flash && flash.message) { %><div class="app-message app-message-<%= flash.type || 'info' %>"><%= flash.message %></div><% } %>
-  <section class="app-card"><h2 class="app-card-title">Ultimo backup general</h2><p><strong><%= latestBackup ? latestBackup.name : 'Sin backup' %></strong></p><p class="muted"><%= latestBackup ? `${latestBackup.sizeLabel} - ${latestBackup.createdAtLabel}` : '-' %></p></section>
-  <section class="app-card"><h2 class="app-card-title">Backups recientes</h2><div class="app-table-wrap"><table class="app-table"><thead><tr><th>Archivo</th><th>Tamano</th><th>Fecha</th><th>Estado</th></tr></thead><tbody><% backups.slice(0,30).forEach(b => { %><tr><td><%= b.name %></td><td><%= b.sizeLabel %></td><td><%= b.createdAtLabel %></td><td>Registrado</td></tr><% }) %></tbody></table></div></section>
+  <section class="app-card master-backup-summary">
+    <div>
+      <span class="master-summary-label">Último backup general</span>
+      <strong class="master-summary-file"><%= latestBackup ? latestBackup.name : 'Sin backups registrados' %></strong>
+    </div>
+    <% if (latestBackup) { %>
+      <div class="master-summary-meta">
+        <span><small>Tamaño</small><strong><%= latestBackup.sizeLabel %></strong></span>
+        <span><small>Fecha</small><strong><%= latestBackup.createdDateLabel %></strong><em><%= latestBackup.createdTimeLabel %></em></span>
+        <span><small>Estado</small><strong><span class="app-badge app-badge-success">Disponible</span></strong></span>
+      </div>
+    <% } %>
+  </section>
+  <section class="app-card master-content-card">
+    <div class="app-card-header master-card-heading">
+      <div>
+        <h2 class="app-card-title">Backups recientes</h2>
+        <p class="muted">Hasta 30 respaldos, ordenados del más nuevo al más antiguo.</p>
+      </div>
+      <span class="app-badge app-badge-info"><%= backups.length %> en total</span>
+    </div>
+    <div class="app-table-wrap master-readable-table-wrap">
+      <table class="app-table master-readable-table master-backups-table">
+        <thead><tr><th>Archivo de respaldo</th><th>Tamaño</th><th>Fecha de creación</th><th>Estado</th></tr></thead>
+        <tbody>
+          <% if (!backups.length) { %><tr class="master-empty-row"><td colspan="4">No hay backups registrados todavía.</td></tr><% } %>
+          <% backups.slice(0,30).forEach(b => { %>
+            <tr>
+              <td data-label="Archivo"><span class="master-file-name"><%= b.name %></span></td>
+              <td data-label="Tamaño"><strong class="master-cell-value"><%= b.sizeLabel %></strong></td>
+              <td data-label="Fecha"><span class="master-date"><strong><%= b.createdDateLabel %></strong><small><%= b.createdTimeLabel %></small></span></td>
+              <td data-label="Estado"><span class="app-badge app-badge-success">Disponible</span></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </section>
 </main>
 </body></html>

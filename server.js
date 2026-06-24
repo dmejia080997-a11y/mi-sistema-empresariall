@@ -2565,7 +2565,7 @@ function getAccountIdByCode(companyId, code, callback) {
 
 
 function getCompanySettings(companyId, callback) {
-  db.get(
+  masterDb.get(
     'SELECT * FROM companies WHERE id = ?',
     [companyId],
     (err, company) => {
@@ -11674,6 +11674,7 @@ registerSupplierRoutes(app, {
 
 registerFloatingInvestmentRoutes(app, {
   db,
+  masterDb,
   requireAuth,
   requirePermission,
   getCompanyId,
@@ -11683,6 +11684,7 @@ registerFloatingInvestmentRoutes(app, {
 
 registerAccountingRoutes(app, {
   db,
+  masterDb,
   XLSX,
   stringify,
   requireAuth,
@@ -11699,6 +11701,8 @@ registerAccountingRoutes(app, {
   parseCurrencyList,
   normalizeFramework,
   ACCOUNTING_FRAMEWORKS,
+  NIF_TYPES,
+  NIF_SUBTYPES,
   fetchAccountingCategories,
   normalizeNifType,
   normalizeNifSubtype,
@@ -12208,6 +12212,10 @@ startServer(PORT);
 app.use((err, req, res, next) => {
   if (err && err.code === 'EBADCSRFTOKEN') {
     const hasCookieHeader = Boolean(req.headers && req.headers.cookie);
+    const cookieHeader = String((req.headers && req.headers.cookie) || '');
+    const hasSessionCookie = cookieHeader
+      .split(';')
+      .some((part) => part.trim().startsWith(`${SESSION_COOKIE_NAME}=`));
     const hasBodyToken = Boolean(req.body && req.body._csrf);
     const hasHeaderToken = Boolean(
       req.headers && (req.headers['x-csrf-token'] || req.headers['x-xsrf-token'])
@@ -12218,10 +12226,34 @@ app.use((err, req, res, next) => {
       url: req.originalUrl,
       isMultipart: req.is('multipart/form-data'),
       hasCookieHeader,
+      hasSessionCookie,
       hasBodyToken,
       hasHeaderToken,
+      secureRequest: req.secure,
+      forwardedProto: req.get('x-forwarded-proto') || null,
+      hasSession: Boolean(req.session),
       bodyKeys
     });
+    const loginRecoveryPath = req.path === '/login'
+      ? '/login?csrf=expired'
+      : req.path === '/master/login'
+        ? '/master/login?csrf=expired'
+        : null;
+    if (req.method === 'POST' && loginRecoveryPath) {
+      const redirectWithFreshSession = () => {
+        res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+        return res.redirect(303, loginRecoveryPath);
+      };
+      if (req.session && typeof req.session.destroy === 'function') {
+        return req.session.destroy((destroyErr) => {
+          if (destroyErr) {
+            console.error('[csrf] failed to destroy invalid login session', destroyErr);
+          }
+          return redirectWithFreshSession();
+        });
+      }
+      return redirectWithFreshSession();
+    }
     return res.status(403).send('Invalid CSRF token');
   }
   return next(err);

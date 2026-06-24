@@ -648,3 +648,81 @@ body.page .app-select {
     white-space: normal;
   }
 }
+
+/*
+  El panel master usa tablas administrativas horizontales. Debe quedar después
+  de las reglas responsive globales para que el lanzador no limite los módulos
+  a 220px ni convierta sus tablas en columnas estrechas.
+*/
+body.master-shell-page main.container.master-page {
+  width: calc(100% - 32px);
+  max-width: 1440px;
+}
+
+body.master-shell-page .master-content-card,
+body.master-shell-page .master-backup-summary {
+  box-sizing: border-box;
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  align-items: stretch;
+  text-align: left;
+  overflow: visible;
+}
+
+body.master-shell-page .master-readable-table-wrap {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+body.master-shell-page .master-readable-table {
+  display: table;
+  width: 100%;
+  max-width: none;
+  table-layout: fixed;
+}
+
+body.master-shell-page .master-backups-table {
+  min-width: 760px;
+}
+
+body.master-shell-page .master-audit-table {
+  min-width: 1080px;
+}
+
+@media (max-width: 720px) {
+  body.master-shell-page main.container.master-page {
+    width: calc(100% - 20px);
+  }
+
+  body.master-shell-page .master-readable-table thead {
+    display: table-header-group;
+  }
+
+  body.master-shell-page .master-readable-table tbody {
+    display: table-row-group;
+  }
+
+  body.master-shell-page .master-readable-table tr {
+    display: table-row;
+  }
+
+  body.master-shell-page .master-readable-table th,
+  body.master-shell-page .master-readable-table td {
+    display: table-cell;
+    width: auto;
+  }
+
+  body.master-shell-page .master-readable-table td::before {
+    content: none;
+  }
+}
+
+@media (max-width: 420px) {
+  body.master-shell-page main.container.master-page {
+    width: calc(100% - 16px);
+  }
+}

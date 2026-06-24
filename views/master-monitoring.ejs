@@ -5,17 +5,100 @@
 <%- include('partials/header', { headerBrandText: 'Panel Master', homeHref: '/master', showDefaultNav: false, headerActionsHtml: `<nav class="master-tabs"><a href="/master">Empresas</a><a href="/master/monitoring" class="is-active">Monitoreo</a><a href="/master/backups">Backups</a><a href="/master/audit">Auditoria</a></nav><a href="/master/logout" class="btn app-btn">Cerrar sesion</a>` }) %>
 <main class="container master-page">
   <div class="page-header app-page-header"><div><p class="app-page-eyebrow">Master</p><h1>Monitoreo</h1><p class="muted">Estado tecnico del servidor y tenants.</p></div></div>
-  <section class="app-kpi-grid master-kpi-grid">
-    <article class="app-card"><span class="muted">CPU</span><strong><%= health.cpu.loadavg.map(n => n.toFixed(2)).join(' / ') %></strong></article>
-    <article class="app-card"><span class="muted">RAM usada</span><strong><%= health.ram.usedLabel %> / <%= health.ram.totalLabel %></strong></article>
-    <article class="app-card"><span class="muted">Disco usado</span><strong><%= health.disk.usedLabel || '-' %> (<%= health.disk.usedPercent || 0 %>%)</strong></article>
-    <article class="app-card"><span class="muted">Disco disponible</span><strong><%= health.disk.availableLabel || '-' %></strong></article>
-    <article class="app-card"><span class="muted">PostgreSQL</span><strong><%= health.postgres.label %></strong></article>
-    <article class="app-card"><span class="muted">PM2</span><strong><%= health.pm2.label %></strong></article>
-    <article class="app-card"><span class="muted">Cron</span><strong><%= health.cron.label %></strong></article>
-    <article class="app-card"><span class="muted">Uptime</span><strong><%= health.uptime %></strong></article>
+  <section class="master-monitoring-section" aria-labelledby="server-resources-title">
+    <div class="master-monitoring-heading">
+      <div>
+        <h2 id="server-resources-title" class="app-card-title">Recursos del servidor</h2>
+        <p class="muted">Consumo actual de procesamiento, memoria y almacenamiento.</p>
+      </div>
+    </div>
+    <div class="app-kpi-grid master-kpi-grid">
+      <article class="app-card master-kpi-card">
+        <span class="muted">Carga del CPU</span>
+        <strong><%= health.cpu.loadavg.map(n => n.toFixed(2)).join(' / ') %></strong>
+        <small class="master-monitoring-help">Promedio de 1, 5 y 15 minutos · <%= health.cpu.cores %> núcleos</small>
+      </article>
+      <article class="app-card master-kpi-card">
+        <span class="muted">Memoria RAM</span>
+        <strong><%= health.ram.usedLabel %> usados</strong>
+        <small class="master-monitoring-help"><%= health.ram.freeLabel %> disponibles de <%= health.ram.totalLabel %></small>
+      </article>
+      <article class="app-card master-kpi-card">
+        <span class="muted">Almacenamiento usado</span>
+        <strong><%= health.disk.usedLabel || 'No disponible' %></strong>
+        <small class="master-monitoring-help"><%= health.disk.ok ? `${health.disk.usedPercent || 0}% del disco` : 'No se pudo consultar el disco' %></small>
+      </article>
+      <article class="app-card master-kpi-card">
+        <span class="muted">Almacenamiento disponible</span>
+        <strong><%= health.disk.availableLabel || 'No disponible' %></strong>
+        <small class="master-monitoring-help">Capacidad total: <%= health.disk.totalLabel || 'No disponible' %></small>
+      </article>
+    </div>
   </section>
-  <section class="app-card"><h2 class="app-card-title">Ultimos errores PM2</h2><pre class="app-prewrap"><%= (health.pm2Errors || []).join('\n') || 'Sin errores recientes detectados.' %></pre></section>
-  <section class="app-card"><h2 class="app-card-title">Ultimos backups</h2><ul><% backups.slice(0,10).forEach(b => { %><li><%= b.name %> - <%= b.sizeLabel %> - <%= b.createdAtLabel %></li><% }) %></ul></section>
+
+  <section class="master-monitoring-section" aria-labelledby="services-status-title">
+    <div class="master-monitoring-heading">
+      <div>
+        <h2 id="services-status-title" class="app-card-title">Estado de servicios</h2>
+        <p class="muted">Disponibilidad de los procesos principales del sistema.</p>
+      </div>
+    </div>
+    <div class="app-kpi-grid master-kpi-grid">
+      <article class="app-card master-kpi-card">
+        <span class="muted">Base de datos PostgreSQL</span>
+        <strong><span class="app-badge <%= health.postgres.ok ? 'app-badge-success' : 'app-badge-danger' %>"><%= health.postgres.label %></span></strong>
+        <small class="master-monitoring-help">Conexión con la base de datos principal</small>
+      </article>
+      <article class="app-card master-kpi-card">
+        <span class="muted">Procesos de aplicación (PM2)</span>
+        <strong><span class="app-badge <%= health.pm2.ok ? 'app-badge-success' : 'app-badge-danger' %>"><%= health.pm2.label %></span></strong>
+        <small class="master-monitoring-help">Administrador de procesos del servidor</small>
+      </article>
+      <article class="app-card master-kpi-card">
+        <span class="muted">Tareas programadas (Cron)</span>
+        <strong><span class="app-badge <%= health.cron.ok ? 'app-badge-success' : 'app-badge-danger' %>"><%= health.cron.label %></span></strong>
+        <small class="master-monitoring-help">Ejecución automática de tareas</small>
+      </article>
+      <article class="app-card master-kpi-card">
+        <span class="muted">Tiempo activo del servidor</span>
+        <strong><%= health.uptime %></strong>
+        <small class="master-monitoring-help">Tiempo transcurrido desde el último reinicio</small>
+      </article>
+    </div>
+  </section>
+  <section class="app-card master-content-card">
+    <div class="app-card-header master-card-heading">
+      <div>
+        <h2 class="app-card-title">Últimos errores de PM2</h2>
+        <p class="muted">Mensajes recientes detectados en los procesos de la aplicación.</p>
+      </div>
+    </div>
+    <pre class="app-prewrap master-log-output"><%= (health.pm2Errors || []).join('\n') || 'Sin errores recientes detectados.' %></pre>
+  </section>
+  <section class="app-card master-content-card">
+    <div class="app-card-header master-card-heading">
+      <div>
+        <h2 class="app-card-title">Últimos backups</h2>
+        <p class="muted">Los 10 respaldos generales más recientes, ordenados del más nuevo al más antiguo.</p>
+      </div>
+      <a href="/master/backups" class="btn app-btn">Ver todos los backups</a>
+    </div>
+    <div class="app-table-wrap master-readable-table-wrap">
+      <table class="app-table master-readable-table master-backups-table">
+        <thead><tr><th>Archivo de respaldo</th><th>Tamaño</th><th>Creado</th><th>Estado</th></tr></thead>
+        <tbody>
+          <% if (!backups.length) { %><tr class="master-empty-row"><td colspan="4">No hay backups registrados.</td></tr><% } %>
+          <% backups.slice(0,10).forEach(b => { %>
+            <tr>
+              <td data-label="Archivo"><span class="master-file-name"><%= b.name %></span></td>
+              <td data-label="Tamaño"><strong class="master-cell-value"><%= b.sizeLabel %></strong></td>
+              <td data-label="Creado"><span class="master-date"><strong><%= b.createdDateLabel %></strong><small><%= b.createdTimeLabel %></small></span></td>
+              <td data-label="Estado"><span class="app-badge app-badge-success">Disponible</span></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </section>
 </main>
 </body></html>
