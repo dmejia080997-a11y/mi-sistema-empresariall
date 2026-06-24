@@ -17,8 +17,7 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 
 function runBackup() {
   console.log('Creando backup completo antes de migrar...');
-  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const result = spawnSync(npmCommand, ['run', 'backup:all'], {
+  const result = spawnSync(process.execPath, [path.join(ROOT_DIR, 'tools', 'backup_all.js')], {
     cwd: ROOT_DIR,
     env: process.env,
     stdio: 'inherit'

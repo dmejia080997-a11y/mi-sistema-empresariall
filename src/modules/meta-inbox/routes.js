@@ -354,15 +354,15 @@ async function ensureMetaInboxSchema(db) {
     await runDb(db, statement);
   }
   await runDb(db, "INSERT INTO permission_modules (code, name, description) VALUES ('meta_inbox', 'Centro de Mensajes / Meta Inbox', 'Bandeja oficial para Messenger, comentarios y Lead Ads de Meta') ON CONFLICT (code) DO NOTHING");
-  await runDb(db, `INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
+  await runDb(db, `INSERT INTO permission_actions (code, name, description) VALUES
     ('reply', 'Responder', 'Responder mensajes y comentarios'),
     ('assign', 'Asignar', 'Asignar conversaciones a usuarios'),
     ('close', 'Cerrar', 'Cambiar estado y cerrar conversaciones'),
     ('settings', 'Configurar Meta', 'Administrar conexion y paginas de Meta'),
-    ('leads', 'Leads', 'Gestionar leads de Facebook Lead Ads')`);
-  await runDb(db, `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+    ('leads', 'Leads', 'Gestionar leads de Facebook Lead Ads') ON CONFLICT DO NOTHING`);
+  await runDb(db, `INSERT INTO module_actions (module_id, action_id)
     SELECT pm.id, pa.id FROM permission_modules pm, permission_actions pa
-    WHERE pm.code = 'meta_inbox' AND pa.code IN ('view','reply','assign','close','settings','leads')`);
+    WHERE pm.code = 'meta_inbox' AND pa.code IN ('view','reply','assign','close','settings','leads') ON CONFLICT DO NOTHING`);
 }
 
 function listConversations(db, companyId, filters) {
@@ -404,12 +404,12 @@ function listConversations(db, companyId, filters) {
     db,
     `SELECT c.*, p.page_name, u.username AS assigned_username,
             (SELECT COUNT(*) FROM conversation_messages m WHERE m.company_id = c.company_id AND m.conversation_id = c.id AND m.direction = 'inbound') AS inbound_count,
-            (SELECT GROUP_CONCAT(label, '||') FROM conversation_tags t WHERE t.company_id = c.company_id AND t.conversation_id = c.id) AS tag_labels
+            (SELECT STRING_AGG(label, '||') FROM conversation_tags t WHERE t.company_id = c.company_id AND t.conversation_id = c.id) AS tag_labels
      FROM conversations c
      LEFT JOIN meta_pages p ON p.id = c.meta_page_id AND p.company_id = c.company_id
      LEFT JOIN users u ON u.id = c.assigned_user_id AND u.company_id = c.company_id
      WHERE ${where.join(' AND ')}
-     ORDER BY datetime(COALESCE(c.last_message_at, c.updated_at, c.created_at)) DESC, c.id DESC
+     ORDER BY TIMESTAMP(COALESCE(c.last_message_at, c.updated_at, c.created_at)) DESC, c.id DESC
      LIMIT 250`,
     params
   );

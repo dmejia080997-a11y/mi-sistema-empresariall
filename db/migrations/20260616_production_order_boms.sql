@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS production_order_boms (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   production_order_id INTEGER NOT NULL,
   bom_id INTEGER NOT NULL,
@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS production_order_boms (
   quantity_finished REAL NOT NULL DEFAULT 0,
   estimated_cost REAL NOT NULL DEFAULT 0,
   unit_cost REAL NOT NULL DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_production_order_boms_order ON production_order_boms (company_id, production_order_id);

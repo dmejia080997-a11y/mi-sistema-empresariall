@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
 const { STORAGE_UPLOADS_DIR } = require('../../core/storage-paths');
+const { publicErrorMessage } = require('../../core/public-error');
 
 function registerSalesRoutes(app, deps) {
   const {
@@ -250,7 +251,7 @@ function registerSalesRoutes(app, deps) {
       setSalesFlash(req, 'info', `Venta ${closed.saleNumber} cerrada y factura generada.`);
       return res.redirect(`/sales/${closed.saleId}`);
     } catch (error) {
-      setSalesFlash(req, 'error', error.message || 'No se pudo cerrar la venta.');
+      setSalesFlash(req, 'error', publicErrorMessage(error, 'No se pudo cerrar la venta.'));
       return res.redirect('/sales?section=orders');
     }
   }));
@@ -289,7 +290,7 @@ function registerSalesRoutes(app, deps) {
       setSalesFlash(req, 'info', `Venta ${closed.saleNumber} cerrada.`);
       return res.redirect(`/sales/${closed.saleId}`);
     } catch (error) {
-      setSalesFlash(req, 'error', error.message || 'No se pudo crear la venta.');
+      setSalesFlash(req, 'error', publicErrorMessage(error, 'No se pudo crear la venta.'));
       return res.redirect('/sales?section=sales');
     }
   }));
@@ -345,19 +346,19 @@ function registerSalesRoutes(app, deps) {
 async function ensureSalesSchema(db) {
   await ensureSalesPermissionData(db);
   await runDb(db, `CREATE TABLE IF NOT EXISTS sales_user_profiles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
     commercial_role TEXT NOT NULL DEFAULT 'seller',
     supervisor_user_id INTEGER NULL,
     commission_rate REAL NOT NULL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(company_id, user_id)
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS sales_prospects (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     assigned_user_id INTEGER NULL,
     name TEXT NOT NULL,
@@ -369,11 +370,11 @@ async function ensureSalesSchema(db) {
     notes TEXT NULL,
     converted_customer_id INTEGER NULL,
     created_by INTEGER NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS sales_opportunities (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     prospect_id INTEGER NULL,
     customer_id INTEGER NULL,
@@ -385,12 +386,12 @@ async function ensureSalesSchema(db) {
     expected_close_date TEXT NULL,
     notes TEXT NULL,
     created_by INTEGER NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    closed_at DATETIME NULL
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    closed_at TIMESTAMP NULL
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS sales_quotes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     opportunity_id INTEGER NULL,
     customer_id INTEGER NULL,
@@ -405,11 +406,11 @@ async function ensureSalesSchema(db) {
     valid_until TEXT NULL,
     notes TEXT NULL,
     created_by INTEGER NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS sales_quote_lines (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     quote_id INTEGER NOT NULL,
     line_type TEXT NOT NULL DEFAULT 'product',
@@ -423,7 +424,7 @@ async function ensureSalesSchema(db) {
     sort_order INTEGER NOT NULL DEFAULT 0
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS sales_quote_attachments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     quote_id INTEGER NOT NULL,
     file_path TEXT NOT NULL,
@@ -431,10 +432,10 @@ async function ensureSalesSchema(db) {
     mime_type TEXT NULL,
     file_size INTEGER NULL,
     uploaded_by INTEGER NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS sales_orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     quote_id INTEGER NULL,
     opportunity_id INTEGER NULL,
@@ -449,12 +450,12 @@ async function ensureSalesSchema(db) {
     total REAL NOT NULL DEFAULT 0,
     notes TEXT NULL,
     created_by INTEGER NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    closed_at DATETIME NULL
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    closed_at TIMESTAMP NULL
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS sales_order_lines (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     order_id INTEGER NOT NULL,
     line_type TEXT NOT NULL DEFAULT 'product',
@@ -468,7 +469,7 @@ async function ensureSalesSchema(db) {
     sort_order INTEGER NOT NULL DEFAULT 0
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS sales (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     cliente_id INTEGER NULL,
     prospect_id INTEGER NULL,
@@ -488,11 +489,11 @@ async function ensureSalesSchema(db) {
     commission_rate REAL NOT NULL DEFAULT 0,
     notes TEXT NULL,
     created_by INTEGER NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    closed_at DATETIME NULL
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    closed_at TIMESTAMP NULL
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS sales_lines (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     sale_id INTEGER NOT NULL,
     line_type TEXT NOT NULL DEFAULT 'product',
@@ -506,7 +507,7 @@ async function ensureSalesSchema(db) {
     sort_order INTEGER NOT NULL DEFAULT 0
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS sales_commissions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     sale_id INTEGER NOT NULL,
     seller_user_id INTEGER NOT NULL,
@@ -514,11 +515,11 @@ async function ensureSalesSchema(db) {
     rate REAL NOT NULL DEFAULT 0,
     amount REAL NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pendiente',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    paid_at DATETIME NULL
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    paid_at TIMESTAMP NULL
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS sales_goals (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     seller_user_id INTEGER NOT NULL,
     period_start TEXT NOT NULL,
@@ -526,11 +527,11 @@ async function ensureSalesSchema(db) {
     target_amount REAL NOT NULL DEFAULT 0,
     target_count INTEGER NOT NULL DEFAULT 0,
     created_by INTEGER NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS sales_inventory_movements (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     sale_id INTEGER NOT NULL,
     sale_line_id INTEGER NULL,
@@ -540,7 +541,7 @@ async function ensureSalesSchema(db) {
     stock_after REAL NOT NULL DEFAULT 0,
     movement_type TEXT NOT NULL DEFAULT 'sale',
     created_by INTEGER NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await ensureInvoiceSupport(db);
   await runDb(db, 'CREATE INDEX IF NOT EXISTS idx_sales_company_seller ON sales (company_id, seller_user_id, created_at)');
@@ -555,22 +556,22 @@ async function ensureSalesPermissionData(db) {
   await runDb(db, `INSERT INTO permission_modules (code, name, description)
     VALUES ('sales', 'Ventas / CRM', 'CRM comercial, oportunidades, cotizaciones, pedidos, ventas, comisiones y metas')
     ON CONFLICT (code) DO NOTHING`);
-  await runDb(db, `INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
+  await runDb(db, `INSERT INTO permission_actions (code, name, description) VALUES
     ('view','Ver','Acceso de lectura'),
     ('create','Crear','Crear registros'),
     ('edit','Editar','Editar registros'),
     ('delete','Eliminar','Eliminar registros'),
     ('export','Exportar','Exportar informacion'),
-    ('manage','Administrar','Administrar equipos, metas y configuracion comercial')`);
-  await runDb(db, `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+    ('manage','Administrar','Administrar equipos, metas y configuracion comercial') ON CONFLICT DO NOTHING`);
+  await runDb(db, `INSERT INTO module_actions (module_id, action_id)
     SELECT pm.id, pa.id
     FROM permission_modules pm, permission_actions pa
-    WHERE pm.code = 'sales' AND pa.code IN ('view','create','edit','delete','export','manage')`);
+    WHERE pm.code = 'sales' AND pa.code IN ('view','create','edit','delete','export','manage') ON CONFLICT DO NOTHING`);
 }
 
 async function ensureInvoiceSupport(db) {
   await runDb(db, `CREATE TABLE IF NOT EXISTS invoices (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     customer_id INTEGER,
     subtotal REAL,
     tax_rate REAL,
@@ -579,7 +580,7 @@ async function ensureInvoiceSupport(db) {
     discount_value REAL,
     discount_amount REAL,
     total REAL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     company_id INTEGER,
     currency TEXT,
     exchange_rate REAL DEFAULT 1,
@@ -589,7 +590,7 @@ async function ensureInvoiceSupport(db) {
     total_base REAL DEFAULT 0
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS invoice_headers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     legacy_invoice_id INTEGER NULL,
     company_id INTEGER NOT NULL,
     invoice_number TEXT NULL,
@@ -615,12 +616,12 @@ async function ensureInvoiceSupport(db) {
     created_by INTEGER NULL,
     updated_by INTEGER NULL,
     stock_applied INTEGER NOT NULL DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    emitted_at DATETIME NULL
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    emitted_at TIMESTAMP NULL
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS invoice_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     invoice_id INTEGER,
     header_id INTEGER NULL,
     item_id INTEGER,
@@ -638,20 +639,20 @@ async function ensureInvoiceSupport(db) {
     subtotal REAL NOT NULL DEFAULT 0,
     total REAL NOT NULL DEFAULT 0,
     sort_order INTEGER NOT NULL DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS invoice_status_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     invoice_header_id INTEGER NOT NULL,
     company_id INTEGER NOT NULL,
     from_status TEXT NULL,
     to_status TEXT NULL,
     notes TEXT NULL,
     changed_by INTEGER NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS invoice_inventory_movements (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     invoice_header_id INTEGER NOT NULL,
     invoice_item_id INTEGER NULL,
     item_id INTEGER NOT NULL,
@@ -662,7 +663,7 @@ async function ensureInvoiceSupport(db) {
     stock_after REAL NOT NULL DEFAULT 0,
     notes TEXT NULL,
     created_by INTEGER NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
 }
 

@@ -156,7 +156,7 @@ const INTENT_HINTS = {
 
 async function ensureSchema(db) {
   await run(db, `CREATE TABLE IF NOT EXISTS ai_intents (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER,
     intent_key TEXT NOT NULL,
     name TEXT NOT NULL,
@@ -164,12 +164,12 @@ async function ensureSchema(db) {
     module_required TEXT,
     permission_required TEXT,
     enabled INTEGER NOT NULL DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(company_id, intent_key)
   )`);
   await run(db, `CREATE TABLE IF NOT EXISTS ai_chat_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
     question TEXT NOT NULL,
@@ -177,18 +177,18 @@ async function ensureSchema(db) {
     response_summary TEXT,
     export_generated INTEGER NOT NULL DEFAULT 0,
     export_file_path TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await run(db, `CREATE TABLE IF NOT EXISTS ai_allowed_queries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     intent_key TEXT NOT NULL,
     module TEXT,
     permission_required TEXT,
     query_type TEXT NOT NULL DEFAULT 'report',
     sql_template TEXT NOT NULL,
     export_allowed INTEGER NOT NULL DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(intent_key, query_type)
   )`);
   await run(db, 'CREATE INDEX IF NOT EXISTS idx_ai_chat_history_scope ON ai_chat_history (company_id, user_id, created_at)');
@@ -199,9 +199,9 @@ async function ensureSchema(db) {
 
 async function ensureCompanyIntents(db, companyId) {
   for (const intent of INTENTS) {
-    await run(db, `INSERT OR IGNORE INTO ai_intents
+    await run(db, `INSERT INTO ai_intents
       (company_id, intent_key, name, description, module_required, permission_required, enabled, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT DO NOTHING`,
       [companyId, intent.key, intent.name, intent.description, intent.module, intent.permission]);
   }
 }
@@ -373,7 +373,7 @@ const EXECUTORS = {
       LEFT JOIN invoice_items ii ON ii.header_id = ih.id AND ii.company_id = ih.company_id
       LEFT JOIN customers c ON c.id = COALESCE(s.cliente_id, ih.customer_id) AND c.company_id = s.company_id
       LEFT JOIN users u ON u.id = s.seller_user_id
-      WHERE s.company_id = ? AND date(COALESCE(s.closed_at, s.created_at)) BETWEEN date(?) AND date(?)
+      WHERE s.company_id = ? AND COALESCE(s.closed_at, s.created_at)::date BETWEEN ?::date AND ?::date
       ORDER BY "Fecha" DESC LIMIT 1000`, [companyId, range.start, range.end]);
     const total = sum(rows, 'Total');
     return result('ventas_mes', rows, { total, count: uniqueCount(rows, 'Factura') || rows.length });
@@ -417,7 +417,7 @@ const EXECUTORS = {
       FROM sales_lines sl
       JOIN sales s ON s.id = sl.sale_id AND s.company_id = sl.company_id
       LEFT JOIN items i ON i.id = sl.item_id AND i.company_id = sl.company_id
-      WHERE sl.company_id = ? AND date(COALESCE(s.closed_at, s.created_at)) BETWEEN date(?) AND date(?)
+      WHERE sl.company_id = ? AND COALESCE(s.closed_at, s.created_at)::date BETWEEN ?::date AND ?::date
       GROUP BY COALESCE(sl.description, i.name, 'Producto/Servicio')
       ORDER BY "Total vendido" DESC LIMIT 50`, [companyId, range.start, range.end]);
     return result('productos_mas_vendidos', rows, { productos: rows.length, total: sum(rows, 'Total vendido') });
@@ -427,7 +427,7 @@ const EXECUTORS = {
       SUM(s.total) AS "Total vendido"
       FROM sales s
       LEFT JOIN users u ON u.id = s.seller_user_id
-      WHERE s.company_id = ? AND date(COALESCE(s.closed_at, s.created_at)) BETWEEN date(?) AND date(?)
+      WHERE s.company_id = ? AND COALESCE(s.closed_at, s.created_at)::date BETWEEN ?::date AND ?::date
       GROUP BY COALESCE(u.username, 'Sin vendedor')
       ORDER BY "Total vendido" DESC LIMIT 100`, [companyId, range.start, range.end]);
     return result('vendedores_ranking', rows, { vendedores: rows.length, total: sum(rows, 'Total vendido') });
@@ -435,12 +435,12 @@ const EXECUTORS = {
   proyectos_atrasados: async (db, companyId) => {
     const rows = await safeAll(db, `SELECT p.name AS "Proyecto", COALESCE(t.title, p.name) AS "Tarea", COALESCE(u.username, '') AS "Responsable",
       COALESCE(t.due_date, p.estimated_end_date) AS "Fecha vencimiento", COALESCE(t.status, p.status) AS "Estado",
-      CAST(julianday('now') - julianday(COALESCE(t.due_date, p.estimated_end_date)) AS INTEGER) AS "Días vencidos"
+      FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(t.due_date, p.estimated_end_date)::timestamp)) / 86400)::INTEGER AS "Días vencidos"
       FROM projects p
       LEFT JOIN project_tasks t ON t.project_id = p.id AND t.company_id = p.company_id
       LEFT JOIN users u ON u.id = t.assigned_to
       WHERE p.company_id = ?
-        AND date(COALESCE(t.due_date, p.estimated_end_date)) < date('now')
+        AND COALESCE(NULLIF(t.due_date, '')::date, NULLIF(p.estimated_end_date, '')::date) < CURRENT_DATE
         AND COALESCE(t.status, p.status) NOT IN ('completed','cancelled','finalizada','cancelado')
       ORDER BY "Días vencidos" DESC LIMIT 1000`, [companyId]);
     return result('proyectos_atrasados', rows, { atrasados: rows.length });
@@ -459,15 +459,15 @@ const EXECUTORS = {
 async function receivables(db, companyId, overdueOnly) {
   const rows = await safeAll(db, `SELECT ih.invoice_number AS "Factura", COALESCE(c.name, ih.customer_name_snapshot, 'Sin cliente') AS "Cliente",
     ih.issue_date AS "Fecha emisión", ih.due_date AS "Fecha vencimiento", ih.total AS "Total factura", ih.paid_total AS "Pagado",
-    ih.balance_due AS "Saldo", MAX(0, CAST(julianday('now') - julianday(COALESCE(ih.due_date, ih.issue_date, ih.created_at)) AS INTEGER)) AS "Días vencidos",
+    ih.balance_due AS "Saldo", GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(ih.due_date, ih.issue_date, ih.created_at)::timestamp)) / 86400)::INTEGER) AS "Días vencidos",
     COALESCE(u.username, '') AS "Vendedor"
     FROM invoice_headers ih
     LEFT JOIN customers c ON c.id = ih.customer_id AND c.company_id = ih.company_id
     LEFT JOIN sales s ON s.invoice_header_id = ih.id AND s.company_id = ih.company_id
     LEFT JOIN users u ON u.id = s.seller_user_id
     WHERE ih.company_id = ? AND COALESCE(ih.balance_due, ih.total - COALESCE(ih.paid_total,0), 0) > 0
-      ${overdueOnly ? "AND date(COALESCE(ih.due_date, ih.issue_date, ih.created_at)) < date('now')" : ''}
-    ORDER BY COALESCE(ih.due_date, ih.issue_date, ih.created_at) ASC LIMIT 1000`, [companyId]);
+      ${overdueOnly ? "AND COALESCE(NULLIF(ih.due_date, '')::date, NULLIF(ih.issue_date, '')::date, ih.created_at::date) < CURRENT_DATE" : ''}
+    ORDER BY COALESCE(NULLIF(ih.due_date, '')::date, NULLIF(ih.issue_date, '')::date, ih.created_at::date) ASC LIMIT 1000`, [companyId]);
   return result(overdueOnly ? 'facturas_vencidas' : 'cuentas_por_cobrar', rows, { facturas: rows.length, saldo: sum(rows, 'Saldo') });
 }
 
@@ -601,21 +601,21 @@ async function ensurePermissions(db) {
     ['ai_view_production', 'Ver produccion en asistente'], ['ai_admin_intents', 'Administrar intenciones del asistente']
   ];
   for (const [code, name] of actions) {
-    await run(db, 'INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES (?, ?, ?)', [code, name, name]).catch(() => {});
+    await run(db, 'INSERT INTO permission_actions (code, name, description) VALUES (?, ?, ?) ON CONFLICT DO NOTHING', [code, name, name]).catch(() => {});
     await run(db, 'UPDATE permission_actions SET name = ?, description = ? WHERE code = ?', [name, name, code]).catch(() => {});
   }
   await run(db, "UPDATE permission_modules SET name = 'Asistente' WHERE code = 'ai_internal'").catch(() => {});
   await run(db, "UPDATE permission_modules SET is_active = 0 WHERE code = 'ai_empresarial'").catch(() => {});
-  await run(db, `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+  await run(db, `INSERT INTO module_actions (module_id, action_id)
     SELECT pm.id, pa.id FROM permission_modules pm, permission_actions pa
-    WHERE pm.code = 'ai_internal' AND pa.code IN (${actions.map(() => '?').join(',')})`, actions.map(([code]) => code)).catch(() => {});
+    WHERE pm.code = 'ai_internal' AND pa.code IN (${actions.map(() => '?').join(',')}) ON CONFLICT DO NOTHING`, actions.map(([code]) => code)).catch(() => {});
 }
 
 async function seedAllowedQueries(db) {
   for (const intent of INTENTS) {
-    await run(db, `INSERT OR IGNORE INTO ai_allowed_queries
+    await run(db, `INSERT INTO ai_allowed_queries
       (intent_key, module, permission_required, query_type, sql_template, export_allowed, created_at, updated_at)
-      VALUES (?, ?, ?, 'report', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      VALUES (?, ?, ?, 'report', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT DO NOTHING`,
       [intent.key, intent.module, intent.permission, `Consulta interna predefinida: ${intent.key}`, intent.export ? 1 : 0]);
   }
 }

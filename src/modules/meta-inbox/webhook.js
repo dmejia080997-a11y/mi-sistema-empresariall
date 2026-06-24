@@ -149,9 +149,9 @@ async function handleLeadgenChange(db, page, change, signatureValid) {
   });
   await runDb(
     db,
-    `INSERT OR IGNORE INTO lead_entries
+    `INSERT INTO lead_entries
      (company_id, lead_form_id, conversation_id, page_id, form_id, leadgen_id, field_data_json, raw_payload_json, status, created_time, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT DO NOTHING`,
     [page.company_id, form ? form.id : null, conversation.id, page.page_id, formId, leadgenId, JSON.stringify(fieldData), JSON.stringify(details), clean(details.created_time) || null]
   );
   if (errorMessage) {
@@ -200,9 +200,9 @@ async function ensureConversation(db, input) {
 async function insertMessage(db, input) {
   await runDb(
     db,
-    `INSERT OR IGNORE INTO conversation_messages
+    `INSERT INTO conversation_messages
      (company_id, conversation_id, meta_page_id, direction, message_type, body, message_id, event_id, sender_id, recipient_id, post_id, comment_id, parent_id, payload_json, status, created_by, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT DO NOTHING`,
     [input.companyId, input.conversationId, input.metaPageId, input.direction, input.messageType, input.body, input.messageId || null, input.eventId || null, input.senderId || null, input.recipientId || null, input.postId || null, input.commentId || null, input.parentId || null, JSON.stringify(input.payload || {}), input.status || 'received', input.createdBy || null]
   );
   await runDb(
@@ -216,8 +216,8 @@ async function ensureLeadForm(db, page, formId) {
   if (!formId) return null;
   await runDb(
     db,
-    `INSERT OR IGNORE INTO lead_forms (company_id, meta_page_id, page_id, form_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    `INSERT INTO lead_forms (company_id, meta_page_id, page_id, form_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT DO NOTHING`,
     [page.company_id, page.id, page.page_id, formId]
   );
   return getDb(db, 'SELECT * FROM lead_forms WHERE company_id = ? AND form_id = ? LIMIT 1', [page.company_id, formId]);
@@ -240,9 +240,9 @@ function getPageByPageId(db, pageId) {
 function logRawEvent(db, companyId, pageId, eventType, eventId, messageId, payload, signatureValid, errorMessage) {
   return runDb(
     db,
-    `INSERT OR IGNORE INTO meta_webhook_events
+    `INSERT INTO meta_webhook_events
      (company_id, page_id, event_type, event_id, message_id, payload_json, signature_valid, processed_at, error_message, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP) ON CONFLICT DO NOTHING`,
     [companyId || null, pageId || null, eventType || 'unknown', eventId || null, messageId || null, JSON.stringify(payload || {}), signatureValid ? 1 : 0, errorMessage || null]
   ).catch((error) => {
     console.error('[meta-inbox] webhook log failed', error.message);

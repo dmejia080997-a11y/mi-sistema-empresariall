@@ -28,23 +28,23 @@ function createAccountingAutomation(db) {
 
 async function ensureSchema(db) {
   await run(db, `CREATE TABLE IF NOT EXISTS accounting_automation_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, event_type TEXT NOT NULL, source_id INTEGER NOT NULL,
-    journal_entry_id INTEGER, status TEXT NOT NULL DEFAULT 'posted', details TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, event_type TEXT NOT NULL, source_id INTEGER NOT NULL,
+    journal_entry_id INTEGER, status TEXT NOT NULL DEFAULT 'posted', details TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(company_id, event_type, source_id)
   )`);
   await run(db, `CREATE TABLE IF NOT EXISTS accounting_auto_accounts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, direction TEXT NOT NULL, category_key TEXT NOT NULL,
-    account_id INTEGER NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(company_id, direction, category_key)
+    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, direction TEXT NOT NULL, category_key TEXT NOT NULL,
+    account_id INTEGER NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(company_id, direction, category_key)
   )`);
   await run(db, `CREATE TABLE IF NOT EXISTS accounting_account_mirrors (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, chart_account_id INTEGER NOT NULL, nif_account_id INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(company_id, chart_account_id), UNIQUE(company_id, nif_account_id)
+    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, chart_account_id INTEGER NOT NULL, nif_account_id INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(company_id, chart_account_id), UNIQUE(company_id, nif_account_id)
   )`);
   await run(db, `CREATE TABLE IF NOT EXISTS hr_payroll_payments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, salary_id INTEGER NOT NULL, employee_id INTEGER NOT NULL,
+    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, salary_id INTEGER NOT NULL, employee_id INTEGER NOT NULL,
     period TEXT NOT NULL, gross_amount REAL NOT NULL DEFAULT 0, deductions REAL NOT NULL DEFAULT 0, net_amount REAL NOT NULL DEFAULT 0,
     payment_method TEXT, paid_at TEXT NOT NULL, notes TEXT, status TEXT NOT NULL DEFAULT 'paid', created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(company_id, salary_id, period)
   )`);
   await ensureColumn(db, 'bills', 'accounting_category', 'TEXT');
@@ -246,7 +246,7 @@ async function ensureNifMirror(db, companyId, chartAccountId, frameworkValue) {
       VALUES (?, ?, ?, ?, 4, ?, ?, 1, CURRENT_TIMESTAMP)`, [companyId, code, chart.name, type, chart.subtype || null, framework]);
     account = { id: insert.lastID };
   }
-  await run(db, 'INSERT OR IGNORE INTO accounting_account_mirrors (company_id, chart_account_id, nif_account_id) VALUES (?, ?, ?)', [companyId, chartAccountId, account.id]);
+  await run(db, 'INSERT INTO accounting_account_mirrors (company_id, chart_account_id, nif_account_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING', [companyId, chartAccountId, account.id]);
   return account.id;
 }
 async function ensureAccount(db, companyId, code, name, type, subtype) {
@@ -272,15 +272,22 @@ async function dynamicAccount(db, companyId, direction, category) {
     code = String(prefix + offset);
   }
   const account = await ensureAccount(db, companyId, code, `${direction === 'income' ? 'Ingresos' : 'Gastos'} - ${String(category || key)}`, direction, `automatic_${key}`);
-  await run(db, 'INSERT OR IGNORE INTO accounting_auto_accounts (company_id, direction, category_key, account_id) VALUES (?, ?, ?, ?)', [companyId, direction, key, account]);
+  await run(db, 'INSERT INTO accounting_auto_accounts (company_id, direction, category_key, account_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING', [companyId, direction, key, account]);
   return account;
 }
 async function ensureColumn(db, table, column, type) {
   if (!await tableExists(db, table)) return;
-  const columns = await all(db, `PRAGMA table_info(${table})`);
+  const columns = await all(db, `SELECT column_name AS name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = ?
+    ORDER BY ordinal_position`, [table]);
   if (!columns.some((entry) => entry.name === column)) await run(db, `ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
 }
-async function tableExists(db, table) { return Boolean(await get(db, "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", [table])); }
+async function tableExists(db, table) {
+  return Boolean(await get(db, `SELECT table_name AS name
+    FROM information_schema.tables
+    WHERE table_schema = current_schema() AND table_type = 'BASE TABLE' AND table_name = ?`, [table]));
+}
 function line(account, debit, credit) { return { account, debit: round2(debit), credit: round2(credit) }; }
 function amount(value) { const number = Number(value); return Number.isFinite(number) ? round2(number) : 0; }
 function baseAmount(baseValue, transactionValue, exchangeRate) {

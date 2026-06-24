@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS cartas_porte (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   numero TEXT NOT NULL,
   fecha_emision TEXT NOT NULL,
@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS cartas_porte (
   instrucciones_especiales TEXT,
   created_by INTEGER,
   updated_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   remitente_nombre TEXT,
   remitente_nit TEXT,
   remitente_direccion TEXT,
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS cartas_porte (
 );
 
 CREATE TABLE IF NOT EXISTS cartas_porte_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   carta_porte_id INTEGER NOT NULL,
   cantidad_bultos REAL,
   tipo_embalaje TEXT,

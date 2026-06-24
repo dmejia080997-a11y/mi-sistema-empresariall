@@ -7,7 +7,7 @@ const {
   STORAGE_BACKUPS_DIR,
   STORAGE_LOGS_DIR
 } = require('../src/core/storage-paths');
-const { getSqliteConfig } = require('../src/config/database');
+const { getSqliteConfig } = require('./sqlite_legacy');
 
 function stamp() {
   return new Date().toISOString().replace(/[:.]/g, '-');

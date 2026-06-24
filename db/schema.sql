@@ -1,19 +1,19 @@
 CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   username TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'employee',
   company_id INTEGER NULL,
   is_active INTEGER NOT NULL DEFAULT 1,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   chat_display_name TEXT,
   chat_presence_status TEXT NOT NULL DEFAULT 'offline',
   chat_profile_photo_path TEXT,
-  chat_profile_completed_at DATETIME
+  chat_profile_completed_at TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   sku TEXT NOT NULL,
   item_code TEXT NULL,
@@ -31,39 +31,39 @@ CREATE TABLE IF NOT EXISTS items (
   category_id INTEGER NULL,
   brand_id INTEGER NULL,
   company_id INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS categories (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   code TEXT NULL,
   code_manual INTEGER NOT NULL DEFAULT 0,
   company_id INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS brands (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   code TEXT NULL,
   code_manual INTEGER NOT NULL DEFAULT 0,
   company_id INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS audit_logs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   user_id INTEGER NULL,
   action TEXT NOT NULL,
   details TEXT NULL,
   company_id INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS customers (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NULL,
   customer_code TEXT NULL,
   document_type TEXT,
@@ -88,20 +88,20 @@ CREATE TABLE IF NOT EXISTS customers (
   advisor TEXT NULL,
   sat_verified INTEGER DEFAULT 0,
   sat_name TEXT NULL,
-  sat_checked_at DATETIME NULL,
+  sat_checked_at TIMESTAMP NULL,
   address TEXT NULL,
   notes TEXT NULL,
   portal_code TEXT NULL,
   portal_password_hash TEXT NULL,
   portal_password_reset_required INTEGER DEFAULT 0,
   is_voided INTEGER NOT NULL DEFAULT 0,
-  voided_at DATETIME NULL,
+  voided_at TIMESTAMP NULL,
   voided_by INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS consignatarios (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   customer_id INTEGER NOT NULL,
   company_id INTEGER NULL,
   document_type TEXT,
@@ -117,14 +117,53 @@ CREATE TABLE IF NOT EXISTS consignatarios (
   email TEXT NULL,
   sat_verified INTEGER DEFAULT 0,
   sat_name TEXT NULL,
-  sat_checked_at DATETIME NULL,
+  sat_checked_at TIMESTAMP NULL,
   notes TEXT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (customer_id) REFERENCES customers(id)
 );
 
+CREATE TABLE IF NOT EXISTS suppliers (
+  id BIGSERIAL PRIMARY KEY,
+  company_id INTEGER NOT NULL,
+  code TEXT,
+  supplier_type TEXT NOT NULL DEFAULT 'national',
+  trade_name TEXT NOT NULL,
+  legal_name TEXT,
+  tax_id TEXT,
+  country TEXT,
+  origin_country TEXT,
+  tax_address TEXT,
+  warehouse_address TEXT,
+  phone TEXT,
+  email TEXT,
+  website TEXT,
+  category TEXT,
+  status TEXT NOT NULL DEFAULT 'draft',
+  primary_currency TEXT DEFAULT 'GTQ',
+  credit_days INTEGER DEFAULT 0,
+  credit_limit REAL DEFAULT 0,
+  payment_method TEXT,
+  average_delivery_days INTEGER DEFAULT 0,
+  minimum_order REAL DEFAULT 0,
+  notes TEXT,
+  tax_regime TEXT,
+  withholding_isr INTEGER DEFAULT 0,
+  withholding_iva INTEGER DEFAULT 0,
+  electronic_invoice INTEGER DEFAULT 0,
+  invoice_name TEXT,
+  frequent_incoterm TEXT,
+  requires_import INTEGER DEFAULT 0,
+  frequent_documents TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_by INTEGER,
+  updated_by INTEGER,
+  UNIQUE(company_id, code)
+);
+
 CREATE TABLE IF NOT EXISTS floating_investments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   provider TEXT NOT NULL,
   description TEXT NULL,
@@ -137,8 +176,8 @@ CREATE TABLE IF NOT EXISTS floating_investments (
   notes TEXT NULL,
   created_by INTEGER NULL,
   updated_by INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (customer_id) REFERENCES customers(id),
   FOREIGN KEY (created_by) REFERENCES users(id),
   FOREIGN KEY (updated_by) REFERENCES users(id)
@@ -148,7 +187,7 @@ CREATE INDEX IF NOT EXISTS idx_floating_investments_company ON floating_investme
 CREATE INDEX IF NOT EXISTS idx_floating_investments_recovery ON floating_investments (company_id, recovery_date);
 
 CREATE TABLE IF NOT EXISTS floating_investment_lines (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   investment_id INTEGER NOT NULL,
   supplier_id INTEGER NULL,
@@ -158,8 +197,8 @@ CREATE TABLE IF NOT EXISTS floating_investment_lines (
   investment_value REAL NOT NULL DEFAULT 0,
   expected_profit REAL NOT NULL DEFAULT 0,
   sort_order INTEGER NOT NULL DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (investment_id) REFERENCES floating_investments(id),
   FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
 );
@@ -178,7 +217,7 @@ CREATE TABLE IF NOT EXISTS countries (
 );
 
 CREATE TABLE IF NOT EXISTS states (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   country_id INTEGER NOT NULL,
   name TEXT NOT NULL,
   state_code TEXT,
@@ -187,7 +226,7 @@ CREATE TABLE IF NOT EXISTS states (
 );
 
 CREATE TABLE IF NOT EXISTS cities (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   state_id INTEGER,
   country_id INTEGER NOT NULL,
   name TEXT NOT NULL,
@@ -209,7 +248,7 @@ CREATE INDEX IF NOT EXISTS idx_cities_country_id ON cities (country_id);
 CREATE INDEX IF NOT EXISTS idx_cities_name ON cities (name);
 
 CREATE TABLE IF NOT EXISTS invoices (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   customer_id INTEGER NULL,
   subtotal REAL NOT NULL DEFAULT 0,
   tax_rate REAL NOT NULL DEFAULT 12,
@@ -225,25 +264,25 @@ CREATE TABLE IF NOT EXISTS invoices (
   tax_amount_base REAL NULL,
   discount_amount_base REAL NULL,
   total_base REAL NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (customer_id) REFERENCES customers(id)
 );
 
 CREATE TABLE IF NOT EXISTS invoice_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   invoice_id INTEGER NOT NULL,
   item_id INTEGER NOT NULL,
   qty INTEGER NOT NULL DEFAULT 1,
   unit_price REAL NOT NULL DEFAULT 0,
   line_total REAL NOT NULL DEFAULT 0,
   company_id INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (invoice_id) REFERENCES invoices(id),
   FOREIGN KEY (item_id) REFERENCES items(id)
 );
 
 CREATE TABLE IF NOT EXISTS invoice_packing_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   invoice_id INTEGER NOT NULL,
   invoice_item_id INTEGER NOT NULL,
@@ -256,12 +295,12 @@ CREATE TABLE IF NOT EXISTS invoice_packing_items (
   packages_count REAL NOT NULL DEFAULT 0,
   package_type TEXT NULL,
   notes TEXT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS packages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   internal_code TEXT NULL,
   customer_id INTEGER NULL,
   consignatario_id INTEGER NULL,
@@ -284,17 +323,29 @@ CREATE TABLE IF NOT EXISTS packages (
   invoice_status TEXT NOT NULL DEFAULT 'pending',
   carrier TEXT NULL,
   tracking_number TEXT NULL,
-  received_at DATETIME NULL,
+  received_at TIMESTAMP NULL,
   invoice_file TEXT NULL,
   notes TEXT NULL,
   status TEXT NOT NULL DEFAULT 'Recibido en bodega',
   company_id INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (customer_id) REFERENCES customers(id)
 );
 
+CREATE TABLE IF NOT EXISTS doctors (
+  id BIGSERIAL PRIMARY KEY,
+  company_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  phone TEXT NULL,
+  specialty TEXT NULL,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id)
+);
+
 CREATE TABLE IF NOT EXISTS appointments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   paciente_nombre TEXT NOT NULL,
   telefono TEXT NULL,
@@ -303,26 +354,14 @@ CREATE TABLE IF NOT EXISTS appointments (
   fecha_hora TEXT NOT NULL,
   estado TEXT NOT NULL DEFAULT 'pendiente',
   duration_min INTEGER NOT NULL DEFAULT 30,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (doctor_id) REFERENCES doctors(id),
   FOREIGN KEY (company_id) REFERENCES companies(id)
 );
 
-CREATE TABLE IF NOT EXISTS doctors (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  company_id INTEGER NOT NULL,
-  name TEXT NOT NULL,
-  phone TEXT NULL,
-  specialty TEXT NULL,
-  is_active INTEGER NOT NULL DEFAULT 1,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (company_id) REFERENCES companies(id)
-);
-
 CREATE TABLE IF NOT EXISTS manifests (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   manifest_number TEXT NULL,
   manifest_number_mode TEXT NOT NULL DEFAULT 'automatic',
@@ -333,14 +372,14 @@ CREATE TABLE IF NOT EXISTS manifests (
   status TEXT NOT NULL DEFAULT 'open',
   created_by INTEGER NULL,
   closed_by INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  closed_at DATETIME NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  closed_at TIMESTAMP NULL,
   FOREIGN KEY (created_by) REFERENCES users(id),
   FOREIGN KEY (closed_by) REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS awbs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   document_type TEXT NOT NULL DEFAULT 'awb',
   awb_type TEXT NULL,
@@ -383,13 +422,13 @@ CREATE TABLE IF NOT EXISTS awbs (
   goods_description TEXT NULL,
   status TEXT NOT NULL DEFAULT 'draft',
   created_by INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS awb_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   awb_id INTEGER NOT NULL,
   pieces INTEGER NULL,
   gross_weight REAL NULL,
@@ -399,49 +438,49 @@ CREATE TABLE IF NOT EXISTS awb_items (
   chargeable_weight REAL NULL,
   rate REAL NULL,
   total REAL NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (awb_id) REFERENCES awbs(id)
 );
 
 CREATE TABLE IF NOT EXISTS awb_manifests (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   awb_id INTEGER NOT NULL,
   manifest_id INTEGER NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (awb_id, manifest_id),
   FOREIGN KEY (awb_id) REFERENCES awbs(id),
   FOREIGN KEY (manifest_id) REFERENCES manifests(id)
 );
 
 CREATE TABLE IF NOT EXISTS manifest_pieces (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   manifest_id INTEGER NOT NULL,
   piece_number INTEGER NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (manifest_id) REFERENCES manifests(id)
 );
 
 CREATE TABLE IF NOT EXISTS manifest_piece_packages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   manifest_piece_id INTEGER NOT NULL,
   package_id INTEGER NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (manifest_piece_id) REFERENCES manifest_pieces(id),
   FOREIGN KEY (package_id) REFERENCES packages(id)
 );
 
 CREATE TABLE IF NOT EXISTS package_photos (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   package_id INTEGER NOT NULL,
   file_path TEXT NOT NULL,
   company_id INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (package_id) REFERENCES packages(id)
 );
 
 CREATE TABLE IF NOT EXISTS package_status_history (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   package_id INTEGER NOT NULL,
   status TEXT NOT NULL,
   old_status TEXT NULL,
@@ -449,56 +488,56 @@ CREATE TABLE IF NOT EXISTS package_status_history (
   changed_by INTEGER NULL,
   notes TEXT NULL,
   company_id INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (package_id) REFERENCES packages(id),
   FOREIGN KEY (changed_by) REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS package_comments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   package_id INTEGER NOT NULL,
   comment TEXT NOT NULL,
   created_by INTEGER NULL,
   company_id INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (package_id) REFERENCES packages(id),
   FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS carrier_receptions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   tracking_number TEXT NOT NULL,
   carrier TEXT NOT NULL,
-  received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   received_by TEXT NULL,
   notes TEXT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
   package_id INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (package_id) REFERENCES packages(id)
 );
 
 CREATE TABLE IF NOT EXISTS carrier_settings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   carriers_text TEXT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS package_sender_settings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   sender_name TEXT NULL,
   store_name TEXT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS user_workspace_settings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   user_id INTEGER NOT NULL,
   dock_enabled INTEGER NOT NULL DEFAULT 1,
@@ -515,15 +554,15 @@ CREATE TABLE IF NOT EXISTS user_workspace_settings (
   icon_size INTEGER NULL,
   use_glass_effect INTEGER NOT NULL DEFAULT 1,
   layout_mode TEXT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (user_id, company_id),
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (company_id) REFERENCES companies(id)
 );
 
 CREATE TABLE IF NOT EXISTS user_workspace_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   user_id INTEGER NOT NULL,
   item_type TEXT NOT NULL,
@@ -536,8 +575,8 @@ CREATE TABLE IF NOT EXISTS user_workspace_items (
   sort_order INTEGER NULL,
   parent_folder_id INTEGER NULL,
   is_visible INTEGER NOT NULL DEFAULT 1,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (company_id) REFERENCES companies(id),
   FOREIGN KEY (parent_folder_id) REFERENCES user_workspace_items(id)
@@ -552,7 +591,7 @@ CREATE INDEX IF NOT EXISTS idx_user_workspace_items_module ON user_workspace_ite
 
 -- Contabilidad NIF
 CREATE TABLE IF NOT EXISTS accounts (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   code TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -565,13 +604,13 @@ CREATE TABLE IF NOT EXISTS accounts (
   is_active INTEGER NOT NULL DEFAULT 1,
   depreciable INTEGER NOT NULL DEFAULT 0,
   is_depreciation INTEGER NOT NULL DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS journal_entries (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
-  entry_date DATETIME NOT NULL,
+  entry_date TIMESTAMP NOT NULL,
   description TEXT NULL,
   user_id INTEGER NULL,
   memo TEXT NULL,
@@ -583,11 +622,11 @@ CREATE TABLE IF NOT EXISTS journal_entries (
   tax_amount REAL NULL,
   tax_type TEXT NULL,
   status TEXT NOT NULL DEFAULT 'posted',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS journal_details (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   entry_id INTEGER NOT NULL,
   company_id INTEGER NOT NULL,
   account_id INTEGER NOT NULL,
@@ -598,75 +637,75 @@ CREATE TABLE IF NOT EXISTS journal_details (
   exchange_rate REAL NULL,
   debit_base REAL DEFAULT 0,
   credit_base REAL DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS financial_reports (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   report_type TEXT NOT NULL,
   period_start TEXT NULL,
   period_end TEXT NULL,
   data_json TEXT NULL,
   created_by INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS accounting_categories (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   framework TEXT NOT NULL,
   code TEXT NOT NULL,
   name TEXT NOT NULL,
   type TEXT NOT NULL,
   sort_order INTEGER DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS accounting_category_assignments_history (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   batch_id TEXT NOT NULL,
   company_id INTEGER NOT NULL,
   account_id INTEGER NOT NULL,
   previous_category_id INTEGER,
   new_category_id INTEGER,
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS accounting_category_rules (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   framework TEXT NOT NULL,
   rule_text TEXT NOT NULL,
   target_category_code TEXT NOT NULL,
   priority INTEGER DEFAULT 0,
   is_active INTEGER NOT NULL DEFAULT 1,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS bank_connections (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   bank_name TEXT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
-  last_sync DATETIME NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  last_sync TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS bank_transactions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   connection_id INTEGER NOT NULL,
   company_id INTEGER NOT NULL,
-  txn_date DATETIME NULL,
+  txn_date TIMESTAMP NULL,
   description TEXT NULL,
   amount REAL NULL,
   currency TEXT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS ai_help_modules (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NULL,
   module_code TEXT NOT NULL,
   module_name TEXT NOT NULL,
@@ -674,8 +713,8 @@ CREATE TABLE IF NOT EXISTS ai_help_modules (
   actions_json TEXT NULL,
   faqs_json TEXT NULL,
   help_json TEXT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (company_id, module_code)
 );
 
@@ -683,25 +722,25 @@ CREATE INDEX IF NOT EXISTS idx_ai_help_modules_company ON ai_help_modules (compa
 CREATE INDEX IF NOT EXISTS idx_ai_help_modules_code ON ai_help_modules (module_code);
 
 CREATE TABLE IF NOT EXISTS ai_conversations (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   user_id INTEGER NOT NULL,
   title TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS ai_messages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   conversation_id INTEGER NOT NULL,
   role TEXT NOT NULL,
   content TEXT NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id)
 );
 
 CREATE TABLE IF NOT EXISTS ai_tool_logs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   conversation_id INTEGER NOT NULL,
   tool_name TEXT NOT NULL,
   parameters TEXT,
@@ -709,7 +748,7 @@ CREATE TABLE IF NOT EXISTS ai_tool_logs (
   executed_by INTEGER,
   execution_ms INTEGER NOT NULL DEFAULT 0,
   company_id INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id)
 );
 
@@ -718,7 +757,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_messages_conversation ON ai_messages (conversa
 CREATE INDEX IF NOT EXISTS idx_ai_tool_logs_conversation ON ai_tool_logs (conversation_id, created_at);
 
 CREATE TABLE IF NOT EXISTS hr_job_descriptions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   position_name TEXT NOT NULL,
   department TEXT NOT NULL,
@@ -734,12 +773,12 @@ CREATE TABLE IF NOT EXISTS hr_job_descriptions (
   suggested_salary REAL,
   notes TEXT,
   status TEXT NOT NULL DEFAULT 'Activa',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS hr_employees (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
@@ -781,23 +820,23 @@ CREATE TABLE IF NOT EXISTS hr_employees (
   notes TEXT,
   job_description_id INTEGER,
   is_active INTEGER NOT NULL DEFAULT 1,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS hr_employee_attachments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   employee_id INTEGER NOT NULL,
   attachment_type TEXT NOT NULL,
   file_path TEXT NOT NULL,
   original_name TEXT,
   mime_type TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS hr_contracts (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   employee_id INTEGER NOT NULL,
   contract_type TEXT NOT NULL,
@@ -815,12 +854,12 @@ CREATE TABLE IF NOT EXISTS hr_contracts (
   generated_contract_text TEXT,
   status TEXT NOT NULL DEFAULT 'Borrador',
   pdf_path TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS hr_salaries (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   employee_id INTEGER NOT NULL,
   effective_date TEXT NOT NULL,
@@ -832,12 +871,12 @@ CREATE TABLE IF NOT EXISTS hr_salaries (
   bank_account_number TEXT,
   notes TEXT,
   status TEXT NOT NULL DEFAULT 'Vigente',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS hr_overtime (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   employee_id INTEGER NOT NULL,
   overtime_date TEXT NOT NULL,
@@ -849,12 +888,12 @@ CREATE TABLE IF NOT EXISTS hr_overtime (
   approved_by TEXT,
   status TEXT NOT NULL DEFAULT 'Pendiente',
   notes TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS hr_attendance (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   employee_id INTEGER NOT NULL,
   attendance_date TEXT NOT NULL,
@@ -864,12 +903,12 @@ CREATE TABLE IF NOT EXISTS hr_attendance (
   check_out TEXT,
   attendance_status TEXT NOT NULL DEFAULT 'Presente',
   notes TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS hr_warnings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   employee_id INTEGER NOT NULL,
   warning_date TEXT NOT NULL,
@@ -880,12 +919,12 @@ CREATE TABLE IF NOT EXISTS hr_warnings (
   issued_by TEXT,
   attachment_path TEXT,
   status TEXT NOT NULL DEFAULT 'Emitida',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS hr_permissions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   employee_id INTEGER NOT NULL,
   permission_type TEXT NOT NULL,
@@ -897,12 +936,12 @@ CREATE TABLE IF NOT EXISTS hr_permissions (
   approved_by TEXT,
   attachment_path TEXT,
   status TEXT NOT NULL DEFAULT 'Pendiente',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS hr_vacations (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   employee_id INTEGER NOT NULL,
   vacation_period TEXT,
@@ -915,8 +954,8 @@ CREATE TABLE IF NOT EXISTS hr_vacations (
   return_date TEXT,
   status TEXT NOT NULL DEFAULT 'Pendiente',
   notes TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_hr_employees_company ON hr_employees (company_id);
@@ -933,7 +972,7 @@ CREATE INDEX IF NOT EXISTS idx_hr_vacations_company_employee ON hr_vacations (co
 CREATE INDEX IF NOT EXISTS idx_hr_descriptions_company_dept ON hr_job_descriptions (company_id, department);
 
 CREATE TABLE IF NOT EXISTS production_boms (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   finished_product_id INTEGER NOT NULL,
   code TEXT NOT NULL,
@@ -944,12 +983,12 @@ CREATE TABLE IF NOT EXISTS production_boms (
   status TEXT NOT NULL DEFAULT 'active',
   notes TEXT,
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS production_bom_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   bom_id INTEGER NOT NULL,
   material_product_id INTEGER NOT NULL,
@@ -961,7 +1000,7 @@ CREATE TABLE IF NOT EXISTS production_bom_items (
 );
 
 CREATE TABLE IF NOT EXISTS production_orders (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   order_number TEXT NOT NULL,
   product_id INTEGER NOT NULL,
@@ -979,12 +1018,12 @@ CREATE TABLE IF NOT EXISTS production_orders (
   notes TEXT,
   cancellation_reason TEXT,
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS production_order_materials (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   production_order_id INTEGER NOT NULL,
   product_id INTEGER NOT NULL,
@@ -994,11 +1033,11 @@ CREATE TABLE IF NOT EXISTS production_order_materials (
   unit_cost REAL NOT NULL DEFAULT 0,
   total_cost REAL NOT NULL DEFAULT 0,
   waste_percentage REAL NOT NULL DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS production_labor (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   production_order_id INTEGER NOT NULL,
   employee_id INTEGER,
@@ -1008,11 +1047,11 @@ CREATE TABLE IF NOT EXISTS production_labor (
   total_cost REAL NOT NULL DEFAULT 0,
   notes TEXT,
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS production_overhead (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   production_order_id INTEGER NOT NULL,
   cost_type TEXT,
@@ -1020,11 +1059,11 @@ CREATE TABLE IF NOT EXISTS production_overhead (
   amount REAL NOT NULL DEFAULT 0,
   distribution_method TEXT NOT NULL DEFAULT 'order',
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS production_waste (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   production_order_id INTEGER,
   product_id INTEGER NOT NULL,
@@ -1033,11 +1072,11 @@ CREATE TABLE IF NOT EXISTS production_waste (
   cost REAL NOT NULL DEFAULT 0,
   notes TEXT,
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS inventory_movements (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   product_id INTEGER NOT NULL,
   movement_type TEXT NOT NULL,
@@ -1050,11 +1089,11 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
   reference_id INTEGER,
   notes TEXT,
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS production_audit_logs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   user_id INTEGER,
   action TEXT NOT NULL,
@@ -1063,7 +1102,7 @@ CREATE TABLE IF NOT EXISTS production_audit_logs (
   old_value TEXT,
   new_value TEXT,
   ip TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_production_boms_company_code ON production_boms (company_id, code);
@@ -1073,7 +1112,7 @@ CREATE INDEX IF NOT EXISTS idx_production_materials_order ON production_order_ma
 CREATE INDEX IF NOT EXISTS idx_inventory_movements_production ON inventory_movements (company_id, movement_type, reference_id);
 
 CREATE TABLE IF NOT EXISTS cartas_porte (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   numero TEXT NOT NULL,
   fecha_emision TEXT NOT NULL,
@@ -1087,8 +1126,8 @@ CREATE TABLE IF NOT EXISTS cartas_porte (
   instrucciones_especiales TEXT,
   created_by INTEGER,
   updated_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   remitente_nombre TEXT,
   remitente_nit TEXT,
   remitente_direccion TEXT,
@@ -1139,7 +1178,7 @@ CREATE TABLE IF NOT EXISTS cartas_porte (
 );
 
 CREATE TABLE IF NOT EXISTS cartas_porte_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   carta_porte_id INTEGER NOT NULL,
   cantidad_bultos REAL,
   tipo_embalaje TEXT,

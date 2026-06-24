@@ -413,23 +413,23 @@ function registerSupplierRoutes(app, deps) {
 
 async function ensureSupplierSchema(db) {
   await runDb(db, `INSERT INTO permission_modules (code, name, description) VALUES ('suppliers', 'Proveedores', 'Gestion de proveedores nacionales e internacionales') ON CONFLICT (code) DO NOTHING`);
-  await runDb(db, `INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
+  await runDb(db, `INSERT INTO permission_actions (code, name, description) VALUES
     ('view','Ver','Acceso de lectura'), ('create','Crear','Crear proveedores'), ('edit','Editar','Editar proveedores'),
     ('delete','Inactivar','Inactivar proveedores'), ('approve','Aprobar','Aprobar proveedores'), ('block','Bloquear','Bloquear proveedores'),
     ('view_fiscal','Ver datos fiscales','Acceso a datos fiscales sensibles'), ('manage_bank','Cuentas bancarias','Ver y administrar cuentas bancarias'),
-    ('evaluate','Evaluar','Evaluar proveedores'), ('purchase','Compras','Crear ordenes de compra'), ('reports','Reportes','Ver reportes de proveedores')`);
-  await runDb(db, `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+    ('evaluate','Evaluar','Evaluar proveedores'), ('purchase','Compras','Crear ordenes de compra'), ('reports','Reportes','Ver reportes de proveedores') ON CONFLICT DO NOTHING`);
+  await runDb(db, `INSERT INTO module_actions (module_id, action_id)
     SELECT pm.id, pa.id FROM permission_modules pm, permission_actions pa
-    WHERE pm.code = 'suppliers' AND pa.code IN ('view','create','edit','delete','approve','block','view_fiscal','manage_bank','evaluate','purchase','reports')`);
+    WHERE pm.code = 'suppliers' AND pa.code IN ('view','create','edit','delete','approve','block','view_fiscal','manage_bank','evaluate','purchase','reports') ON CONFLICT DO NOTHING`);
 
   await runDb(db, `CREATE TABLE IF NOT EXISTS suppliers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, code TEXT, supplier_type TEXT NOT NULL DEFAULT 'national',
+    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, code TEXT, supplier_type TEXT NOT NULL DEFAULT 'national',
     trade_name TEXT NOT NULL, legal_name TEXT, tax_id TEXT, country TEXT, origin_country TEXT, tax_address TEXT, warehouse_address TEXT,
     phone TEXT, email TEXT, website TEXT, category TEXT, status TEXT NOT NULL DEFAULT 'draft', primary_currency TEXT DEFAULT 'GTQ',
     credit_days INTEGER DEFAULT 0, credit_limit REAL DEFAULT 0, payment_method TEXT, average_delivery_days INTEGER DEFAULT 0,
     minimum_order REAL DEFAULT 0, notes TEXT, tax_regime TEXT, withholding_isr INTEGER DEFAULT 0, withholding_iva INTEGER DEFAULT 0,
     electronic_invoice INTEGER DEFAULT 0, invoice_name TEXT, frequent_incoterm TEXT, requires_import INTEGER DEFAULT 0,
-    frequent_documents TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    frequent_documents TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER, updated_by INTEGER, UNIQUE(company_id, code)
   )`);
   await createChildTables(db);
@@ -442,36 +442,36 @@ async function ensureSupplierSchema(db) {
 }
 
 async function createChildTables(db) {
-  const common = `status TEXT NOT NULL DEFAULT 'active', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, created_by INTEGER, updated_by INTEGER`;
+  const common = `status TEXT NOT NULL DEFAULT 'active', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, created_by INTEGER, updated_by INTEGER`;
   await runDb(db, `CREATE TABLE IF NOT EXISTS supplier_contacts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, name TEXT NOT NULL, position TEXT,
+    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, name TEXT NOT NULL, position TEXT,
     phone TEXT, whatsapp TEXT, email TEXT, area TEXT, is_primary INTEGER DEFAULT 0, ${common})`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS supplier_bank_accounts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, bank_name TEXT, account_name TEXT,
+    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, bank_name TEXT, account_name TEXT,
     account_number TEXT, account_type TEXT, currency TEXT, country TEXT, swift_aba_iban TEXT, notes TEXT, support_document_path TEXT, ${common})`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS supplier_documents (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, document_type TEXT, document_name TEXT,
+    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, document_type TEXT, document_name TEXT,
     file_path TEXT NOT NULL, mime_type TEXT, expires_at TEXT, notes TEXT, ${common})`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS supplier_commercial_terms (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, credit_days INTEGER DEFAULT 0,
+    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, credit_days INTEGER DEFAULT 0,
     credit_limit REAL DEFAULT 0, currency TEXT, payment_method TEXT, delivery_days INTEGER DEFAULT 0, minimum_order REAL DEFAULT 0,
     special_discount REAL DEFAULT 0, warranty TEXT, return_policy TEXT, notes TEXT, ${common})`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS supplier_evaluations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, product_quality INTEGER DEFAULT 0,
+    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, product_quality INTEGER DEFAULT 0,
     delivery_time INTEGER DEFAULT 0, price INTEGER DEFAULT 0, service INTEGER DEFAULT 0, document_compliance INTEGER DEFAULT 0,
     complaints TEXT, overall_rating INTEGER DEFAULT 0, comments TEXT, evaluation_status TEXT DEFAULT 'observation', ${common})`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS supplier_products (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, item_id INTEGER NOT NULL,
+    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, item_id INTEGER NOT NULL,
     supplier_sku TEXT, last_price REAL DEFAULT 0, currency TEXT, lead_time_days INTEGER DEFAULT 0, is_preferred INTEGER DEFAULT 0,
     ${common}, UNIQUE(company_id, supplier_id, item_id))`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS supplier_audit_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, action TEXT NOT NULL, details TEXT,
+    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, action TEXT NOT NULL, details TEXT,
     ${common})`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS supplier_purchase_orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, order_number TEXT, order_date TEXT,
+    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, order_number TEXT, order_date TEXT,
     expected_date TEXT, currency TEXT, total REAL DEFAULT 0, notes TEXT, ${common}, UNIQUE(company_id, order_number))`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS supplier_purchase_order_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, purchase_order_id INTEGER NOT NULL,
+    id BIGSERIAL PRIMARY KEY, company_id INTEGER NOT NULL, supplier_id INTEGER NOT NULL, purchase_order_id INTEGER NOT NULL,
     item_id INTEGER, description TEXT, qty REAL DEFAULT 0, unit_price REAL DEFAULT 0, total REAL DEFAULT 0, ${common})`);
   const tables = ['supplier_contacts', 'supplier_bank_accounts', 'supplier_documents', 'supplier_commercial_terms', 'supplier_evaluations', 'supplier_products', 'supplier_audit_logs', 'supplier_purchase_orders', 'supplier_purchase_order_items'];
   for (const table of tables) await runDb(db, `CREATE INDEX IF NOT EXISTS idx_${table}_scope ON ${table} (company_id, supplier_id)`);
@@ -522,21 +522,28 @@ async function auditSupplier(db, companyId, supplierId, userId, action, details)
     VALUES (?, ?, ?, ?, 'active', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, [companyId, supplierId, action, JSON.stringify(details || {}), userId, userId]);
 }
 async function appendModule(db, table, column, moduleCode) {
-  const exists = await getDb(db, "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", [table]);
+  const exists = await getDb(db, `SELECT table_name AS name
+    FROM information_schema.tables
+    WHERE table_schema = current_schema() AND table_type = 'BASE TABLE' AND table_name = ?`, [table]);
   if (!exists) return;
-  const rows = await allDb(db, `SELECT rowid AS row_id, ${column} AS modules_json FROM ${table}`);
+  const rows = await allDb(db, `SELECT id, ${column} AS modules_json FROM ${table}`);
   for (const row of rows) {
     let modules = [];
     try { modules = JSON.parse(row.modules_json || '[]'); } catch (error) { modules = []; }
     if (!Array.isArray(modules) || !modules.length || modules.includes(moduleCode)) continue;
     modules.push(moduleCode);
-    await runDb(db, `UPDATE ${table} SET ${column} = ? WHERE rowid = ?`, [JSON.stringify(modules), row.row_id]);
+    await runDb(db, `UPDATE ${table} SET ${column} = ? WHERE id = ?`, [JSON.stringify(modules), row.id]);
   }
 }
 async function ensureColumn(db, table, column, type) {
-  const exists = await getDb(db, "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", [table]);
+  const exists = await getDb(db, `SELECT table_name AS name
+    FROM information_schema.tables
+    WHERE table_schema = current_schema() AND table_type = 'BASE TABLE' AND table_name = ?`, [table]);
   if (!exists) return;
-  const columns = await allDb(db, `PRAGMA table_info(${table})`);
+  const columns = await allDb(db, `SELECT column_name AS name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = ?
+    ORDER BY ordinal_position`, [table]);
   if (columns.some((entry) => entry.name === column)) return;
   await runDb(db, `ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
 }

@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS air_waybills (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   parent_awb_id INTEGER NULL,
   tipo_awb TEXT NOT NULL CHECK (tipo_awb IN ('MAWB','HAWB')),
@@ -66,14 +66,14 @@ CREATE TABLE IF NOT EXISTS air_waybills (
   total_declared_value REAL DEFAULT 0,
   created_by INTEGER NULL,
   updated_by INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (parent_awb_id) REFERENCES air_waybills(id),
   UNIQUE (company_id, numero_awb)
 );
 
 CREATE TABLE IF NOT EXISTS awb_cargo_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   awb_id INTEGER NOT NULL,
   pieces REAL DEFAULT 0,
   package_type TEXT NULL,
@@ -94,12 +94,12 @@ CREATE TABLE IF NOT EXISTS awb_cargo_items (
   packing_group TEXT NULL,
   temperature_controlled INTEGER DEFAULT 0,
   temperature_required TEXT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (awb_id) REFERENCES air_waybills(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS awb_dimensions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   cargo_item_id INTEGER NOT NULL,
   quantity REAL DEFAULT 0,
   length REAL DEFAULT 0,
@@ -116,20 +116,23 @@ CREATE INDEX IF NOT EXISTS idx_awb_parent ON air_waybills (company_id, parent_aw
 CREATE INDEX IF NOT EXISTS idx_awb_cargo_awb ON awb_cargo_items (awb_id);
 CREATE INDEX IF NOT EXISTS idx_awb_dimensions_cargo ON awb_dimensions (cargo_item_id);
 
-INSERT OR IGNORE INTO permission_modules (code, name, description)
-VALUES ('awb', 'Documentos de Transporte - Guías Aéreas / AWB', 'Guías aéreas MAWB y HAWB');
+INSERT INTO permission_modules (code, name, description)
+VALUES ('awb', 'Documentos de Transporte - Guías Aéreas / AWB', 'Guías aéreas MAWB y HAWB')
+ON CONFLICT DO NOTHING;
 
-INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
+INSERT INTO permission_actions (code, name, description) VALUES
   ('ver','Ver','Ver AWB'),
   ('crear','Crear','Crear AWB'),
   ('editar','Editar','Editar AWB'),
   ('anular','Anular','Anular AWB'),
   ('imprimir','Imprimir','Imprimir AWB'),
   ('descargar_pdf','Descargar PDF','Descargar PDF de AWB'),
-  ('crear_hija','Crear HAWB','Crear HAWB desde MAWB');
+  ('crear_hija','Crear HAWB','Crear HAWB desde MAWB')
+ON CONFLICT DO NOTHING;
 
-INSERT OR IGNORE INTO module_actions (module_id, action_id)
+INSERT INTO module_actions (module_id, action_id)
 SELECT pm.id, pa.id
 FROM permission_modules pm, permission_actions pa
 WHERE pm.code = 'awb'
-  AND pa.code IN ('ver','crear','editar','anular','imprimir','descargar_pdf','crear_hija');
+  AND pa.code IN ('ver','crear','editar','anular','imprimir','descargar_pdf','crear_hija')
+ON CONFLICT DO NOTHING;

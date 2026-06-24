@@ -1,17 +1,17 @@
 CREATE TABLE IF NOT EXISTS meta_connections (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   provider TEXT NOT NULL DEFAULT 'facebook',
   access_token_encrypted TEXT,
   token_type TEXT,
-  expires_at DATETIME,
+  expires_at TIMESTAMP,
   status TEXT NOT NULL DEFAULT 'pending',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS meta_pages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   meta_connection_id INTEGER,
   page_id TEXT NOT NULL,
@@ -19,12 +19,12 @@ CREATE TABLE IF NOT EXISTS meta_pages (
   page_access_token_encrypted TEXT,
   permissions TEXT,
   is_active INTEGER NOT NULL DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS meta_webhook_events (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER,
   page_id TEXT,
   event_type TEXT,
@@ -32,13 +32,13 @@ CREATE TABLE IF NOT EXISTS meta_webhook_events (
   message_id TEXT,
   payload_json TEXT NOT NULL,
   signature_valid INTEGER NOT NULL DEFAULT 0,
-  processed_at DATETIME,
+  processed_at TIMESTAMP,
   error_message TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS conversations (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   channel TEXT NOT NULL,
   conversation_type TEXT NOT NULL DEFAULT 'message',
@@ -55,15 +55,15 @@ CREATE TABLE IF NOT EXISTS conversations (
   status TEXT NOT NULL DEFAULT 'new',
   assigned_user_id INTEGER,
   last_message TEXT,
-  last_message_at DATETIME,
-  closed_at DATETIME,
+  last_message_at TIMESTAMP,
+  closed_at TIMESTAMP,
   closed_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS conversation_messages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   conversation_id INTEGER NOT NULL,
   meta_page_id INTEGER,
@@ -81,62 +81,62 @@ CREATE TABLE IF NOT EXISTS conversation_messages (
   status TEXT NOT NULL DEFAULT 'received',
   error_message TEXT,
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS conversation_assignments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   conversation_id INTEGER NOT NULL,
   assigned_user_id INTEGER,
   assigned_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS conversation_tags (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   conversation_id INTEGER,
   label TEXT NOT NULL,
   color TEXT DEFAULT '#2563eb',
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS conversation_notes (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   conversation_id INTEGER NOT NULL,
   note TEXT NOT NULL,
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS quick_replies (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   title TEXT NOT NULL,
   body TEXT NOT NULL,
   is_active INTEGER NOT NULL DEFAULT 1,
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS lead_forms (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   meta_page_id INTEGER,
   page_id TEXT,
   form_id TEXT NOT NULL,
   form_name TEXT,
   status TEXT NOT NULL DEFAULT 'active',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS lead_entries (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   lead_form_id INTEGER,
   conversation_id INTEGER,
@@ -147,9 +147,9 @@ CREATE TABLE IF NOT EXISTS lead_entries (
   raw_payload_json TEXT,
   assigned_user_id INTEGER,
   status TEXT NOT NULL DEFAULT 'new',
-  created_time DATETIME,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_time TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_meta_connections_company ON meta_connections (company_id, provider, status);

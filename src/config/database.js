@@ -1,14 +1,12 @@
-const path = require('path');
-const { Pool } = require('pg');
-const sqlite3 = require('sqlite3').verbose();
+require('./load-env');
 
-const ROOT_DIR = path.resolve(__dirname, '..', '..');
-const DEFAULT_SQLITE_PATH = path.join(ROOT_DIR, 'data', 'app.db');
+const { Pool } = require('pg');
 
 function getDatabaseConfig(env = process.env) {
   const databaseUrl = String(env.DATABASE_URL || '').trim();
 
   if (databaseUrl) {
+    assertSafeDevelopmentDatabase(databaseUrl, env);
     return {
       client: 'postgres',
       url: databaseUrl,
@@ -17,6 +15,20 @@ function getDatabaseConfig(env = process.env) {
   }
 
   throw new Error('DATABASE_URL is required. SQLite is available only as a historical backup source.');
+}
+
+function assertSafeDevelopmentDatabase(databaseUrl, env = process.env) {
+  if (String(env.NODE_ENV || '').trim().toLowerCase() !== 'development') return;
+
+  const parsed = new URL(databaseUrl);
+  const database = parsed.pathname.replace(/^\/+/, '');
+  const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
+  if (!localHosts.has(parsed.hostname)) {
+    throw new Error('NODE_ENV=development solo permite PostgreSQL en localhost.');
+  }
+  if (database !== 'mi_sistema_dev') {
+    throw new Error('NODE_ENV=development requiere DATABASE_URL apuntando a mi_sistema_dev.');
+  }
 }
 
 function shouldUsePostgresSsl(env = process.env) {
@@ -104,17 +116,37 @@ function translatePlaceholders(sql) {
 function translateSqliteSql(sql) {
   let translated = String(sql || '').trim();
   translated = translated.replace(/`/g, '"');
-  translated = translated.replace(/\bAUTOINCREMENT\b/gi, '');
   translated = translated.replace(/\bINTEGER\s+PRIMARY\s+KEY\s*(,|\))/gi, 'BIGSERIAL PRIMARY KEY$1');
-  translated = translated.replace(/\bDATETIME\b/gi, 'TIMESTAMP');
   translated = translated.replace(/\bREAL\b/gi, 'DOUBLE PRECISION');
   translated = translated.replace(/\bBLOB\b/gi, 'BYTEA');
   translated = translated.replace(/\bCOLLATE\s+NOCASE\b/gi, '');
   translated = translated.replace(/date\('now'\s*,\s*'localtime'\)/gi, 'CURRENT_DATE');
-  translated = translated.replace(/datetime\('now'\s*,\s*'localtime'\)/gi, 'CURRENT_TIMESTAMP');
+  translated = translated.replace(/date\('now'\)/gi, 'CURRENT_DATE');
+  translated = translated.replace(/TIMESTAMP\('now'\s*,\s*'localtime'\)/gi, 'CURRENT_TIMESTAMP');
+  translated = translated.replace(/TIMESTAMP\('now'\)/gi, 'CURRENT_TIMESTAMP');
+  translated = translated.replace(/TIMESTAMP\(([^,()]+),\s*'unixepoch'\)/gi, 'TO_TIMESTAMP($1)');
+  translated = translated.replace(/\bdate\(([^()]+)\)/gi, 'CAST($1 AS date)');
+  translated = translated.replace(/\bdatetime\(([^()]+)\)/gi, 'CAST($1 AS timestamp)');
+  translated = translated.replace(/strftime\('%Y-%m',\s*([^()]+)\)/gi, "TO_CHAR($1, 'YYYY-MM')");
+  translated = translated.replace(/CAST\s*\(\s*julianday\('now'\)\s*-\s*julianday\(([^()]+)\)\s+AS\s+INTEGER\s*\)/gi, 'FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - $1::timestamp)) / 86400)::INTEGER');
+  translated = translated.replace(/GROUP_CONCAT\(([^,()]+),\s*'([^']*)'\)/gi, "STRING_AGG(($1)::text, '$2')");
+  translated = translated.replace(/GROUP_CONCAT\(([^()]+)\)/gi, "STRING_AGG(($1)::text, ',')");
+  translated = translated.replace(
+    /printf\('([^']*)%0(\d+)d',\s*([^()]+)\)/gi,
+    (_match, prefix, width, expression) =>
+      `'${prefix.replace(/'/g, "''")}' || LPAD((${expression.trim()})::text, ${Number(width)}, '0')`
+  );
+  translated = translated.replace(
+    /ROUND\(COALESCE\(([^,()]+),\s*0\)\s*\*\s*COALESCE\(([^,()]+),\s*0\),\s*(\d+)\)/gi,
+    'ROUND((COALESCE($1, 0) * COALESCE($2, 0))::numeric, $3)'
+  );
+  translated = translated.replace(/\bHAVING\s+total\b/gi, 'HAVING COUNT(*)');
+  translated = translated.replace(/\bDATETIME\b/gi, 'TIMESTAMP');
   translated = translated.replace(/CURRENT_TIMESTAMP\s*\(\s*\)/gi, 'CURRENT_TIMESTAMP');
-  translated = translated.replace(/^INSERT\s+OR\s+IGNORE\s+INTO\s+/i, 'INSERT INTO ');
-  translated = translated.replace(/^UPDATE\s+OR\s+IGNORE\s+/i, 'UPDATE ');
+  translated = translated.replace(
+    /^ALTER\s+TABLE\s+("[^"]+"|[A-Za-z_][A-Za-z0-9_]*)\s+ADD\s+COLUMN\s+(?!IF\s+NOT\s+EXISTS\b)/i,
+    'ALTER TABLE $1 ADD COLUMN IF NOT EXISTS '
+  );
   translated = translatePlaceholders(translated);
   translated = translated.replace(/date\((\$\d+)\)/gi, 'CAST($1 AS date)');
   if (/^INSERT\s+INTO\s+/i.test(translated) && !/\bON\s+CONFLICT\b/i.test(translated) && !/\bRETURNING\b/i.test(translated)) {
@@ -122,15 +154,7 @@ function translateSqliteSql(sql) {
   } else if (/^INSERT\s+INTO\s+/i.test(translated) && !/\bRETURNING\b/i.test(translated)) {
     translated += ' RETURNING id';
   }
-  if (/^INSERT\s+INTO\s+/i.test(translated) && /^INSERT\s+OR\s+IGNORE\s+INTO\s+/i.test(String(sql || '').trim())) {
-    translated = translated.replace(/\s+RETURNING\s+id\s*$/i, ' ON CONFLICT DO NOTHING RETURNING id');
-  }
   return translated;
-}
-
-function parsePragmaTableInfo(sql) {
-  const match = String(sql || '').trim().match(/^PRAGMA\s+table_info\s*\(\s*["']?([A-Za-z0-9_]+)["']?\s*\)/i);
-  return match ? match[1] : null;
 }
 
 function sqliteCallbackArgs(params, callback) {
@@ -192,11 +216,8 @@ class PostgresSqliteCompatDatabase {
 
   all(sql, params, callback) {
     const args = sqliteCallbackArgs(params, callback);
-    const tableInfo = parsePragmaTableInfo(sql);
     const run = async () => {
       await this.ready;
-      if (tableInfo) return this.getTableInfo(tableInfo);
-      if (/sqlite_master/i.test(sql)) return this.getSqliteMasterRows(sql, args.params);
       const result = await this.pool.query(translateSqliteSql(sql), args.params);
       return result.rows || [];
     };
@@ -228,7 +249,6 @@ class PostgresSqliteCompatDatabase {
       await this.ready;
       const statements = splitSqlStatements(sql);
       for (const statement of statements) {
-        if (parsePragmaTableInfo(statement)) continue;
         await this.pool.query(translateSqliteSql(statement));
       }
     };
@@ -293,12 +313,41 @@ class PostgresSqliteCompatDatabase {
     );
     return result.rows;
   }
-}
 
-function createSqliteDatabase(config = getSqliteConfig()) {
-  const filename = config.filename || ':memory:';
-  if (filename === ':memory:') return new sqlite3.Database(filename);
-  return new sqlite3.Database(filename, sqlite3.OPEN_READONLY);
+  async getIndexList(tableName) {
+    const result = await this.pool.query(
+      `SELECT i.relname AS name,
+              CASE WHEN ix.indisunique THEN 1 ELSE 0 END AS unique,
+              CASE WHEN con.contype IS NULL THEN 'c' ELSE 'u' END AS origin
+       FROM pg_class t
+       JOIN pg_namespace ns ON ns.oid = t.relnamespace
+       JOIN pg_index ix ON ix.indrelid = t.oid
+       JOIN pg_class i ON i.oid = ix.indexrelid
+       LEFT JOIN pg_constraint con ON con.conindid = i.oid
+       WHERE ns.nspname = current_schema()
+         AND t.relname = $1
+       ORDER BY i.relname`,
+      [tableName]
+    );
+    return result.rows;
+  }
+
+  async getIndexInfo(indexName) {
+    const result = await this.pool.query(
+      `SELECT key_columns.ordinality - 1 AS seqno,
+              a.attname AS name
+       FROM pg_class i
+       JOIN pg_namespace ns ON ns.oid = i.relnamespace
+       JOIN pg_index ix ON ix.indexrelid = i.oid
+       JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS key_columns(attnum, ordinality) ON true
+       JOIN pg_attribute a ON a.attrelid = ix.indrelid AND a.attnum = key_columns.attnum
+       WHERE ns.nspname = current_schema()
+         AND i.relname = $1
+       ORDER BY key_columns.ordinality`,
+      [indexName]
+    );
+    return result.rows;
+  }
 }
 
 function createAppDatabase(env = process.env) {
@@ -321,13 +370,6 @@ function getActiveDatabaseInfo(env = process.env) {
   return {
     client: 'sqlite',
     filename: config.filename
-  };
-}
-
-function getSqliteConfig(env = process.env) {
-  return {
-    client: 'sqlite',
-    filename: path.resolve(ROOT_DIR, env.DATABASE_PATH || DEFAULT_SQLITE_PATH)
   };
 }
 
@@ -361,11 +403,10 @@ async function testPostgresConnection(env = process.env) {
 
 module.exports = {
   getDatabaseConfig,
-  getSqliteConfig,
   resolveDatabaseConfig,
   createPostgresPool,
-  createSqliteDatabase,
   createAppDatabase,
   getActiveDatabaseInfo,
-  testPostgresConnection
+  testPostgresConnection,
+  translateSqliteSql
 };

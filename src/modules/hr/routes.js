@@ -1901,7 +1901,13 @@ function initializeHrModule(db) {
 
   const ensureColumns = (table, columns) => {
     const safeTable = escapeSqlIdentifier(table);
-    db.all(`PRAGMA table_info(${safeTable})`, (err, rows) => {
+    db.all(
+      `SELECT column_name AS name
+       FROM information_schema.columns
+       WHERE table_schema = current_schema() AND table_name = ?
+       ORDER BY ordinal_position`,
+      [safeTable],
+      (err, rows) => {
       if (err || !rows) return;
       const current = new Set(rows.map((row) => row.name));
       columns.forEach((column) => {
@@ -1917,13 +1923,14 @@ function initializeHrModule(db) {
           }
         });
       });
-    });
+      }
+    );
   };
 
   db.serialize(() => {
     db.run(
       `CREATE TABLE IF NOT EXISTS hr_job_descriptions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         position_name TEXT NOT NULL,
         department TEXT NOT NULL,
@@ -1939,14 +1946,14 @@ function initializeHrModule(db) {
         suggested_salary REAL,
         notes TEXT,
         status TEXT NOT NULL DEFAULT 'Activa',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS hr_employees (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         first_name TEXT NOT NULL,
         last_name TEXT NOT NULL,
@@ -1988,27 +1995,27 @@ function initializeHrModule(db) {
         notes TEXT,
         job_description_id INTEGER,
         is_active INTEGER NOT NULL DEFAULT 1,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS hr_employee_attachments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         employee_id INTEGER NOT NULL,
         attachment_type TEXT NOT NULL,
         file_path TEXT NOT NULL,
         original_name TEXT,
         mime_type TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS hr_contracts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         employee_id INTEGER NOT NULL,
         contract_type TEXT NOT NULL,
@@ -2026,14 +2033,14 @@ function initializeHrModule(db) {
         generated_contract_text TEXT,
         status TEXT NOT NULL DEFAULT 'Borrador',
         pdf_path TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS hr_salaries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         employee_id INTEGER NOT NULL,
         effective_date TEXT NOT NULL,
@@ -2045,14 +2052,14 @@ function initializeHrModule(db) {
         bank_account_number TEXT,
         notes TEXT,
         status TEXT NOT NULL DEFAULT 'Vigente',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS hr_overtime (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         employee_id INTEGER NOT NULL,
         overtime_date TEXT NOT NULL,
@@ -2064,14 +2071,14 @@ function initializeHrModule(db) {
         approved_by TEXT,
         status TEXT NOT NULL DEFAULT 'Pendiente',
         notes TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS hr_attendance (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         employee_id INTEGER NOT NULL,
         attendance_date TEXT NOT NULL,
@@ -2081,14 +2088,14 @@ function initializeHrModule(db) {
         check_out TEXT,
         attendance_status TEXT NOT NULL DEFAULT 'Presente',
         notes TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS hr_warnings (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         employee_id INTEGER NOT NULL,
         warning_date TEXT NOT NULL,
@@ -2099,14 +2106,14 @@ function initializeHrModule(db) {
         issued_by TEXT,
         attachment_path TEXT,
         status TEXT NOT NULL DEFAULT 'Emitida',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS hr_permissions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         employee_id INTEGER NOT NULL,
         permission_type TEXT NOT NULL,
@@ -2118,14 +2125,14 @@ function initializeHrModule(db) {
         approved_by TEXT,
         attachment_path TEXT,
         status TEXT NOT NULL DEFAULT 'Pendiente',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS hr_vacations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         employee_id INTEGER NOT NULL,
         vacation_period TEXT,
@@ -2138,8 +2145,8 @@ function initializeHrModule(db) {
         return_date TEXT,
         status TEXT NOT NULL DEFAULT 'Pendiente',
         notes TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
@@ -2178,10 +2185,10 @@ function initializeHrModule(db) {
 
     db.run(`INSERT INTO permission_modules (code, name, description) VALUES ('rrhh', 'RRHH', 'Gestión integral de recursos humanos') ON CONFLICT (code) DO NOTHING`);
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'rrhh' AND pa.code IN ('view', 'create', 'edit', 'delete', 'export', 'approve')`
+       WHERE pm.code = 'rrhh' AND pa.code IN ('view', 'create', 'edit', 'delete', 'export', 'approve') ON CONFLICT DO NOTHING`
     );
   });
 }

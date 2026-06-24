@@ -234,7 +234,7 @@ function registerFloatingInvestmentRoutes(app, deps) {
 async function ensureFloatingInvestmentSchema(db) {
   await runDb(db, `
     CREATE TABLE IF NOT EXISTS floating_investments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       provider TEXT NOT NULL,
       description TEXT NULL,
@@ -247,15 +247,15 @@ async function ensureFloatingInvestmentSchema(db) {
       notes TEXT NULL,
       created_by INTEGER NULL,
       updated_by INTEGER NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await runDb(db, 'CREATE INDEX IF NOT EXISTS idx_floating_investments_company ON floating_investments (company_id)');
   await runDb(db, 'CREATE INDEX IF NOT EXISTS idx_floating_investments_recovery ON floating_investments (company_id, recovery_date)');
   await runDb(db, `
     CREATE TABLE IF NOT EXISTS floating_investment_lines (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       investment_id INTEGER NOT NULL,
       supplier_id INTEGER NULL,
@@ -265,8 +265,8 @@ async function ensureFloatingInvestmentSchema(db) {
       investment_value REAL NOT NULL DEFAULT 0,
       expected_profit REAL NOT NULL DEFAULT 0,
       sort_order INTEGER NOT NULL DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await ensureColumn(db, 'floating_investment_lines', 'supplier_id', 'INTEGER');
@@ -372,7 +372,9 @@ async function getCustomers(db, companyId) {
 }
 
 async function getSuppliers(db, companyId) {
-  const exists = await getDb(db, "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'suppliers'");
+  const exists = await getDb(db, `SELECT table_name AS name
+    FROM information_schema.tables
+    WHERE table_schema = current_schema() AND table_type = 'BASE TABLE' AND table_name = 'suppliers'`);
   if (!exists) return [];
   return allDb(db, `
     SELECT id, code, trade_name
@@ -431,8 +433,8 @@ function getInvestments(db, companyId, filters) {
   return allDb(db, `
     SELECT fi.*, c.name AS customer_name, c.customer_code,
            COUNT(fil.id) AS line_count,
-           GROUP_CONCAT(DISTINCT COALESCE(s.trade_name, fil.supplier_name)) AS line_suppliers,
-           GROUP_CONCAT(DISTINCT fil.cost_center) AS cost_centers,
+           STRING_AGG(DISTINCT COALESCE(s.trade_name, fil.supplier_name), ',') AS line_suppliers,
+           STRING_AGG(DISTINCT fil.cost_center, ',') AS cost_centers,
            COALESCE(SUM(fil.investment_value), fi.investment_value, 0) AS line_investment_value,
            COALESCE(SUM(fil.expected_profit), fi.expected_profit, 0) AS line_expected_profit
     FROM floating_investments fi
@@ -562,7 +564,10 @@ function allDb(db, sql, params = []) {
 }
 
 async function ensureColumn(db, table, column, type) {
-  const columns = await allDb(db, `PRAGMA table_info(${table})`);
+  const columns = await allDb(db, `SELECT column_name AS name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = ?
+    ORDER BY ordinal_position`, [table]);
   if (columns.some((entry) => entry.name === column)) return;
   await runDb(db, `ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
 }

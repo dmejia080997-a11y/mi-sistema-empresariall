@@ -33,7 +33,7 @@ module.exports = [
       SELECT id, internal_code, tracking_number, status, received_at, description
       FROM packages
       WHERE company_id = ? AND COALESCE(status, '') NOT IN ('Entregado', 'Entregado al cliente', 'Cancelado')
-        AND date(COALESCE(received_at, created_at)) <= date('now', ?)
-      ORDER BY received_at ASC LIMIT 30`, [ctx.companyId, `-${Math.min(Number(dias) || 7, 90)} days`])
+        AND COALESCE(received_at::date, created_at::date) <= CURRENT_DATE - (?::integer * INTERVAL '1 day')
+      ORDER BY received_at ASC LIMIT 30`, [ctx.companyId, Math.min(Number(dias) || 7, 90)])
   }
 ];

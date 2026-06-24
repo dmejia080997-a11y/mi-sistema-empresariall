@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS bills_of_lading (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   parent_bl_id INTEGER NULL,
   nivel_bl TEXT NOT NULL CHECK (nivel_bl IN ('MASTER','HOUSE','SUB_HOUSE')),
@@ -60,14 +60,14 @@ CREATE TABLE IF NOT EXISTS bills_of_lading (
   total_declared_value REAL DEFAULT 0,
   created_by INTEGER NULL,
   updated_by INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (parent_bl_id) REFERENCES bills_of_lading(id),
   UNIQUE (company_id, numero_bl)
 );
 
 CREATE TABLE IF NOT EXISTS bl_containers (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   bl_id INTEGER NOT NULL,
   container_number TEXT NULL,
   seal_number TEXT NULL,
@@ -79,12 +79,12 @@ CREATE TABLE IF NOT EXISTS bl_containers (
   package_quantity REAL DEFAULT 0,
   package_type TEXT NULL,
   marks_numbers TEXT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (bl_id) REFERENCES bills_of_lading(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS bl_cargo_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   bl_id INTEGER NOT NULL,
   container_id INTEGER NULL,
   quantity REAL DEFAULT 0,
@@ -112,10 +112,11 @@ CREATE INDEX IF NOT EXISTS idx_bl_parent ON bills_of_lading (company_id, parent_
 CREATE INDEX IF NOT EXISTS idx_bl_containers_bl ON bl_containers (bl_id);
 CREATE INDEX IF NOT EXISTS idx_bl_cargo_bl ON bl_cargo_items (bl_id);
 
-INSERT OR IGNORE INTO permission_modules (code, name, description)
-VALUES ('bl', 'Documentos de Transporte - Bill of Lading / BL', 'BL maritimos Master, House y Sub House');
+INSERT INTO permission_modules (code, name, description)
+VALUES ('bl', 'Documentos de Transporte - Bill of Lading / BL', 'BL maritimos Master, House y Sub House')
+ON CONFLICT DO NOTHING;
 
-INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
+INSERT INTO permission_actions (code, name, description) VALUES
   ('ver','Ver','Ver BL'),
   ('crear','Crear','Crear BL'),
   ('editar','Editar','Editar BL'),
@@ -123,10 +124,12 @@ INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
   ('imprimir','Imprimir','Imprimir BL'),
   ('descargar_pdf','Descargar PDF','Descargar PDF de BL'),
   ('crear_hijo','Crear BL Hijo','Crear House BL desde Master'),
-  ('crear_nieto','Crear BL Nieto','Crear Sub House BL desde House');
+  ('crear_nieto','Crear BL Nieto','Crear Sub House BL desde House')
+ON CONFLICT DO NOTHING;
 
-INSERT OR IGNORE INTO module_actions (module_id, action_id)
+INSERT INTO module_actions (module_id, action_id)
 SELECT pm.id, pa.id
 FROM permission_modules pm, permission_actions pa
 WHERE pm.code = 'bl'
-  AND pa.code IN ('ver','crear','editar','anular','imprimir','descargar_pdf','crear_hijo','crear_nieto');
+  AND pa.code IN ('ver','crear','editar','anular','imprimir','descargar_pdf','crear_hijo','crear_nieto')
+ON CONFLICT DO NOTHING;

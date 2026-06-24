@@ -4,7 +4,7 @@ ALTER TABLE items ADD COLUMN last_cost REAL NOT NULL DEFAULT 0;
 ALTER TABLE items ADD COLUMN is_production_active INTEGER NOT NULL DEFAULT 1;
 
 CREATE TABLE IF NOT EXISTS production_boms (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   finished_product_id INTEGER NOT NULL,
   code TEXT NOT NULL,
@@ -15,12 +15,12 @@ CREATE TABLE IF NOT EXISTS production_boms (
   status TEXT NOT NULL DEFAULT 'active',
   notes TEXT,
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS production_bom_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   bom_id INTEGER NOT NULL,
   material_product_id INTEGER NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS production_bom_items (
 );
 
 CREATE TABLE IF NOT EXISTS production_orders (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   order_number TEXT NOT NULL,
   product_id INTEGER NOT NULL,
@@ -50,12 +50,12 @@ CREATE TABLE IF NOT EXISTS production_orders (
   notes TEXT,
   cancellation_reason TEXT,
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS production_order_materials (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   production_order_id INTEGER NOT NULL,
   product_id INTEGER NOT NULL,
@@ -65,11 +65,11 @@ CREATE TABLE IF NOT EXISTS production_order_materials (
   unit_cost REAL NOT NULL DEFAULT 0,
   total_cost REAL NOT NULL DEFAULT 0,
   waste_percentage REAL NOT NULL DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS production_labor (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   production_order_id INTEGER NOT NULL,
   employee_id INTEGER,
@@ -79,11 +79,11 @@ CREATE TABLE IF NOT EXISTS production_labor (
   total_cost REAL NOT NULL DEFAULT 0,
   notes TEXT,
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS production_overhead (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   production_order_id INTEGER NOT NULL,
   cost_type TEXT,
@@ -91,11 +91,11 @@ CREATE TABLE IF NOT EXISTS production_overhead (
   amount REAL NOT NULL DEFAULT 0,
   distribution_method TEXT NOT NULL DEFAULT 'order',
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS production_waste (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   production_order_id INTEGER,
   product_id INTEGER NOT NULL,
@@ -104,11 +104,11 @@ CREATE TABLE IF NOT EXISTS production_waste (
   cost REAL NOT NULL DEFAULT 0,
   notes TEXT,
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS inventory_movements (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   product_id INTEGER NOT NULL,
   movement_type TEXT NOT NULL,
@@ -121,11 +121,11 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
   reference_id INTEGER,
   notes TEXT,
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS production_audit_logs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   company_id INTEGER NOT NULL,
   user_id INTEGER,
   action TEXT NOT NULL,
@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS production_audit_logs (
   old_value TEXT,
   new_value TEXT,
   ip TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_production_boms_company_code ON production_boms (company_id, code);

@@ -85,7 +85,7 @@ async function listDatabases(masterPool, masterDatabaseName) {
 function runPgDump(databaseUrl, databaseName, outputFile) {
   const started = Date.now();
   const result = spawnSync(
-    'pg_dump',
+    postgresCommand('pg_dump'),
     [
       '--dbname',
       databaseUrl,
@@ -114,6 +114,21 @@ function runPgDump(databaseUrl, databaseName, outputFile) {
     size: fs.statSync(outputFile).size,
     durationMs: Date.now() - started
   };
+}
+
+function postgresCommand(command) {
+  if (process.platform !== 'win32') return command;
+  const root = path.join(process.env.ProgramFiles || 'C:\\Program Files', 'PostgreSQL');
+  if (!fs.existsSync(root)) return command;
+  const versions = fs.readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+  for (const version of versions) {
+    const executable = path.join(root, version, 'bin', `${command}.exe`);
+    if (fs.existsSync(executable)) return executable;
+  }
+  return command;
 }
 
 function copyUploads(stagingDir) {
@@ -149,6 +164,10 @@ function writeManifest(stagingDir, manifest) {
 }
 
 function commandExists(command) {
+  if (process.platform === 'win32') {
+    const result = spawnSync('where.exe', [command], { encoding: 'utf8' });
+    return result.status === 0;
+  }
   const result = spawnSync(
     'sh',
     ['-c', `command -v ${command} >/dev/null 2>&1`],

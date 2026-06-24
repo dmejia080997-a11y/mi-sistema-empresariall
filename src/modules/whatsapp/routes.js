@@ -561,7 +561,7 @@ async function ensureWhatsappSchema(db) {
   isWhatsappSchemaInitialized = true;
   const statements = [
         `CREATE TABLE IF NOT EXISTS whatsapp_accounts (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id BIGSERIAL PRIMARY KEY,
           company_id INTEGER NOT NULL,
           provider_type TEXT NOT NULL DEFAULT 'official_api',
           business_name TEXT,
@@ -574,43 +574,43 @@ async function ensureWhatsappSchema(db) {
           webhook_url TEXT,
           status TEXT NOT NULL DEFAULT 'disconnected',
           qr_code TEXT,
-          last_connected_at DATETIME,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_connected_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           created_by INTEGER,
           updated_by INTEGER
         )`,
         `CREATE TABLE IF NOT EXISTS whatsapp_contacts (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id BIGSERIAL PRIMARY KEY,
           company_id INTEGER NOT NULL,
           name TEXT,
           phone TEXT NOT NULL,
           email TEXT,
           country TEXT,
           source TEXT,
-          last_message_at DATETIME,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_message_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           created_by INTEGER,
           updated_by INTEGER
         )`,
         `CREATE TABLE IF NOT EXISTS whatsapp_conversations (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id BIGSERIAL PRIMARY KEY,
           company_id INTEGER NOT NULL,
           contact_id INTEGER NOT NULL,
           assigned_user_id INTEGER,
           status TEXT NOT NULL DEFAULT 'open',
           priority TEXT NOT NULL DEFAULT 'normal',
           last_message TEXT,
-          last_message_at DATETIME,
+          last_message_at TIMESTAMP,
           unread_count INTEGER NOT NULL DEFAULT 0,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           created_by INTEGER,
           updated_by INTEGER
         )`,
         `CREATE TABLE IF NOT EXISTS whatsapp_messages (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id BIGSERIAL PRIMARY KEY,
           company_id INTEGER NOT NULL,
           conversation_id INTEGER NOT NULL,
           contact_id INTEGER NOT NULL,
@@ -620,14 +620,14 @@ async function ensureWhatsappSchema(db) {
           media_url TEXT,
           provider_message_id TEXT,
           status TEXT NOT NULL DEFAULT 'received',
-          timestamp DATETIME,
+          timestamp TIMESTAMP,
           created_by INTEGER,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_by INTEGER
         )`,
         `CREATE TABLE IF NOT EXISTS whatsapp_message_attachments (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id BIGSERIAL PRIMARY KEY,
           company_id INTEGER NOT NULL,
           message_id INTEGER NOT NULL,
           original_name TEXT,
@@ -636,65 +636,65 @@ async function ensureWhatsappSchema(db) {
           size_bytes INTEGER NOT NULL DEFAULT 0,
           file_path TEXT,
           media_id TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         `CREATE TABLE IF NOT EXISTS whatsapp_conversation_notes (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id BIGSERIAL PRIMARY KEY,
           company_id INTEGER NOT NULL,
           conversation_id INTEGER NOT NULL,
           user_id INTEGER,
           note TEXT,
           body TEXT NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           created_by INTEGER,
           updated_by INTEGER
         )`,
         `CREATE TABLE IF NOT EXISTS whatsapp_tags (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id BIGSERIAL PRIMARY KEY,
           company_id INTEGER NOT NULL,
           name TEXT NOT NULL,
           color TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           created_by INTEGER,
           updated_by INTEGER
         )`,
         `CREATE TABLE IF NOT EXISTS whatsapp_conversation_tags (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id BIGSERIAL PRIMARY KEY,
           company_id INTEGER NOT NULL,
           conversation_id INTEGER NOT NULL,
           tag_id INTEGER,
           label TEXT NOT NULL,
           color TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           created_by INTEGER,
           updated_by INTEGER
         )`,
         `CREATE TABLE IF NOT EXISTS whatsapp_user_assignments (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id BIGSERIAL PRIMARY KEY,
           company_id INTEGER NOT NULL,
           conversation_id INTEGER NOT NULL,
           user_id INTEGER,
           assigned_by INTEGER,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         `CREATE TABLE IF NOT EXISTS whatsapp_webhook_logs (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id BIGSERIAL PRIMARY KEY,
           company_id INTEGER,
           account_id INTEGER,
           payload_json TEXT,
           event_type TEXT,
           provider_message_id TEXT,
           payload TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           created_by INTEGER,
           updated_by INTEGER
         )`,
         `CREATE TABLE IF NOT EXISTS whatsapp_templates (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id BIGSERIAL PRIMARY KEY,
           company_id INTEGER NOT NULL,
           template_name TEXT,
           language_code TEXT NOT NULL DEFAULT 'es',
@@ -707,8 +707,8 @@ async function ensureWhatsappSchema(db) {
           buttons_json TEXT,
           status TEXT NOT NULL DEFAULT 'draft',
           provider_template_id TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           created_by INTEGER,
           updated_by INTEGER
         )`,
@@ -723,10 +723,10 @@ async function ensureWhatsappSchema(db) {
         `INSERT INTO permission_modules (code, name, description)
          VALUES ('whatsapp', 'WhatsApp / Mensajeria', 'Bandeja CRM para WhatsApp Business Cloud API')
          ON CONFLICT (code) DO NOTHING`,
-        `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+        `INSERT INTO module_actions (module_id, action_id)
          SELECT pm.id, pa.id
          FROM permission_modules pm, permission_actions pa
-         WHERE pm.code = 'whatsapp' AND pa.code IN ('view', 'create', 'edit', 'manage')`
+         WHERE pm.code = 'whatsapp' AND pa.code IN ('view', 'create', 'edit', 'manage') ON CONFLICT DO NOTHING`
   ];
   await runStatements(db, statements);
   await migrateWhatsappSchema(db);
@@ -736,7 +736,7 @@ async function migrateWhatsappSchema(db) {
   const commonAudit = [
     ['created_by', 'INTEGER'],
     ['updated_by', 'INTEGER'],
-    ['updated_at', 'DATETIME']
+    ['updated_at', 'TIMESTAMP']
   ];
   const tableColumns = {
     whatsapp_accounts: [
@@ -747,13 +747,13 @@ async function migrateWhatsappSchema(db) {
       ...commonAudit
     ],
     whatsapp_contacts: [
-      ['last_message_at', 'DATETIME'],
+      ['last_message_at', 'TIMESTAMP'],
       ...commonAudit
     ],
     whatsapp_conversations: commonAudit,
     whatsapp_messages: [
       ['error_message', 'TEXT'],
-      ['updated_at', 'DATETIME'],
+      ['updated_at', 'TIMESTAMP'],
       ['updated_by', 'INTEGER']
     ],
     whatsapp_conversation_notes: [
@@ -825,7 +825,7 @@ async function processWhatsappWebhookChange(db, change) {
       db,
       `INSERT INTO whatsapp_messages
        (company_id, conversation_id, contact_id, direction, message_type, body, media_url, provider_message_id, status, timestamp, created_at, updated_at)
-       VALUES (?, ?, ?, 'inbound', ?, ?, ?, ?, 'received', datetime(?, 'unixepoch'), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+       VALUES (?, ?, ?, 'inbound', ?, ?, ?, ?, 'received', TO_TIMESTAMP(?), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       [companyId, conversation.id, contact.id, parsed.type, parsed.body, parsed.mediaUrl, clean(message.id), Number(message.timestamp || 0)]
     );
     await touchConversationAfterMessage(db, companyId, conversation.id, parsed.body || parsed.type, 'inbound');
@@ -838,7 +838,7 @@ async function processWhatsappWebhookChange(db, change) {
     await runDb(
       db,
       `UPDATE whatsapp_messages
-       SET status = ?, timestamp = COALESCE(timestamp, datetime(?, 'unixepoch')), updated_at = CURRENT_TIMESTAMP
+       SET status = ?, timestamp = COALESCE(timestamp, TO_TIMESTAMP(?)), updated_at = CURRENT_TIMESTAMP
        WHERE provider_message_id = ? AND company_id = ?`,
       [normalizeMessageStatus(status.status), Number(status.timestamp || 0), providerId, companyId]
     );
@@ -969,7 +969,7 @@ function listConversations(db, companyId, userId, access, filter, search) {
             ct.email AS contact_email,
             ct.country AS contact_country,
             u.username AS assigned_username,
-            (SELECT GROUP_CONCAT(label, '||') FROM whatsapp_conversation_tags t WHERE t.company_id = c.company_id AND t.conversation_id = c.id) AS tag_labels
+            (SELECT STRING_AGG(label, '||') FROM whatsapp_conversation_tags t WHERE t.company_id = c.company_id AND t.conversation_id = c.id) AS tag_labels
      FROM whatsapp_conversations c
      JOIN whatsapp_contacts ct ON ct.id = c.contact_id AND ct.company_id = c.company_id
      LEFT JOIN users u ON u.id = c.assigned_user_id AND u.company_id = c.company_id
@@ -1152,7 +1152,7 @@ async function sendTextThroughConfiguredAccount(db, companyId, account, conversa
         `SELECT COALESCE(timestamp, created_at) AS last_inbound_at
          FROM whatsapp_messages
          WHERE company_id = ? AND conversation_id = ? AND direction = 'inbound'
-         ORDER BY datetime(COALESCE(timestamp, created_at)) DESC, id DESC
+         ORDER BY TIMESTAMP(COALESCE(timestamp, created_at)) DESC, id DESC
          LIMIT 1`,
         [companyId, conversation.id]
       );
@@ -1454,7 +1454,10 @@ function runStatements(db, statements) {
 }
 
 async function addColumnIfMissing(db, table, column, definition) {
-  const columns = await allDb(db, `PRAGMA table_info(${table})`);
+  const columns = await allDb(db, `SELECT column_name AS name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = ?
+    ORDER BY ordinal_position`, [table]);
   if (columns.some((entry) => entry.name === column)) return;
   await runDb(db, `ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }

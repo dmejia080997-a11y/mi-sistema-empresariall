@@ -1230,7 +1230,13 @@ function initializeChatModule(db) {
 
   const ensureColumns = (table, columns) => {
     const safeTable = escapeSqlIdentifier(table);
-    db.all(`PRAGMA table_info(${safeTable})`, (err, rows) => {
+    db.all(
+      `SELECT column_name AS name
+       FROM information_schema.columns
+       WHERE table_schema = current_schema() AND table_name = ?
+       ORDER BY ordinal_position`,
+      [safeTable],
+      (err, rows) => {
       if (err || !Array.isArray(rows)) return;
       const existing = new Set(rows.map((row) => row.name));
       columns.forEach((column) => {
@@ -1242,25 +1248,26 @@ function initializeChatModule(db) {
           }
         });
       });
-    });
+      }
+    );
   };
 
   db.serialize(() => {
     db.run(
       `CREATE TABLE IF NOT EXISTS chat_threads (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         created_by INTEGER NOT NULL,
         participant_one_id INTEGER NOT NULL,
         participant_two_id INTEGER NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS chat_messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         thread_id INTEGER NOT NULL,
         sender_id INTEGER NOT NULL,
@@ -1268,14 +1275,14 @@ function initializeChatModule(db) {
         body TEXT,
         attachment_id INTEGER,
         is_read INTEGER NOT NULL DEFAULT 0,
-        read_at DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        read_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS chat_attachments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         message_id INTEGER NOT NULL,
         original_name TEXT NOT NULL,
@@ -1283,13 +1290,13 @@ function initializeChatModule(db) {
         mime_type TEXT,
         size_bytes INTEGER NOT NULL DEFAULT 0,
         file_path TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS notifications (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         user_id INTEGER NOT NULL,
         type TEXT NOT NULL,
@@ -1297,8 +1304,8 @@ function initializeChatModule(db) {
         message TEXT,
         link_url TEXT,
         is_read INTEGER NOT NULL DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        read_at DATETIME
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        read_at TIMESTAMP
       )`
     );
 
@@ -1306,7 +1313,7 @@ function initializeChatModule(db) {
       { name: 'chat_display_name', type: 'TEXT' },
       { name: 'chat_presence_status', type: "TEXT NOT NULL DEFAULT 'offline'" },
       { name: 'chat_profile_photo_path', type: 'TEXT' },
-      { name: 'chat_profile_completed_at', type: 'DATETIME' }
+      { name: 'chat_profile_completed_at', type: 'TIMESTAMP' }
     ]);
 
     ensureColumns('chat_threads', [
@@ -1314,8 +1321,8 @@ function initializeChatModule(db) {
       { name: 'created_by', type: 'INTEGER NOT NULL DEFAULT 0' },
       { name: 'participant_one_id', type: 'INTEGER NOT NULL DEFAULT 0' },
       { name: 'participant_two_id', type: 'INTEGER NOT NULL DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]);
 
     ensureColumns('chat_messages', [
@@ -1326,8 +1333,8 @@ function initializeChatModule(db) {
       { name: 'body', type: 'TEXT' },
       { name: 'attachment_id', type: 'INTEGER' },
       { name: 'is_read', type: 'INTEGER NOT NULL DEFAULT 0' },
-      { name: 'read_at', type: 'DATETIME' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'read_at', type: 'TIMESTAMP' },
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]);
 
     ensureColumns('chat_attachments', [
@@ -1338,7 +1345,7 @@ function initializeChatModule(db) {
       { name: 'mime_type', type: 'TEXT' },
       { name: 'size_bytes', type: 'INTEGER NOT NULL DEFAULT 0' },
       { name: 'file_path', type: 'TEXT' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]);
 
     ensureColumns('notifications', [
@@ -1349,8 +1356,8 @@ function initializeChatModule(db) {
       { name: 'message', type: 'TEXT' },
       { name: 'link_url', type: 'TEXT' },
       { name: 'is_read', type: 'INTEGER NOT NULL DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'read_at', type: 'DATETIME' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'read_at', type: 'TIMESTAMP' }
     ]);
 
     db.run('CREATE INDEX IF NOT EXISTS idx_chat_threads_company ON chat_threads (company_id)');
@@ -1369,17 +1376,17 @@ function initializeChatModule(db) {
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'chat' AND pa.code IN ('view', 'create')`
+       WHERE pm.code = 'chat' AND pa.code IN ('view', 'create') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'notifications' AND pa.code IN ('view')`
+       WHERE pm.code = 'notifications' AND pa.code IN ('view') ON CONFLICT DO NOTHING`
     );
   });
 }

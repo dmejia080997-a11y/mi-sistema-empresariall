@@ -2,7 +2,8 @@ require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path');
-const { createPostgresPool, createSqliteDatabase, getDatabaseConfig, getSqliteConfig } = require('../src/config/database');
+const { createPostgresPool, getDatabaseConfig } = require('../src/config/database');
+const { createSqliteDatabase, getSqliteConfig } = require('./sqlite_legacy');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const BACKUP_ROOT = path.join(ROOT_DIR, 'storage', 'backups');

@@ -14,7 +14,7 @@ function registerAiRoutes(app, deps) {
       const statusCode = err.statusCode && Number(err.statusCode) >= 400 ? Number(err.statusCode) : 500;
       return res.status(statusCode).json({
         ok: false,
-        error: err.message || String(err),
+        error: publicErrorMessage(err, 'No se pudo procesar la solicitud de IA.'),
         code: err.code || null,
         provider_error: err.providerError || null
       });
@@ -152,3 +152,4 @@ function registerAiRoutes(app, deps) {
 }
 
 module.exports = { registerAiRoutes };
+const { publicErrorMessage } = require('../core/public-error');

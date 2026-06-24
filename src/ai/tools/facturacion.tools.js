@@ -43,7 +43,7 @@ module.exports = [
     execute: (_, ctx) => get(ctx.db, `
       SELECT COUNT(*) AS facturas, COALESCE(SUM(total), 0) AS total, COALESCE(SUM(balance_due), 0) AS saldo_pendiente
       FROM invoice_headers
-      WHERE company_id = ? AND strftime('%Y-%m', issue_date) = strftime('%Y-%m', 'now') AND status NOT IN ('voided', 'cancelled')`,
+      WHERE company_id = ? AND TO_CHAR(issue_date::date, 'YYYY-MM') = TO_CHAR(CURRENT_DATE, 'YYYY-MM') AND status NOT IN ('voided', 'cancelled')`,
       [ctx.companyId])
   },
   {
@@ -52,9 +52,9 @@ module.exports = [
     permission: ['billing', 'view'],
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     execute: (_, ctx) => all(ctx.db, `
-      SELECT strftime('%Y-%m', issue_date) AS mes, COUNT(*) AS facturas, COALESCE(SUM(total), 0) AS total
+      SELECT TO_CHAR(issue_date::date, 'YYYY-MM') AS mes, COUNT(*) AS facturas, COALESCE(SUM(total), 0) AS total
       FROM invoice_headers
-      WHERE company_id = ? AND strftime('%Y', issue_date) = strftime('%Y', 'now') AND status NOT IN ('voided', 'cancelled')
-      GROUP BY strftime('%Y-%m', issue_date) ORDER BY mes`, [ctx.companyId])
+      WHERE company_id = ? AND EXTRACT(YEAR FROM issue_date::date) = EXTRACT(YEAR FROM CURRENT_DATE) AND status NOT IN ('voided', 'cancelled')
+      GROUP BY TO_CHAR(issue_date::date, 'YYYY-MM') ORDER BY mes`, [ctx.companyId])
   }
 ];

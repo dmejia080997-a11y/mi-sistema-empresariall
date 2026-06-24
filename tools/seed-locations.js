@@ -25,10 +25,17 @@ function get(sql, params = []) {
 
 async function ensureColumn(table, name, type) {
   const columns = await new Promise((resolve, reject) => {
-    db.all(`PRAGMA table_info(${table})`, [], (err, rows) => {
+    db.all(
+      `SELECT column_name AS name
+       FROM information_schema.columns
+       WHERE table_schema = current_schema() AND table_name = ?
+       ORDER BY ordinal_position`,
+      [table],
+      (err, rows) => {
       if (err) return reject(err);
       return resolve(rows || []);
-    });
+      }
+    );
   });
   if (columns.some((column) => column.name === name)) return;
   await run(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
@@ -46,7 +53,7 @@ async function ensureSchema() {
     subregion TEXT
   )`);
   await run(`CREATE TABLE IF NOT EXISTS states (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     country_id INTEGER NOT NULL,
     name TEXT NOT NULL,
     state_code TEXT,
@@ -54,7 +61,7 @@ async function ensureSchema() {
     FOREIGN KEY (country_id) REFERENCES countries(id)
   )`);
   await run(`CREATE TABLE IF NOT EXISTS cities (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     state_id INTEGER,
     country_id INTEGER NOT NULL,
     name TEXT NOT NULL,

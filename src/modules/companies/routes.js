@@ -130,7 +130,7 @@ function registerCompanyRoutes(app, deps) {
         });
         console.log(`[createCompanyAdminIfMissing] insert username=admin company_id=${companyId}`);
         db.run(
-          "INSERT OR IGNORE INTO users (username, password_hash, role, company_id, chat_presence_status) VALUES ('admin', ?, 'admin', ?, 'offline')",
+          "INSERT INTO users (username, password_hash, role, company_id, chat_presence_status) VALUES ('admin', ?, 'admin', ?, 'offline') ON CONFLICT DO NOTHING",
           [adminPasswordHash, companyId],
           function (insertErr) {
             if (insertErr) {

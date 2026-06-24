@@ -1,5 +1,5 @@
 const { createAccountingAutomation } = require('../src/services/accounting-automation');
-const { createSqliteDatabase } = require('../src/config/database');
+const { createSqliteDatabase } = require('./sqlite_legacy');
 
 const db = createSqliteDatabase({ filename: ':memory:' });
 const run = (sql, params = []) => new Promise((resolve, reject) => db.run(sql, params, function done(error) {

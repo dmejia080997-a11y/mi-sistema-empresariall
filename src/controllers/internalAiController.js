@@ -3,6 +3,7 @@ const internalAiService = require('../services/internalAiService');
 const aiService = require('../ai/aiService');
 const { buildToolContext } = require('../ai/permissions');
 const { STORAGE_UPLOADS_DIR } = require('../core/storage-paths');
+const { publicErrorMessage } = require('../core/public-error');
 
 function registerInternalAiRoutes(app, deps) {
   const schemaReady = internalAiService.ensureSchema(deps.db).catch((err) => console.error('[ai-internal] schema initialization failed', err));
@@ -14,7 +15,10 @@ function registerInternalAiRoutes(app, deps) {
       return await handler(req, res);
     } catch (err) {
       const statusCode = Number(err.statusCode || 500);
-      return res.status(statusCode >= 400 ? statusCode : 500).json({ ok: false, error: err.message || String(err) });
+      return res.status(statusCode >= 400 ? statusCode : 500).json({
+        ok: false,
+        error: publicErrorMessage(err, 'No se pudo procesar la consulta.')
+      });
     }
   });
 

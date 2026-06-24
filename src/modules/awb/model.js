@@ -153,7 +153,7 @@ function mapAwb(row) {
 
 async function ensureTables(db) {
   await run(db, `CREATE TABLE IF NOT EXISTS air_waybills (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     parent_awb_id INTEGER NULL,
     tipo_awb TEXT NOT NULL CHECK (tipo_awb IN ('MAWB','HAWB')),
@@ -176,12 +176,12 @@ async function ensureTables(db) {
     freight_prepaid REAL DEFAULT 0, freight_collect REAL DEFAULT 0, other_charges REAL DEFAULT 0, currency TEXT DEFAULT 'USD', insurance_amount REAL DEFAULT 0,
     total_pieces REAL DEFAULT 0, total_gross_weight REAL DEFAULT 0, total_volume_weight REAL DEFAULT 0, total_chargeable_weight REAL DEFAULT 0, total_cbm REAL DEFAULT 0, total_declared_value REAL DEFAULT 0,
     created_by INTEGER NULL, updated_by INTEGER NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (parent_awb_id) REFERENCES air_waybills(id),
     UNIQUE (company_id, numero_awb)
   )`);
   await run(db, `CREATE TABLE IF NOT EXISTS awb_cargo_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     awb_id INTEGER NOT NULL,
     pieces REAL DEFAULT 0,
     package_type TEXT NULL,
@@ -202,11 +202,11 @@ async function ensureTables(db) {
     packing_group TEXT NULL,
     temperature_controlled INTEGER DEFAULT 0,
     temperature_required TEXT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (awb_id) REFERENCES air_waybills(id) ON DELETE CASCADE
   )`);
   await run(db, `CREATE TABLE IF NOT EXISTS awb_dimensions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     cargo_item_id INTEGER NOT NULL,
     quantity REAL DEFAULT 0,
     length REAL DEFAULT 0,

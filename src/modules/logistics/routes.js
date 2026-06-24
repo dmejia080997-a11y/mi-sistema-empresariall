@@ -1373,7 +1373,7 @@ app.post('/manifests/:id/packages/scan', requireAuth, requirePermission('manifes
       (pkgErr, pkg) => {
         if (pkgErr || !pkg) return res.redirect(`/manifests/${manifestId}`);
         db.run(
-          'INSERT OR IGNORE INTO manifest_piece_packages (manifest_piece_id, package_id) VALUES (?, ?)',
+          'INSERT INTO manifest_piece_packages (manifest_piece_id, package_id) VALUES (?, ?) ON CONFLICT DO NOTHING',
           [pieceId, pkg.id],
           () => {
             updatePackageStatusWithHistory(
@@ -1400,7 +1400,7 @@ app.post('/manifests/:id/pieces/:pieceId/packages', requireAuth, requirePermissi
   if (!manifestId || !pieceId || !packageId) return res.redirect('/manifests');
 
   db.run(
-    'INSERT OR IGNORE INTO manifest_piece_packages (manifest_piece_id, package_id) VALUES (?, ?)',
+    'INSERT INTO manifest_piece_packages (manifest_piece_id, package_id) VALUES (?, ?) ON CONFLICT DO NOTHING',
     [pieceId, packageId],
     () => {
       updatePackageStatusWithHistory(
@@ -1632,7 +1632,7 @@ app.get('/airway-bills', requireAuth, requirePermission('airway_bills', 'view'),
   }
   db.all(
     `SELECT a.id, a.document_type, a.awb_number, a.awb_type, a.shipper_name, a.consignee_name, a.status, a.created_at,
-            GROUP_CONCAT(COALESCE(m.airway_bill_number, '#' || m.id), ', ') AS applied_manifests
+            STRING_AGG(COALESCE(m.airway_bill_number, '#' || m.id::text), ', ') AS applied_manifests
      FROM awbs a
      LEFT JOIN awb_manifests am ON am.awb_id = a.id
      LEFT JOIN manifests m ON m.id = am.manifest_id AND m.company_id = a.company_id
@@ -2045,7 +2045,7 @@ app.post('/airway-bills/:id/manifests', requireAuth, requirePermission('airway_b
   db.get('SELECT id FROM manifests WHERE id = ? AND company_id = ?', [manifestId, companyId], (err, row) => {
     if (err || !row) return res.redirect(`/airway-bills/${awbId}/edit`);
     db.run(
-      'INSERT OR IGNORE INTO awb_manifests (awb_id, manifest_id) VALUES (?, ?)',
+      'INSERT INTO awb_manifests (awb_id, manifest_id) VALUES (?, ?) ON CONFLICT DO NOTHING',
       [awbId, manifestId],
       () => res.redirect(`/airway-bills/${awbId}/edit`)
     );

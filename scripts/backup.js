@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { getSqliteConfig } = require('../src/config/database');
+const { getSqliteConfig } = require('../tools/sqlite_legacy');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const BACKUPS_DIR = path.join(ROOT_DIR, 'storage', 'backups');

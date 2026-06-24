@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+require('./src/config/load-env');
 const MASTER_USER = process.env.MASTER_USER || null;
 const MASTER_PASS = process.env.MASTER_PASS || null;
 const SESSION_SECRET = process.env.SESSION_SECRET || null;
@@ -1265,12 +1265,12 @@ function serializeMigrationDetails(details) {
 function ensureMigrationLogTable() {
   db.run(
     `CREATE TABLE IF NOT EXISTS migration_events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       level TEXT NOT NULL,
       scope TEXT NOT NULL,
       message TEXT NOT NULL,
       details TEXT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`,
     (err) => {
       if (err) {
@@ -1300,7 +1300,11 @@ function logMigrationEvent(level, scope, message, details) {
 
 function tableExists(table, callback) {
   db.get(
-    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+    `SELECT table_name AS name
+     FROM information_schema.tables
+     WHERE table_schema = current_schema()
+       AND table_type = 'BASE TABLE'
+       AND table_name = ?`,
     [table],
     (err, row) => {
       if (err || !row) return callback(false);
@@ -1309,10 +1313,36 @@ function tableExists(table, callback) {
   );
 }
 
+function tableInfo(table, callback) {
+  db.all(
+    `SELECT column_name AS name,
+            data_type AS type,
+            CASE WHEN is_nullable = 'NO' THEN 1 ELSE 0 END AS notnull,
+            column_default AS dflt_value
+     FROM information_schema.columns
+     WHERE table_schema = current_schema()
+       AND table_name = ?
+     ORDER BY ordinal_position`,
+    [table],
+    callback
+  );
+}
+
+function listBaseTables(callback) {
+  db.all(
+    `SELECT table_name AS name
+     FROM information_schema.tables
+     WHERE table_schema = current_schema()
+       AND table_type = 'BASE TABLE'
+     ORDER BY table_name`,
+    callback
+  );
+}
+
 function ensureColumn(table, column, typeDef) {
   tableExists(table, (exists) => {
     if (!exists) return;
-    db.all(`PRAGMA table_info(${table})`, (err, columns) => {
+    tableInfo(table, (err, columns) => {
       if (err || !columns) return;
       const hasColumn = columns.some((col) => col.name === column);
       if (!hasColumn) {
@@ -1340,7 +1370,7 @@ function ensureColumnsOnTable(table, columns, done) {
     if (done) done();
     return;
   }
-  db.all(`PRAGMA table_info(${table})`, (err, existing) => {
+  tableInfo(table, (err, existing) => {
     if (err || !existing) {
       if (done) done();
       return;
@@ -1372,8 +1402,20 @@ function ensureColumnsOnTable(table, columns, done) {
 }
 
 function loadIndexMetadata(table, callback) {
-  const safeTable = escapeSqlIdentifier(table);
-  db.all(`PRAGMA index_list(${safeTable})`, (err, indexes) => {
+  db.all(
+    `SELECT i.relname AS name,
+            CASE WHEN ix.indisunique THEN 1 ELSE 0 END AS unique,
+            CASE WHEN con.contype IS NULL THEN 'c' ELSE 'u' END AS origin
+     FROM pg_class t
+     JOIN pg_namespace ns ON ns.oid = t.relnamespace
+     JOIN pg_index ix ON ix.indrelid = t.oid
+     JOIN pg_class i ON i.oid = ix.indexrelid
+     LEFT JOIN pg_constraint con ON con.conindid = i.oid
+     WHERE ns.nspname = current_schema()
+       AND t.relname = ?
+     ORDER BY i.relname`,
+    [table],
+    (err, indexes) => {
     if (err || !indexes || indexes.length === 0) {
       callback(err, []);
       return;
@@ -1381,8 +1423,18 @@ function loadIndexMetadata(table, callback) {
     const metadata = [];
     let remaining = indexes.length;
     indexes.forEach((idx) => {
-      const safeIndexName = String(idx.name || '').replace(/'/g, "''");
-      db.all(`PRAGMA index_info('${safeIndexName}')`, (infoErr, columns) => {
+      db.all(
+        `SELECT a.attname AS name
+         FROM pg_class i
+         JOIN pg_namespace ns ON ns.oid = i.relnamespace
+         JOIN pg_index ix ON ix.indexrelid = i.oid
+         JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS key_columns(attnum, ordinality) ON true
+         JOIN pg_attribute a ON a.attrelid = ix.indrelid AND a.attnum = key_columns.attnum
+         WHERE ns.nspname = current_schema()
+           AND i.relname = ?
+         ORDER BY key_columns.ordinality`,
+        [idx.name],
+        (infoErr, columns) => {
         metadata.push({
           ...idx,
           columns: infoErr || !columns ? [] : columns.map((col) => col.name)
@@ -1391,9 +1443,11 @@ function loadIndexMetadata(table, callback) {
         if (remaining === 0) {
           callback(null, metadata);
         }
-      });
+        }
+      );
     });
-  });
+    }
+  );
 }
 
 function sameColumnSet(left, right) {
@@ -1527,26 +1581,12 @@ function ensureUniqueIndexSafely(table, columns, createSql, options, callback) {
 
 function normalizeAddColumnType(typeDef) {
   if (!typeDef) return { addDef: '', needsBackfill: false };
-  const needsBackfill = /DEFAULT\s+CURRENT_TIMESTAMP/i.test(typeDef);
-  if (!needsBackfill) return { addDef: typeDef, needsBackfill: false };
-  const addDef = typeDef
-    .replace(/DEFAULT\s+CURRENT_TIMESTAMP/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return { addDef, needsBackfill: true };
+  return { addDef: typeDef, needsBackfill: false };
 }
 
 function ensureCreatedAtTrigger(table, column) {
-  const triggerName = `trg_${table}_${column}_default`;
-  db.run(
-    `CREATE TRIGGER IF NOT EXISTS ${triggerName}` +
-    ` AFTER INSERT ON ${table}` +
-    ` FOR EACH ROW` +
-    ` WHEN NEW.${column} IS NULL` +
-    ` BEGIN` +
-    ` UPDATE ${table} SET ${column} = CURRENT_TIMESTAMP WHERE rowid = NEW.rowid;` +
-    ` END;`
-  );
+  void table;
+  void column;
 }
 function parseCurrencyList(value, fallbackCurrency) {
   if (Array.isArray(value)) return normalizeCurrencyList(value, fallbackCurrency);
@@ -1642,7 +1682,7 @@ function ensureAccountingTables() {
   db.serialize(() => {
     db.run(
       `CREATE TABLE IF NOT EXISTS chart_of_accounts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         code TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -1650,25 +1690,25 @@ function ensureAccountingTables() {
         subtype TEXT,
         parent_id INTEGER,
         is_active INTEGER DEFAULT 1,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS journal_entries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
-        entry_date DATETIME NOT NULL,
+        entry_date TIMESTAMP NOT NULL,
         memo TEXT,
         source_type TEXT,
         source_id INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS journal_lines (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         entry_id INTEGER NOT NULL,
         company_id INTEGER NOT NULL,
         account_id INTEGER NOT NULL,
@@ -1677,7 +1717,7 @@ function ensureAccountingTables() {
         currency TEXT,
         exchange_rate REAL,
         amount_base REAL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
@@ -1692,7 +1732,7 @@ function ensureAccountingOperationsTables() {
   db.serialize(() => {
     db.run(
       `CREATE TABLE IF NOT EXISTS invoice_payments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         invoice_id INTEGER NOT NULL,
         company_id INTEGER NOT NULL,
         amount REAL NOT NULL,
@@ -1701,14 +1741,14 @@ function ensureAccountingOperationsTables() {
         amount_base REAL,
         method TEXT,
         notes TEXT,
-        paid_at DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        paid_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS bills (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         vendor_name TEXT,
         subtotal REAL,
         tax_rate REAL,
@@ -1721,13 +1761,13 @@ function ensureAccountingOperationsTables() {
         total_base REAL,
         status TEXT,
         company_id INTEGER NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS bill_payments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         bill_id INTEGER NOT NULL,
         company_id INTEGER NOT NULL,
         amount REAL NOT NULL,
@@ -1736,8 +1776,8 @@ function ensureAccountingOperationsTables() {
         amount_base REAL,
         method TEXT,
         notes TEXT,
-        paid_at DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        paid_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
@@ -1752,7 +1792,7 @@ function ensureNifAccountingTables() {
   db.serialize(() => {
     db.run(
       `CREATE TABLE IF NOT EXISTS accounts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         code TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -1765,15 +1805,15 @@ function ensureNifAccountingTables() {
         is_active INTEGER NOT NULL DEFAULT 1,
         depreciable INTEGER NOT NULL DEFAULT 0,
         is_depreciation INTEGER NOT NULL DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS journal_entries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
-        entry_date DATETIME NOT NULL,
+        entry_date TIMESTAMP NOT NULL,
         description TEXT,
         user_id INTEGER,
         memo TEXT,
@@ -1785,13 +1825,13 @@ function ensureNifAccountingTables() {
         tax_amount REAL,
         tax_type TEXT,
         status TEXT NOT NULL DEFAULT 'posted',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS journal_details (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         entry_id INTEGER NOT NULL,
         company_id INTEGER NOT NULL,
         account_id INTEGER NOT NULL,
@@ -1802,83 +1842,83 @@ function ensureNifAccountingTables() {
         exchange_rate REAL,
         debit_base REAL DEFAULT 0,
         credit_base REAL DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS financial_reports (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         report_type TEXT NOT NULL,
         period_start TEXT,
         period_end TEXT,
         data_json TEXT,
         created_by INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS accounting_categories (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         framework TEXT NOT NULL,
         code TEXT NOT NULL,
         name TEXT NOT NULL,
         type TEXT NOT NULL,
         sort_order INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS accounting_category_assignments_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         batch_id TEXT NOT NULL,
         company_id INTEGER NOT NULL,
         account_id INTEGER NOT NULL,
         previous_category_id INTEGER,
         new_category_id INTEGER,
         created_by INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS accounting_category_rules (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         framework TEXT NOT NULL,
         rule_text TEXT NOT NULL,
         target_category_code TEXT NOT NULL,
         priority INTEGER DEFAULT 0,
         is_active INTEGER NOT NULL DEFAULT 1,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS bank_connections (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
         bank_name TEXT,
         status TEXT NOT NULL DEFAULT 'pending',
-        last_sync DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        last_sync TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
     db.run(
       `CREATE TABLE IF NOT EXISTS bank_transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BIGSERIAL PRIMARY KEY,
         connection_id INTEGER NOT NULL,
         company_id INTEGER NOT NULL,
-        txn_date DATETIME,
+        txn_date TIMESTAMP,
         description TEXT,
         amount REAL,
         currency TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
 
@@ -2840,9 +2880,7 @@ function createJournalEntry({ companyId, entryDate, memo, sourceType, sourceId, 
 function findCustomerTable(callback) {
   tableExists('customers', (exists) => {
     if (exists) return callback('customers');
-    db.all(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
-      (err, rows) => {
+    listBaseTables((err, rows) => {
         if (err || !rows || rows.length === 0) return callback(null);
         const tables = rows.map((row) => row.name).filter((name) => name !== 'customers');
         const candidates = [];
@@ -2854,7 +2892,7 @@ function findCustomerTable(callback) {
             return callback(candidates[0].table);
           }
           const table = tables[index];
-          db.all(`PRAGMA table_info(${table})`, (infoErr, columns) => {
+          tableInfo(table, (infoErr, columns) => {
             if (!infoErr && columns && columns.length) {
               const names = columns.map((col) => col.name);
               const hasName = names.includes('name');
@@ -2881,17 +2919,14 @@ function findCustomerTable(callback) {
         };
 
         return checkNext(0);
-      }
-    );
+      });
   });
 }
 
 function findPackagesTable(callback) {
   tableExists('packages', (exists) => {
     if (exists) return callback('packages');
-    db.all(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
-      (err, rows) => {
+    listBaseTables((err, rows) => {
         if (err || !rows || rows.length === 0) return callback(null);
         const tables = rows
           .map((row) => row.name)
@@ -2905,7 +2940,7 @@ function findPackagesTable(callback) {
             return callback(candidates[0].table);
           }
           const table = tables[index];
-          db.all(`PRAGMA table_info(${table})`, (infoErr, columns) => {
+          tableInfo(table, (infoErr, columns) => {
             if (!infoErr && columns && columns.length) {
               const names = columns.map((col) => col.name);
               const tableName = String(table).toLowerCase();
@@ -2945,8 +2980,7 @@ function findPackagesTable(callback) {
         };
 
         return checkNext(0);
-      }
-    );
+      });
   });
 }
 
@@ -3012,7 +3046,12 @@ function rebuildCategoriesTable() {
 
 function countLegacyUserReferences(userId, callback) {
   db.all(
-    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != 'users' ORDER BY name",
+    `SELECT table_name AS name
+     FROM information_schema.tables
+     WHERE table_schema = current_schema()
+       AND table_type = 'BASE TABLE'
+       AND table_name <> 'users'
+     ORDER BY table_name`,
     (err, tables) => {
       if (err || !tables || tables.length === 0) {
         return callback(err || null, []);
@@ -3027,7 +3066,7 @@ function countLegacyUserReferences(userId, callback) {
       };
 
       tables.forEach(({ name }) => {
-        db.all(`PRAGMA table_info(${name})`, (infoErr, columns) => {
+        tableInfo(name, (infoErr, columns) => {
           if (infoErr || !columns || columns.length === 0) {
             return done();
           }
@@ -3268,7 +3307,7 @@ function backfillCompanyIdForExisting() {
     tables.forEach((table) => {
       if (table === 'users') {
         db.run(
-          'UPDATE OR IGNORE users SET company_id = ? WHERE company_id IS NULL',
+          'UPDATE users SET company_id = ? WHERE company_id IS NULL',
           [companyId],
           (updateErr) => {
             if (updateErr) {
@@ -3305,7 +3344,7 @@ function runSchema() {
 function ensureIndexIfColumn(table, column, createSql) {
   tableExists(table, (exists) => {
     if (!exists) return;
-    db.all(`PRAGMA table_info(${table})`, (err, columns) => {
+    tableInfo(table, (err, columns) => {
       if (err || !columns) return;
       const hasColumn = columns.some((col) => col.name === column);
       if (hasColumn) {
@@ -3318,7 +3357,7 @@ function ensureIndexIfColumn(table, column, createSql) {
 function ensureIndexIfColumns(table, requiredColumns, createSql) {
   tableExists(table, (exists) => {
     if (!exists) return;
-    db.all(`PRAGMA table_info(${table})`, (err, columns) => {
+    tableInfo(table, (err, columns) => {
       if (err || !columns) return;
       const names = new Set(columns.map((col) => col.name));
       const hasAll = requiredColumns.every((col) => names.has(col));
@@ -3706,12 +3745,12 @@ function ensurePackageColumnsAndIndexes(callback) {
       { name: 'invoice_status', type: "TEXT DEFAULT 'pending'" },
       { name: 'carrier', type: 'TEXT' },
       { name: 'tracking_number', type: 'TEXT' },
-      { name: 'received_at', type: 'DATETIME' },
+      { name: 'received_at', type: 'TIMESTAMP' },
       { name: 'invoice_file', type: 'TEXT' },
       { name: 'notes', type: 'TEXT' },
       { name: 'status', type: "TEXT DEFAULT 'Recibido en bodega USA'" },
       { name: 'company_id', type: 'INTEGER' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ];
     ensureColumnsOnTable(table, columns, () => {
       ensurePackageIndexes(table);
@@ -3721,7 +3760,7 @@ function ensurePackageColumnsAndIndexes(callback) {
 }
 
 function migrateUsersRole() {
-  db.all('PRAGMA table_info(users)', (err, columns) => {
+  tableInfo('users', (err, columns) => {
     if (err || !columns) return;
     const hasRole = columns.some((col) => col.name === 'role');
     if (!hasRole) {
@@ -3734,7 +3773,7 @@ function migrateUsersRole() {
 
 
 function migrateItemsCategory() {
-  db.all('PRAGMA table_info(items)', (err, columns) => {
+  tableInfo('items', (err, columns) => {
     if (err || !columns) return;
     const hasCategory = columns.some((col) => col.name === 'category_id');
     if (!hasCategory) {
@@ -3744,7 +3783,7 @@ function migrateItemsCategory() {
 }
 
 function migrateItemsMinStock() {
-  db.all('PRAGMA table_info(items)', (err, columns) => {
+  tableInfo('items', (err, columns) => {
     if (err || !columns) return;
     const hasMinStock = columns.some((col) => col.name === 'min_stock');
     if (!hasMinStock) {
@@ -3773,7 +3812,7 @@ db.serialize(() => {
 
  db.run(`
  CREATE TABLE IF NOT EXISTS companies (
- id INTEGER PRIMARY KEY AUTOINCREMENT,
+ id BIGSERIAL PRIMARY KEY,
  name TEXT,
  commercial_name TEXT,
  legal_name TEXT,
@@ -3798,21 +3837,21 @@ db.serialize(() => {
  theme_logo_size INTEGER,
  theme_icon_size INTEGER,
  theme_icon_frame INTEGER,
- active_from DATETIME,
- active_until DATETIME,
+ active_from TIMESTAMP,
+ active_until TIMESTAMP,
  inactive_reason TEXT,
  is_active INTEGER NOT NULL DEFAULT 1,
- created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
 
 `);
 
   db.run(
     `CREATE TABLE IF NOT EXISTS company_inactivation_notes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       note_text TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (company_id) REFERENCES companies(id)
     )`
   );
@@ -3820,32 +3859,32 @@ db.serialize(() => {
 
   db.run(
     `CREATE TABLE IF NOT EXISTS permission_modules (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       code TEXT NOT NULL UNIQUE,
       name TEXT NOT NULL,
       description TEXT,
       is_active INTEGER NOT NULL DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS permission_actions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       code TEXT NOT NULL UNIQUE,
       name TEXT NOT NULL,
       description TEXT,
       is_active INTEGER NOT NULL DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS module_actions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       module_id INTEGER NOT NULL,
       action_id INTEGER NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(module_id, action_id),
       FOREIGN KEY (module_id) REFERENCES permission_modules(id),
       FOREIGN KEY (action_id) REFERENCES permission_actions(id)
@@ -3854,12 +3893,12 @@ db.serialize(() => {
 
   db.run(
     `CREATE TABLE IF NOT EXISTS user_permissions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL,
       company_id INTEGER NOT NULL,
       module_id INTEGER NOT NULL,
       action_id INTEGER NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(user_id, module_id, action_id),
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (module_id) REFERENCES permission_modules(id),
@@ -3869,10 +3908,10 @@ db.serialize(() => {
 
   db.run(
     `CREATE TABLE IF NOT EXISTS business_activities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
       modules_json TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
@@ -3881,7 +3920,7 @@ db.serialize(() => {
 
   db.run(
     `CREATE TABLE IF NOT EXISTS user_workspace_settings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       user_id INTEGER NOT NULL,
       dock_enabled INTEGER NOT NULL DEFAULT 1,
@@ -3899,8 +3938,8 @@ db.serialize(() => {
       icon_size INTEGER NULL,
       use_glass_effect INTEGER NOT NULL DEFAULT 1,
       layout_mode TEXT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(user_id, company_id),
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (company_id) REFERENCES companies(id)
@@ -3911,7 +3950,7 @@ db.serialize(() => {
 
   db.run(
     `CREATE TABLE IF NOT EXISTS user_workspace_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       user_id INTEGER NOT NULL,
       item_type TEXT NOT NULL,
@@ -3924,8 +3963,8 @@ db.serialize(() => {
       sort_order INTEGER NULL,
       parent_folder_id INTEGER NULL,
       is_visible INTEGER NOT NULL DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (company_id) REFERENCES companies(id),
       FOREIGN KEY (parent_folder_id) REFERENCES user_workspace_items(id)
@@ -3938,11 +3977,11 @@ db.serialize(() => {
 
   db.run(
     `CREATE TABLE IF NOT EXISTS package_label_layouts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL UNIQUE,
       layout_json TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (company_id) REFERENCES companies(id)
     )`
   );
@@ -3950,7 +3989,7 @@ db.serialize(() => {
 
   db.run(
     `CREATE TABLE IF NOT EXISTS appointments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       paciente_nombre TEXT NOT NULL,
       telefono TEXT,
@@ -3959,8 +3998,8 @@ db.serialize(() => {
       fecha_hora TEXT NOT NULL,
       estado TEXT NOT NULL DEFAULT 'pendiente',
       duration_min INTEGER NOT NULL DEFAULT 30,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (doctor_id) REFERENCES doctors(id),
       FOREIGN KEY (company_id) REFERENCES companies(id)
     )`
@@ -3970,14 +4009,14 @@ db.serialize(() => {
 
   db.run(
     `CREATE TABLE IF NOT EXISTS doctors (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       name TEXT NOT NULL,
       phone TEXT,
       specialty TEXT,
       is_active INTEGER NOT NULL DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (company_id) REFERENCES companies(id)
     )`
   );
@@ -3999,9 +4038,9 @@ db.serialize(() => {
 
   ensureColumn('companies', 'username', 'TEXT');
   ensureColumn('companies', 'password_hash', 'TEXT');
-  ensureColumn('companies', 'created_at', 'DATETIME');
-  ensureColumn('companies', 'active_from', 'DATETIME');
-  ensureColumn('companies', 'active_until', 'DATETIME');
+  ensureColumn('companies', 'created_at', 'TIMESTAMP');
+  ensureColumn('companies', 'active_from', 'TIMESTAMP');
+  ensureColumn('companies', 'active_until', 'TIMESTAMP');
   ensureColumn('companies', 'logo', 'TEXT');
   ensureColumn('companies', 'phone', 'TEXT');
   ensureColumn('companies', 'email', 'TEXT');
@@ -4077,8 +4116,8 @@ db.serialize(() => {
       { name: 'icon_size', type: 'INTEGER' },
       { name: 'use_glass_effect', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'layout_mode', type: 'TEXT' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
   ensureColumnsOnTable(
@@ -4094,8 +4133,8 @@ db.serialize(() => {
       { name: 'sort_order', type: 'INTEGER' },
       { name: 'parent_folder_id', type: 'INTEGER' },
       { name: 'is_visible', type: 'INTEGER NOT NULL DEFAULT 1' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
   ensureColumn('items', 'company_id', 'INTEGER');
@@ -4118,12 +4157,12 @@ db.serialize(() => {
   );
   db.run(
     `CREATE TABLE IF NOT EXISTS brands (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       code TEXT NULL,
       code_manual INTEGER NOT NULL DEFAULT 0,
       company_id INTEGER NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
   ensureColumnsOnTable(
@@ -4133,7 +4172,7 @@ db.serialize(() => {
       { name: 'code', type: 'TEXT' },
       { name: 'code_manual', type: 'INTEGER NOT NULL DEFAULT 0' },
       { name: 'company_id', type: 'INTEGER' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
   db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_brands_company_name ON brands (company_id, name)');
@@ -4151,7 +4190,7 @@ db.serialize(() => {
   );
   db.run(
     `CREATE TABLE IF NOT EXISTS states (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       country_id INTEGER NOT NULL,
       name TEXT NOT NULL,
       state_code TEXT,
@@ -4161,7 +4200,7 @@ db.serialize(() => {
   );
   db.run(
     `CREATE TABLE IF NOT EXISTS cities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       state_id INTEGER,
       country_id INTEGER NOT NULL,
       name TEXT NOT NULL,
@@ -4204,11 +4243,11 @@ db.serialize(() => {
       { name: 'advisor', type: 'TEXT' },
       { name: 'notes', type: 'TEXT' },
       { name: 'is_voided', type: 'INTEGER NOT NULL DEFAULT 0' },
-      { name: 'voided_at', type: 'DATETIME' },
+      { name: 'voided_at', type: 'TIMESTAMP' },
       { name: 'voided_by', type: 'INTEGER' },
       { name: 'sat_verified', type: 'INTEGER DEFAULT 0' },
       { name: 'sat_name', type: 'TEXT' },
-      { name: 'sat_checked_at', type: 'DATETIME' },
+      { name: 'sat_checked_at', type: 'TIMESTAMP' },
       { name: 'country_id', type: 'INTEGER' },
       { name: 'state_id', type: 'INTEGER' },
       { name: 'city_id', type: 'INTEGER' },
@@ -4230,7 +4269,7 @@ db.serialize(() => {
   );
   db.run(
     `CREATE TABLE IF NOT EXISTS consignatarios (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       customer_id INTEGER NOT NULL,
       company_id INTEGER NULL,
       document_type TEXT,
@@ -4246,9 +4285,9 @@ db.serialize(() => {
       email TEXT,
       sat_verified INTEGER DEFAULT 0,
       sat_name TEXT,
-      sat_checked_at DATETIME,
+      sat_checked_at TIMESTAMP,
       notes TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (customer_id) REFERENCES customers(id)
     )`
   );
@@ -4269,9 +4308,9 @@ db.serialize(() => {
       { name: 'email', type: 'TEXT' },
       { name: 'sat_verified', type: 'INTEGER DEFAULT 0' },
       { name: 'sat_name', type: 'TEXT' },
-      { name: 'sat_checked_at', type: 'DATETIME' },
+      { name: 'sat_checked_at', type: 'TIMESTAMP' },
       { name: 'notes', type: 'TEXT' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
       { name: 'country_id', type: 'INTEGER' },
       { name: 'state_id', type: 'INTEGER' },
       { name: 'city_id', type: 'INTEGER' },
@@ -4292,61 +4331,61 @@ db.serialize(() => {
      WHERE country_name IS NULL OR state_name IS NULL OR city_name IS NULL OR address_line IS NULL`
   );
   ensureColumn('invoice_items', 'company_id', 'INTEGER');
-  ensureColumn('invoice_items', 'created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP');
+  ensureColumn('invoice_items', 'created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
   ensureColumn('audit_logs', 'company_id', 'INTEGER');
   ensureColumn('package_status_history', 'old_status', 'TEXT');
   ensureColumn('package_status_history', 'new_status', 'TEXT');
   ensureColumn('package_status_history', 'notes', 'TEXT');
-  ensureColumn('package_status_history', 'created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP');
-  ensureColumn('package_photos', 'created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP');
+  ensureColumn('package_status_history', 'created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
+  ensureColumn('package_photos', 'created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
   db.run(
     `CREATE TABLE IF NOT EXISTS package_comments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       package_id INTEGER NOT NULL,
       comment TEXT NOT NULL,
       created_by INTEGER NULL,
       company_id INTEGER NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
   db.run(
     `CREATE TABLE IF NOT EXISTS carrier_receptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       tracking_number TEXT NOT NULL,
       carrier TEXT NOT NULL,
-      received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       received_by TEXT NULL,
       notes TEXT NULL,
       status TEXT NOT NULL DEFAULT 'pending',
       package_id INTEGER NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (package_id) REFERENCES packages(id)
     )`
   );
   db.run(
     `CREATE TABLE IF NOT EXISTS carrier_settings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       carriers_text TEXT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
   db.run(
     `CREATE TABLE IF NOT EXISTS package_sender_settings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       sender_name TEXT NULL,
       store_name TEXT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS manifests (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       manifest_number TEXT NULL,
       manifest_number_mode TEXT NOT NULL DEFAULT 'automatic',
@@ -4357,8 +4396,8 @@ db.serialize(() => {
       status TEXT NOT NULL DEFAULT 'open',
       created_by INTEGER NULL,
       closed_by INTEGER NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      closed_at DATETIME NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      closed_at TIMESTAMP NULL,
       FOREIGN KEY (created_by) REFERENCES users(id),
       FOREIGN KEY (closed_by) REFERENCES users(id)
     )`
@@ -4376,7 +4415,7 @@ db.serialize(() => {
 
   db.run(
     `CREATE TABLE IF NOT EXISTS awbs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       document_type TEXT NOT NULL DEFAULT 'awb',
       awb_type TEXT NULL,
@@ -4419,15 +4458,15 @@ db.serialize(() => {
       goods_description TEXT NULL,
       status TEXT NOT NULL DEFAULT 'draft',
       created_by INTEGER NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (created_by) REFERENCES users(id)
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS awb_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       awb_id INTEGER NOT NULL,
       pieces INTEGER NULL,
       gross_weight REAL NULL,
@@ -4437,17 +4476,17 @@ db.serialize(() => {
       chargeable_weight REAL NULL,
       rate REAL NULL,
       total REAL NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (awb_id) REFERENCES awbs(id)
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS awb_manifests (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       awb_id INTEGER NOT NULL,
       manifest_id INTEGER NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (awb_id, manifest_id),
       FOREIGN KEY (awb_id) REFERENCES awbs(id),
       FOREIGN KEY (manifest_id) REFERENCES manifests(id)
@@ -4499,8 +4538,8 @@ db.serialize(() => {
       { name: 'goods_description', type: 'TEXT' },
       { name: 'status', type: "TEXT NOT NULL DEFAULT 'draft'" },
       { name: 'created_by', type: 'INTEGER' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -4516,7 +4555,7 @@ db.serialize(() => {
       { name: 'chargeable_weight', type: 'REAL' },
       { name: 'rate', type: 'REAL' },
       { name: 'total', type: 'REAL' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -4525,26 +4564,26 @@ db.serialize(() => {
     [
       { name: 'awb_id', type: 'INTEGER' },
       { name: 'manifest_id', type: 'INTEGER' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS manifest_pieces (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       manifest_id INTEGER NOT NULL,
       piece_number INTEGER NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (manifest_id) REFERENCES manifests(id)
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS manifest_piece_packages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       manifest_piece_id INTEGER NOT NULL,
       package_id INTEGER NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (manifest_piece_id) REFERENCES manifest_pieces(id),
       FOREIGN KEY (package_id) REFERENCES packages(id)
     )`
@@ -4552,7 +4591,7 @@ db.serialize(() => {
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_transporters (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4560,14 +4599,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_consignatarios (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4575,14 +4614,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_remitentes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4590,14 +4629,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_airlines (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4605,14 +4644,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_ports (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4620,14 +4659,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_countries (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4635,14 +4674,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_package_types (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4650,14 +4689,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_units (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4665,14 +4704,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_customs_offices (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4680,14 +4719,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_airports (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4695,14 +4734,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_transport_modes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4710,14 +4749,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_transport_means (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4725,14 +4764,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_message_types (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4740,14 +4779,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_message_functions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4755,14 +4794,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_reference_qualifiers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4770,14 +4809,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_message_responsibles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4785,14 +4824,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_transport_id_agencies (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT NULL,
       name TEXT NOT NULL,
@@ -4800,14 +4839,14 @@ db.serialize(() => {
       is_active INTEGER NOT NULL DEFAULT 1,
       source TEXT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_manifests (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       internal_number TEXT NOT NULL,
       master_airway_bill TEXT NOT NULL,
@@ -4831,13 +4870,13 @@ db.serialize(() => {
       status TEXT NOT NULL DEFAULT 'draft',
       observations TEXT NULL,
       preview_text TEXT NULL,
-      preview_generated_at DATETIME NULL,
+      preview_generated_at TIMESTAMP NULL,
       preview_generated_by INTEGER NULL,
       created_by INTEGER NULL,
       closed_by INTEGER NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      closed_at DATETIME NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      closed_at TIMESTAMP NULL,
       FOREIGN KEY (created_by) REFERENCES users(id),
       FOREIGN KEY (closed_by) REFERENCES users(id)
     )`
@@ -4845,7 +4884,7 @@ db.serialize(() => {
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_manifest_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       manifest_id INTEGER NOT NULL,
       company_id INTEGER NOT NULL,
       hawb_number TEXT NOT NULL,
@@ -4860,15 +4899,15 @@ db.serialize(() => {
       declared_value REAL NOT NULL DEFAULT 0,
       origin_country_id INTEGER NOT NULL,
       observations TEXT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (manifest_id) REFERENCES cuscar_manifests(id)
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_transmissions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       manifest_id INTEGER NOT NULL,
       payload_text TEXT NOT NULL,
@@ -4876,30 +4915,30 @@ db.serialize(() => {
       mode TEXT NOT NULL DEFAULT 'simulation',
       endpoint TEXT NULL,
       requested_by INTEGER NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (manifest_id) REFERENCES cuscar_manifests(id)
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_transmission_responses (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       transmission_id INTEGER NOT NULL,
       response_code TEXT NULL,
       response_message TEXT NULL,
       raw_response TEXT NULL,
-      received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (transmission_id) REFERENCES cuscar_transmissions(id)
     )`
   );
 
   db.run(
     `CREATE TABLE IF NOT EXISTS cuscar_transmission_errors (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       transmission_id INTEGER NOT NULL,
       error_message TEXT NOT NULL,
       error_detail TEXT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (transmission_id) REFERENCES cuscar_transmissions(id)
     )`
   );
@@ -4914,8 +4953,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -4929,8 +4968,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -4944,8 +4983,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -4959,8 +4998,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -4974,8 +5013,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -4989,8 +5028,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5004,8 +5043,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5019,8 +5058,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5034,8 +5073,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5049,8 +5088,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5064,8 +5103,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5079,8 +5118,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5094,8 +5133,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5109,8 +5148,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5124,8 +5163,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5139,8 +5178,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5154,8 +5193,8 @@ db.serialize(() => {
       { name: 'is_active', type: 'INTEGER NOT NULL DEFAULT 1' },
       { name: 'source', type: 'TEXT' },
       { name: 'sort_order', type: 'INTEGER DEFAULT 0' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5185,13 +5224,13 @@ db.serialize(() => {
       { name: 'status', type: "TEXT NOT NULL DEFAULT 'draft'" },
       { name: 'observations', type: 'TEXT' },
       { name: 'preview_text', type: 'TEXT' },
-      { name: 'preview_generated_at', type: 'DATETIME' },
+      { name: 'preview_generated_at', type: 'TIMESTAMP' },
       { name: 'preview_generated_by', type: 'INTEGER' },
       { name: 'created_by', type: 'INTEGER' },
       { name: 'closed_by', type: 'INTEGER' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'closed_at', type: 'DATETIME' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'closed_at', type: 'TIMESTAMP' }
     ]
   );
 
@@ -5212,8 +5251,8 @@ db.serialize(() => {
       { name: 'declared_value', type: 'REAL' },
       { name: 'origin_country_id', type: 'INTEGER' },
       { name: 'observations', type: 'TEXT' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5227,7 +5266,7 @@ db.serialize(() => {
       { name: 'mode', type: "TEXT NOT NULL DEFAULT 'simulation'" },
       { name: 'endpoint', type: 'TEXT' },
       { name: 'requested_by', type: 'INTEGER' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5238,7 +5277,7 @@ db.serialize(() => {
       { name: 'response_code', type: 'TEXT' },
       { name: 'response_message', type: 'TEXT' },
       { name: 'raw_response', type: 'TEXT' },
-      { name: 'received_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'received_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5248,7 +5287,7 @@ db.serialize(() => {
       { name: 'transmission_id', type: 'INTEGER' },
       { name: 'error_message', type: 'TEXT' },
       { name: 'error_detail', type: 'TEXT' },
-      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+      { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ]
   );
 
@@ -5315,7 +5354,7 @@ db.serialize(() => {
     );
 
     db.run(
-      `INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
+      `INSERT INTO permission_actions (code, name, description) VALUES
       ('view','Ver','Acceso de lectura'),
       ('create','Crear','Crear registros'),
       ('edit','Editar','Editar registros'),
@@ -5347,11 +5386,11 @@ db.serialize(() => {
       ('record_labor','Registrar mano de obra','Agregar mano de obra'),
       ('record_waste','Registrar desperdicio','Registrar merma'),
       ('approve_production','Aprobar produccion','Aprobar produccion'),
-      ('view_reports','Ver reportes','Ver reportes de produccion')`
+      ('view_reports','Ver reportes','Ver reportes de produccion') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
+      `INSERT INTO permission_actions (code, name, description) VALUES
       ('ver','Ver','Ver Cartas Porte'),
       ('crear','Crear','Crear Cartas Porte'),
       ('editar','Editar','Editar Cartas Porte'),
@@ -5360,7 +5399,7 @@ db.serialize(() => {
       ('descargar_pdf','Descargar PDF','Descargar PDF de Cartas Porte'),
       ('crear_hijo','Crear BL Hijo','Crear House BL desde Master'),
       ('crear_nieto','Crear BL Nieto','Crear Sub House BL desde House'),
-      ('crear_hija','Crear HAWB','Crear HAWB desde MAWB')`
+      ('crear_hija','Crear HAWB','Crear HAWB desde MAWB') ON CONFLICT DO NOTHING`
     );
 
     db.run(
@@ -5377,221 +5416,221 @@ db.serialize(() => {
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'packages' AND pa.code IN ('view','create','edit','delete','export','change_status')`
+       WHERE pm.code = 'packages' AND pa.code IN ('view','create','edit','delete','export','change_status') ON CONFLICT DO NOTHING`
     );
 
       db.run(
-        `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+        `INSERT INTO module_actions (module_id, action_id)
          SELECT pm.id, pa.id
          FROM permission_modules pm, permission_actions pa
-         WHERE pm.code = 'carrier_reception' AND pa.code IN ('view','create','edit','export')`
+         WHERE pm.code = 'carrier_reception' AND pa.code IN ('view','create','edit','export') ON CONFLICT DO NOTHING`
       );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'users' AND pa.code IN ('view','create','edit','delete','assign_permissions')`
+       WHERE pm.code = 'users' AND pa.code IN ('view','create','edit','delete','assign_permissions') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'billing' AND pa.code IN ('view','create','edit','export','approve')`
+       WHERE pm.code = 'billing' AND pa.code IN ('view','create','edit','export','approve') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'accounting' AND pa.code IN ('view','manage','create','export')`
+       WHERE pm.code = 'accounting' AND pa.code IN ('view','manage','create','export') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'production' AND pa.code IN ('view','create_order','edit_order','start_production','finish_production','cancel_production','view_costs','edit_costs','record_labor','record_waste','approve_production','view_reports')`
+       WHERE pm.code = 'production' AND pa.code IN ('view','create_order','edit_order','start_production','finish_production','cancel_production','view_costs','edit_costs','record_labor','record_waste','approve_production','view_reports') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'agenda_medica' AND pa.code IN ('view','create','edit','delete')`
+       WHERE pm.code = 'agenda_medica' AND pa.code IN ('view','create','edit','delete') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'rrhh' AND pa.code IN ('view','create','edit','delete','export','approve')`
+       WHERE pm.code = 'rrhh' AND pa.code IN ('view','create','edit','delete','export','approve') ON CONFLICT DO NOTHING`
     );
 
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'inventory' AND pa.code IN ('view','create','edit','delete','export')`
+       WHERE pm.code = 'inventory' AND pa.code IN ('view','create','edit','delete','export') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'sales' AND pa.code IN ('view','create','edit','delete','export','manage')`
+       WHERE pm.code = 'sales' AND pa.code IN ('view','create','edit','delete','export','manage') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'suppliers' AND pa.code IN ('view','create','edit','delete','export','approve','manage')`
+       WHERE pm.code = 'suppliers' AND pa.code IN ('view','create','edit','delete','export','approve','manage') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'floating_investments' AND pa.code IN ('view','create','edit','delete','export')`
+       WHERE pm.code = 'floating_investments' AND pa.code IN ('view','create','edit','delete','export') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'projects' AND pa.code IN ('view','create','edit','delete','export','manage')`
+       WHERE pm.code = 'projects' AND pa.code IN ('view','create','edit','delete','export','manage') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'rrhh' AND pa.code IN ('view','create','edit','delete','export','manage')`
+       WHERE pm.code = 'rrhh' AND pa.code IN ('view','create','edit','delete','export','manage') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'ai_internal' AND pa.code IN ('ai_view','ai_ask','ai_export','ai_view_sales','ai_view_accounts_receivable','ai_view_inventory','ai_view_clients','ai_view_quotes','ai_view_projects','ai_view_production','ai_admin_intents')`
+       WHERE pm.code = 'ai_internal' AND pa.code IN ('ai_view','ai_ask','ai_export','ai_view_sales','ai_view_accounts_receivable','ai_view_inventory','ai_view_clients','ai_view_quotes','ai_view_projects','ai_view_production','ai_admin_intents') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'manifests' AND pa.code IN ('view','create','edit','export')`
+       WHERE pm.code = 'manifests' AND pa.code IN ('view','create','edit','export') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'cuscar' AND pa.code IN ('view','create','edit','close_manifest','reopen_manifest','preview_cuscar','manage_catalogs','transmit_cuscar')`
+       WHERE pm.code = 'cuscar' AND pa.code IN ('view','create','edit','close_manifest','reopen_manifest','preview_cuscar','manage_catalogs','transmit_cuscar') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'airway_bills' AND pa.code IN ('view','create','edit','export')`
+       WHERE pm.code = 'airway_bills' AND pa.code IN ('view','create','edit','export') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'transport_documents' AND pa.code IN ('view','create','edit','export')`
+       WHERE pm.code = 'transport_documents' AND pa.code IN ('view','create','edit','export') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'cartas_porte' AND pa.code IN ('ver','crear','editar','anular','imprimir','descargar_pdf')`
+       WHERE pm.code = 'cartas_porte' AND pa.code IN ('ver','crear','editar','anular','imprimir','descargar_pdf') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'bl' AND pa.code IN ('ver','crear','editar','anular','imprimir','descargar_pdf','crear_hijo','crear_nieto')`
+       WHERE pm.code = 'bl' AND pa.code IN ('ver','crear','editar','anular','imprimir','descargar_pdf','crear_hijo','crear_nieto') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'awb' AND pa.code IN ('ver','crear','editar','anular','imprimir','descargar_pdf','crear_hija')`
+       WHERE pm.code = 'awb' AND pa.code IN ('ver','crear','editar','anular','imprimir','descargar_pdf','crear_hija') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'customers' AND pa.code IN ('view','create','edit','delete','void','view_voided')`
+       WHERE pm.code = 'customers' AND pa.code IN ('view','create','edit','delete','void','view_voided') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'mensajeria_meta' AND pa.code IN ('view','create','edit','manage','reply','assign','close','settings','leads')`
+       WHERE pm.code = 'mensajeria_meta' AND pa.code IN ('view','create','edit','manage','reply','assign','close','settings','leads') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'whatsapp' AND pa.code IN ('view','create','edit','manage')`
+       WHERE pm.code = 'whatsapp' AND pa.code IN ('view','create','edit','manage') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'meta_inbox' AND pa.code IN ('view','reply','assign','close','settings','leads')`
+       WHERE pm.code = 'meta_inbox' AND pa.code IN ('view','reply','assign','close','settings','leads') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'consignatarios' AND pa.code IN ('view','create','edit','delete','export')`
+       WHERE pm.code = 'consignatarios' AND pa.code IN ('view','create','edit','delete','export') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'dashboard' AND pa.code IN ('view')`
+       WHERE pm.code = 'dashboard' AND pa.code IN ('view') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'portal' AND pa.code IN ('view','manage')`
+       WHERE pm.code = 'portal' AND pa.code IN ('view','manage') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'reports' AND pa.code IN ('view','export')`
+       WHERE pm.code = 'reports' AND pa.code IN ('view','export') ON CONFLICT DO NOTHING`
     );
 
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'settings' AND pa.code IN ('view','manage')`
+       WHERE pm.code = 'settings' AND pa.code IN ('view','manage') ON CONFLICT DO NOTHING`
     );
 
     db.run("UPDATE permission_modules SET name = 'Mensajeria meta', description = 'Menu unificado para WhatsApp Business, Messenger, comentarios y Lead Ads de Meta', is_active = 1 WHERE code = 'mensajeria_meta'");
@@ -5599,27 +5638,27 @@ db.serialize(() => {
     db.run("UPDATE permission_modules SET is_active = 0 WHERE code IN ('airway_bills', 'transport_documents')");
     db.run("UPDATE permission_modules SET is_active = 1 WHERE code IN ('cartas_porte', 'bl', 'awb')");
     db.run(
-      `INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id)
+      `INSERT INTO user_permissions (user_id, company_id, module_id, action_id)
        SELECT up.user_id, up.company_id, unified.id, up.action_id
        FROM user_permissions up
        JOIN permission_modules old_module ON old_module.id = up.module_id
        JOIN permission_modules unified ON unified.code = 'mensajeria_meta'
        JOIN permission_actions action ON action.id = up.action_id
        WHERE old_module.code = 'whatsapp'
-         AND action.code IN ('view','create','edit','manage')`
+         AND action.code IN ('view','create','edit','manage') ON CONFLICT DO NOTHING`
     );
     db.run(
-      `INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id)
+      `INSERT INTO user_permissions (user_id, company_id, module_id, action_id)
        SELECT up.user_id, up.company_id, unified.id, up.action_id
        FROM user_permissions up
        JOIN permission_modules old_module ON old_module.id = up.module_id
        JOIN permission_modules unified ON unified.code = 'mensajeria_meta'
        JOIN permission_actions action ON action.id = up.action_id
        WHERE old_module.code = 'meta_inbox'
-         AND action.code IN ('view','reply','assign','close','settings','leads')`
+         AND action.code IN ('view','reply','assign','close','settings','leads') ON CONFLICT DO NOTHING`
     );
     db.run(
-      `INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id)
+      `INSERT INTO user_permissions (user_id, company_id, module_id, action_id)
        SELECT up.user_id, up.company_id, ai_internal.id, ai_view.id
        FROM user_permissions up
        JOIN permission_modules old_module ON old_module.id = up.module_id
@@ -5627,10 +5666,10 @@ db.serialize(() => {
        JOIN permission_actions old_action ON old_action.id = up.action_id
        JOIN permission_actions ai_view ON ai_view.code = 'ai_view'
        WHERE old_module.code = 'ai_empresarial'
-         AND old_action.code IN ('view','create','manage')`
+         AND old_action.code IN ('view','create','manage') ON CONFLICT DO NOTHING`
     );
     db.run(
-      `INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id)
+      `INSERT INTO user_permissions (user_id, company_id, module_id, action_id)
        SELECT up.user_id, up.company_id, ai_internal.id, ai_ask.id
        FROM user_permissions up
        JOIN permission_modules old_module ON old_module.id = up.module_id
@@ -5638,7 +5677,7 @@ db.serialize(() => {
        JOIN permission_actions old_action ON old_action.id = up.action_id
        JOIN permission_actions ai_ask ON ai_ask.code = 'ai_ask'
        WHERE old_module.code = 'ai_empresarial'
-         AND old_action.code IN ('view','create','manage')`
+         AND old_action.code IN ('view','create','manage') ON CONFLICT DO NOTHING`
     );
     db.run("UPDATE permission_modules SET is_active = 0 WHERE code = 'ai_empresarial'");
   });
@@ -8049,13 +8088,13 @@ function parseJsonList(raw) {
 
 function appendModuleToJsonColumnIfRestricted(tableName, columnName, moduleCode) {
   if (HIDDEN_MODULE_CODES.has(moduleCode)) return;
-  db.all(`SELECT rowid AS row_id, ${columnName} AS modules_json FROM ${tableName}`, [], (err, rows) => {
+  db.all(`SELECT id, ${columnName} AS modules_json FROM ${tableName}`, [], (err, rows) => {
     if (err || !rows) return;
     rows.forEach((row) => {
       const modules = parseJsonList(row.modules_json);
       if (!modules.length || modules.includes(moduleCode)) return;
       modules.push(moduleCode);
-      db.run(`UPDATE ${tableName} SET ${columnName} = ? WHERE rowid = ?`, [JSON.stringify(modules), row.row_id]);
+      db.run(`UPDATE ${tableName} SET ${columnName} = ? WHERE id = ?`, [JSON.stringify(modules), row.id]);
     });
   });
 }
@@ -8562,14 +8601,14 @@ function ensureDashboardPermissionData(callback) {
       ON CONFLICT (code) DO NOTHING`
     );
     db.run(
-      `INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
-      ('view','Ver','Acceso de lectura')`
+      `INSERT INTO permission_actions (code, name, description) VALUES
+      ('view','Ver','Acceso de lectura') ON CONFLICT DO NOTHING`
     );
     db.run(
-      `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+      `INSERT INTO module_actions (module_id, action_id)
        SELECT pm.id, pa.id
        FROM permission_modules pm, permission_actions pa
-       WHERE pm.code = 'dashboard' AND pa.code = 'view'`
+       WHERE pm.code = 'dashboard' AND pa.code = 'view' ON CONFLICT DO NOTHING`
     );
     db.get(
       `SELECT pm.id AS module_id, pa.id AS action_id
@@ -8591,7 +8630,7 @@ function assignDefaultDashboardPermission(userId, companyId, callback) {
   ensureDashboardPermissionData((err, ids) => {
     if (err) return callback(err);
     db.run(
-      'INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id) VALUES (?, ?, ?, ?)',
+      'INSERT INTO user_permissions (user_id, company_id, module_id, action_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING',
       [userId, companyId, ids.module_id, ids.action_id],
       (insErr) => callback(insErr || null)
     );
@@ -8962,9 +9001,9 @@ function seedAiHelpModules() {
   ];
 
   const stmt = db.prepare(
-    `INSERT OR IGNORE INTO ai_help_modules
+    `INSERT INTO ai_help_modules
      (company_id, module_code, module_name, description, actions_json, faqs_json, help_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`
   );
 
   rows.forEach((row) => {
@@ -12186,6 +12225,30 @@ app.use((err, req, res, next) => {
     return res.status(403).send('Invalid CSRF token');
   }
   return next(err);
+});
+
+app.use((err, req, res, next) => {
+  void next;
+  const requestId = req.headers && req.headers['x-request-id']
+    ? String(req.headers['x-request-id'])
+    : `req-${Date.now().toString(36)}`;
+  console.error('[request-error]', {
+    requestId,
+    method: req.method,
+    url: req.originalUrl,
+    code: err && err.code,
+    message: err && err.message,
+    stack: process.env.NODE_ENV === 'development' && err ? err.stack : undefined
+  });
+  const status = Number(err && (err.status || err.statusCode));
+  const safeStatus = status >= 400 && status < 600 ? status : 500;
+  const message = safeStatus >= 500
+    ? 'Ocurrió un error interno. Intente nuevamente.'
+    : 'No se pudo completar la solicitud.';
+  if (req.accepts('json') && !req.accepts('html')) {
+    return res.status(safeStatus).json({ ok: false, error: message, requestId });
+  }
+  return res.status(safeStatus).send(`${message} Referencia: ${requestId}`);
 });
 
 

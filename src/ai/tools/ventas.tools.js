@@ -41,7 +41,7 @@ module.exports = [
     execute: (_, ctx) => all(ctx.db, `
       SELECT status, COUNT(*) AS ventas, COALESCE(SUM(total), 0) AS total
       FROM sales
-      WHERE company_id = ? AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')
+      WHERE company_id = ? AND TO_CHAR(created_at, 'YYYY-MM') = TO_CHAR(CURRENT_DATE, 'YYYY-MM')
       GROUP BY status ORDER BY total DESC`, [ctx.companyId])
   },
   {
@@ -50,10 +50,10 @@ module.exports = [
     permission: ['sales', 'view'],
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     execute: (_, ctx) => all(ctx.db, `
-      SELECT strftime('%Y-%m', created_at) AS mes, COUNT(*) AS ventas, COALESCE(SUM(total), 0) AS total
+      SELECT TO_CHAR(created_at, 'YYYY-MM') AS mes, COUNT(*) AS ventas, COALESCE(SUM(total), 0) AS total
       FROM sales
-      WHERE company_id = ? AND strftime('%Y', created_at) = strftime('%Y', 'now')
-      GROUP BY strftime('%Y-%m', created_at) ORDER BY mes`, [ctx.companyId])
+      WHERE company_id = ? AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
+      GROUP BY TO_CHAR(created_at, 'YYYY-MM') ORDER BY mes`, [ctx.companyId])
   },
   {
     name: 'cotizacionesEnviadas',
@@ -208,7 +208,7 @@ module.exports = [
 
 async function ensureQuoteSchema(db) {
   await run(db, `CREATE TABLE IF NOT EXISTS sales_quotes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     opportunity_id INTEGER NULL,
     customer_id INTEGER NULL,
@@ -223,11 +223,11 @@ async function ensureQuoteSchema(db) {
     valid_until TEXT NULL,
     notes TEXT NULL,
     created_by INTEGER NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await run(db, `CREATE TABLE IF NOT EXISTS sales_quote_lines (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     quote_id INTEGER NOT NULL,
     line_type TEXT NOT NULL DEFAULT 'product',

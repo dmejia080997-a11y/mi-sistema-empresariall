@@ -40,23 +40,23 @@ function getOpenAIClient() {
 
 async function ensureSchema(db) {
   await run(db, `CREATE TABLE IF NOT EXISTS ai_conversations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
     title TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await run(db, `CREATE TABLE IF NOT EXISTS ai_messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     conversation_id INTEGER NOT NULL,
     role TEXT NOT NULL,
     content TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id)
   )`);
   await run(db, `CREATE TABLE IF NOT EXISTS ai_tool_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     conversation_id INTEGER NOT NULL,
     tool_name TEXT NOT NULL,
     parameters TEXT,
@@ -64,7 +64,7 @@ async function ensureSchema(db) {
     executed_by INTEGER,
     execution_ms INTEGER NOT NULL DEFAULT 0,
     company_id INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id)
   )`);
   await run(db, 'CREATE INDEX IF NOT EXISTS idx_ai_conversations_company_user ON ai_conversations (company_id, user_id, updated_at)');

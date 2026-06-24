@@ -46,8 +46,11 @@ duplicar o perder información.
 
 ## Probar en local
 
-Configure `.env` con el `DATABASE_URL` local. Nunca copie el `DATABASE_URL` de
-producción al entorno local.
+El entorno PostgreSQL local se prepara con `npm run dev:setup` y se actualiza
+con `npm run dev:refresh`. Consulte `docs/DESARROLLO_POSTGRESQL.md`.
+
+Configure las credenciales locales en `.env.development`. Nunca copie el
+`DATABASE_URL` de producción al entorno local.
 
 ```bash
 npm run migrate:status

@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS companies (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   address TEXT,
   nit TEXT,
@@ -18,5 +18,5 @@ CREATE TABLE IF NOT EXISTS companies (
   theme_logo_size INTEGER,
   theme_icon_size INTEGER,
   accounting_framework TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

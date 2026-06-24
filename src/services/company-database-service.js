@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const { translateSqliteSql } = require('../config/database');
 const {
   TENANT_MIGRATIONS_DIR,
   applyDirectoryMigrations
@@ -134,8 +135,7 @@ class PgSqliteCompat {
   }
 
   translate(sql) {
-    let index = 0;
-    return String(sql || '').replace(/\?/g, () => `$${++index}`);
+    return translateSqliteSql(sql);
   }
 
   query(sql, params = []) {
@@ -143,28 +143,34 @@ class PgSqliteCompat {
   }
 
   get(sql, params = [], callback) {
-    this.pool.query(this.translate(sql), params)
-      .then((result) => callback(null, result.rows[0] || null))
-      .catch((err) => callback(err));
+    const values = typeof params === 'function' ? [] : params;
+    const done = typeof params === 'function' ? params : callback;
+    this.pool.query(this.translate(sql), values)
+      .then((result) => done && done(null, result.rows[0] || null))
+      .catch((err) => done ? done(err) : Promise.reject(err));
   }
 
   all(sql, params = [], callback) {
-    this.pool.query(this.translate(sql), params)
-      .then((result) => callback(null, result.rows || []))
-      .catch((err) => callback(err));
+    const values = typeof params === 'function' ? [] : params;
+    const done = typeof params === 'function' ? params : callback;
+    this.pool.query(this.translate(sql), values)
+      .then((result) => done && done(null, result.rows || []))
+      .catch((err) => done ? done(err) : Promise.reject(err));
   }
 
   run(sql, params = [], callback) {
-    this.pool.query(this.translate(sql), params)
+    const values = typeof params === 'function' ? [] : params;
+    const done = typeof params === 'function' ? params : callback;
+    this.pool.query(this.translate(sql), values)
       .then((result) => {
         const context = {
           changes: result.rowCount || 0,
           lastID: result.rows && result.rows[0] && result.rows[0].id ? result.rows[0].id : undefined
         };
-        if (callback) callback.call(context, null);
+        if (done) done.call(context, null);
       })
       .catch((err) => {
-        if (callback) return callback(err);
+        if (done) return done(err);
         throw err;
       });
   }
@@ -204,6 +210,80 @@ class PgSqliteCompat {
 
   async close() {
     await this.pool.end();
+  }
+
+  async getTableInfo(tableName) {
+    const result = await this.pool.query(
+      `SELECT c.column_name, c.data_type, c.is_nullable, c.column_default,
+              CASE WHEN tc.constraint_type = 'PRIMARY KEY' THEN 1 ELSE 0 END AS is_pk
+       FROM information_schema.columns c
+       LEFT JOIN information_schema.key_column_usage kcu
+         ON kcu.table_schema = c.table_schema
+        AND kcu.table_name = c.table_name
+        AND kcu.column_name = c.column_name
+       LEFT JOIN information_schema.table_constraints tc
+         ON tc.constraint_schema = kcu.constraint_schema
+        AND tc.constraint_name = kcu.constraint_name
+        AND tc.constraint_type = 'PRIMARY KEY'
+       WHERE c.table_schema = current_schema() AND c.table_name = $1
+       ORDER BY c.ordinal_position`,
+      [tableName]
+    );
+    return result.rows.map((row, index) => ({
+      cid: index,
+      name: row.column_name,
+      type: row.data_type,
+      notnull: row.is_nullable === 'NO' ? 1 : 0,
+      dflt_value: row.column_default,
+      pk: Number(row.is_pk || 0)
+    }));
+  }
+
+  async getSqliteMasterRows(sql, params) {
+    const hasNameParam = /name\s*=\s*\?/i.test(sql) || /name\s*=\s*\$\d+/i.test(sql);
+    const values = hasNameParam && params.length ? [params[0]] : [];
+    const result = await this.pool.query(
+      `SELECT table_name AS name
+       FROM information_schema.tables
+       WHERE table_schema = current_schema()
+         AND table_type = 'BASE TABLE'
+         ${hasNameParam ? 'AND table_name = $1' : ''}
+       ORDER BY table_name`,
+      values
+    );
+    return result.rows;
+  }
+
+  async getIndexList(tableName) {
+    const result = await this.pool.query(
+      `SELECT i.relname AS name,
+              CASE WHEN ix.indisunique THEN 1 ELSE 0 END AS unique,
+              CASE WHEN con.contype IS NULL THEN 'c' ELSE 'u' END AS origin
+       FROM pg_class t
+       JOIN pg_namespace ns ON ns.oid = t.relnamespace
+       JOIN pg_index ix ON ix.indrelid = t.oid
+       JOIN pg_class i ON i.oid = ix.indexrelid
+       LEFT JOIN pg_constraint con ON con.conindid = i.oid
+       WHERE ns.nspname = current_schema() AND t.relname = $1
+       ORDER BY i.relname`,
+      [tableName]
+    );
+    return result.rows;
+  }
+
+  async getIndexInfo(indexName) {
+    const result = await this.pool.query(
+      `SELECT key_columns.ordinality - 1 AS seqno, a.attname AS name
+       FROM pg_class i
+       JOIN pg_namespace ns ON ns.oid = i.relnamespace
+       JOIN pg_index ix ON ix.indexrelid = i.oid
+       JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS key_columns(attnum, ordinality) ON true
+       JOIN pg_attribute a ON a.attrelid = ix.indrelid AND a.attnum = key_columns.attnum
+       WHERE ns.nspname = current_schema() AND i.relname = $1
+       ORDER BY key_columns.ordinality`,
+      [indexName]
+    );
+    return result.rows;
   }
 }
 
@@ -277,11 +357,11 @@ function createCompanyDatabaseService(options) {
   async function getTenantTablesFromMaster() {
     const tables = await sqliteAll(
       masterDb,
-      `SELECT name
-       FROM sqlite_master
-       WHERE type = 'table'
-         AND name NOT LIKE 'sqlite_%'
-       ORDER BY name`
+      `SELECT table_name AS name
+       FROM information_schema.tables
+       WHERE table_schema = current_schema()
+         AND table_type = 'BASE TABLE'
+       ORDER BY table_name`
     );
     return tables
       .map((row) => row.name)
@@ -291,7 +371,27 @@ function createCompanyDatabaseService(options) {
   async function runInitialMigrations(pool) {
     const tables = await getTenantTablesFromMaster();
     for (const tableName of tables) {
-      const columns = await sqliteAll(masterDb, `PRAGMA table_info(${quoteIdent(tableName)})`);
+      const columns = await sqliteAll(
+        masterDb,
+        `SELECT c.column_name AS name,
+                c.data_type AS type,
+                CASE WHEN c.is_nullable = 'NO' THEN 1 ELSE 0 END AS notnull,
+                c.column_default AS dflt_value,
+                CASE WHEN tc.constraint_type = 'PRIMARY KEY' THEN 1 ELSE 0 END AS pk
+         FROM information_schema.columns c
+         LEFT JOIN information_schema.key_column_usage kcu
+           ON kcu.table_schema = c.table_schema
+          AND kcu.table_name = c.table_name
+          AND kcu.column_name = c.column_name
+         LEFT JOIN information_schema.table_constraints tc
+           ON tc.constraint_schema = kcu.constraint_schema
+          AND tc.constraint_name = kcu.constraint_name
+          AND tc.constraint_type = 'PRIMARY KEY'
+         WHERE c.table_schema = current_schema()
+           AND c.table_name = ?
+         ORDER BY c.ordinal_position`,
+        [tableName]
+      );
       if (!columns.length) continue;
       await pool.query(buildCreateTableSql(tableName, columns));
     }

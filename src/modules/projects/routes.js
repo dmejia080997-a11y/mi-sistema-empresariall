@@ -2145,17 +2145,17 @@ async function ensureProjectsPermissionData(db) {
   );
   await runDb(
     db,
-    `INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
+    `INSERT INTO permission_actions (code, name, description) VALUES
      ('expenses', 'Gastos', 'Registrar y enviar gastos del proyecto'),
      ('quotes', 'Cotizaciones', 'Crear y convertir cotizaciones del proyecto'),
-     ('reports', 'Reportes', 'Ver reportes financieros y de avance del proyecto')`
+     ('reports', 'Reportes', 'Ver reportes financieros y de avance del proyecto') ON CONFLICT DO NOTHING`
   );
   await runDb(
     db,
-    `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+    `INSERT INTO module_actions (module_id, action_id)
      SELECT pm.id, pa.id
      FROM permission_modules pm, permission_actions pa
-     WHERE pm.code = 'projects' AND pa.code IN ('view', 'create', 'edit', 'delete', 'expenses', 'quotes', 'reports')`
+     WHERE pm.code = 'projects' AND pa.code IN ('view', 'create', 'edit', 'delete', 'expenses', 'quotes', 'reports') ON CONFLICT DO NOTHING`
   );
 }
 
@@ -2163,7 +2163,7 @@ async function ensureProjectTables(db) {
   await runDb(
     db,
     `CREATE TABLE IF NOT EXISTS projects (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       code TEXT,
       name TEXT NOT NULL,
@@ -2182,8 +2182,8 @@ async function ensureProjectTables(db) {
       notes TEXT,
       source_quote_id INTEGER,
       created_by INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
   await ensureColumns(db, 'projects', [
@@ -2205,14 +2205,14 @@ async function ensureProjectTables(db) {
     ['notes', 'TEXT'],
     ['source_quote_id', 'INTEGER'],
     ['created_by', 'INTEGER'],
-    ['created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP'],
-    ['updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP']
+    ['created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'],
+    ['updated_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP']
   ]);
 
   await runDb(
     db,
     `CREATE TABLE IF NOT EXISTS project_schedule (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       project_id INTEGER NOT NULL,
       company_id INTEGER NOT NULL,
       name TEXT NOT NULL,
@@ -2225,8 +2225,8 @@ async function ensureProjectTables(db) {
       progress_percent REAL NOT NULL DEFAULT 0,
       observations TEXT,
       created_by INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
   await ensureColumns(db, 'project_schedule', [
@@ -2242,14 +2242,14 @@ async function ensureProjectTables(db) {
     ['progress_percent', 'REAL NOT NULL DEFAULT 0'],
     ['observations', 'TEXT'],
     ['created_by', 'INTEGER'],
-    ['created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP'],
-    ['updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP']
+    ['created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'],
+    ['updated_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP']
   ]);
 
   await runDb(
     db,
     `CREATE TABLE IF NOT EXISTS project_tasks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       project_id INTEGER NOT NULL,
       company_id INTEGER NOT NULL,
       title TEXT NOT NULL,
@@ -2269,8 +2269,8 @@ async function ensureProjectTables(db) {
       solution_applied TEXT,
       learned_notes TEXT,
       created_by INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
   await ensureColumns(db, 'project_tasks', [
@@ -2293,15 +2293,15 @@ async function ensureProjectTables(db) {
     ['solution_applied', 'TEXT'],
     ['learned_notes', 'TEXT'],
     ['created_by', 'INTEGER'],
-    ['created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP'],
-    ['updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP']
+    ['created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'],
+    ['updated_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP']
   ]);
   await backfillProjectTaskColors(db);
 
   await runDb(
     db,
     `CREATE TABLE IF NOT EXISTS project_expenses (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       project_id INTEGER NOT NULL,
       company_id INTEGER NOT NULL,
       task_id INTEGER,
@@ -2324,13 +2324,13 @@ async function ensureProjectTables(db) {
       accounting_bill_id INTEGER,
       is_locked INTEGER NOT NULL DEFAULT 0,
       locked_by INTEGER,
-      locked_at DATETIME,
+      locked_at TIMESTAMP,
       unlocked_by INTEGER,
-      unlocked_at DATETIME,
+      unlocked_at TIMESTAMP,
       created_by INTEGER,
       updated_by INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
   await ensureColumns(db, 'project_expenses', [
@@ -2356,31 +2356,31 @@ async function ensureProjectTables(db) {
     ['accounting_bill_id', 'INTEGER'],
     ['is_locked', 'INTEGER NOT NULL DEFAULT 0'],
     ['locked_by', 'INTEGER'],
-    ['locked_at', 'DATETIME'],
+    ['locked_at', 'TIMESTAMP'],
     ['unlocked_by', 'INTEGER'],
-    ['unlocked_at', 'DATETIME'],
+    ['unlocked_at', 'TIMESTAMP'],
     ['created_by', 'INTEGER'],
     ['updated_by', 'INTEGER'],
-    ['created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP'],
-    ['updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP']
+    ['created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'],
+    ['updated_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP']
   ]);
 
   await runDb(
     db,
     `CREATE TABLE IF NOT EXISTS project_files (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       project_id INTEGER NOT NULL,
       company_id INTEGER NOT NULL,
       filename TEXT NOT NULL,
       original_name TEXT,
       file_type TEXT,
       uploaded_by INTEGER,
-      uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       notes TEXT,
       source_type TEXT NOT NULL DEFAULT 'project',
       source_id INTEGER,
       source_label TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
   await ensureColumns(db, 'project_files', [
@@ -2390,25 +2390,25 @@ async function ensureProjectTables(db) {
     ['original_name', 'TEXT'],
     ['file_type', 'TEXT'],
     ['uploaded_by', 'INTEGER'],
-    ['uploaded_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP'],
+    ['uploaded_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'],
     ['notes', 'TEXT'],
     ['source_type', "TEXT NOT NULL DEFAULT 'project'"],
     ['source_id', 'INTEGER'],
     ['source_label', 'TEXT'],
-    ['created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP']
+    ['created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP']
   ]);
 
   await runDb(
     db,
     `CREATE TABLE IF NOT EXISTS project_logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       project_id INTEGER NOT NULL,
       company_id INTEGER NOT NULL,
       log_type TEXT NOT NULL DEFAULT 'manual_note',
       message TEXT NOT NULL,
       metadata_json TEXT,
       created_by INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
   await ensureColumns(db, 'project_logs', [
@@ -2418,13 +2418,13 @@ async function ensureProjectTables(db) {
     ['message', 'TEXT'],
     ['metadata_json', 'TEXT'],
     ['created_by', 'INTEGER'],
-    ['created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP']
+    ['created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP']
   ]);
 
   await runDb(
     db,
     `CREATE TABLE IF NOT EXISTS project_quotes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       project_id INTEGER NOT NULL,
       company_id INTEGER NOT NULL,
       customer_id INTEGER,
@@ -2445,14 +2445,14 @@ async function ensureProjectTables(db) {
       notes TEXT,
       pdf_fields_json TEXT,
       status TEXT NOT NULL DEFAULT 'draft',
-      approved_at DATETIME,
+      approved_at TIMESTAMP,
       rejection_comment TEXT,
       converted_invoice_id INTEGER,
       is_archived INTEGER NOT NULL DEFAULT 0,
-      archived_at DATETIME,
+      archived_at TIMESTAMP,
       created_by INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
   await ensureColumns(db, 'project_quotes', [
@@ -2476,20 +2476,20 @@ async function ensureProjectTables(db) {
     ['notes', 'TEXT'],
     ['pdf_fields_json', 'TEXT'],
     ['status', "TEXT NOT NULL DEFAULT 'draft'"],
-    ['approved_at', 'DATETIME'],
+    ['approved_at', 'TIMESTAMP'],
     ['rejection_comment', 'TEXT'],
     ['converted_invoice_id', 'INTEGER'],
     ['is_archived', 'INTEGER NOT NULL DEFAULT 0'],
-    ['archived_at', 'DATETIME'],
+    ['archived_at', 'TIMESTAMP'],
     ['created_by', 'INTEGER'],
-    ['created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP'],
-    ['updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP']
+    ['created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'],
+    ['updated_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP']
   ]);
 
   await runDb(
     db,
     `CREATE TABLE IF NOT EXISTS project_quote_lines (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       quote_id INTEGER NOT NULL,
       project_id INTEGER NOT NULL,
       company_id INTEGER NOT NULL,
@@ -2512,7 +2512,7 @@ async function ensureProjectTables(db) {
       tax_amount REAL NOT NULL DEFAULT 0,
       total REAL NOT NULL DEFAULT 0,
       sort_order INTEGER NOT NULL DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
   await ensureColumns(db, 'project_quote_lines', [
@@ -2538,7 +2538,7 @@ async function ensureProjectTables(db) {
     ['tax_amount', 'REAL NOT NULL DEFAULT 0'],
     ['total', 'REAL NOT NULL DEFAULT 0'],
     ['sort_order', 'INTEGER NOT NULL DEFAULT 0'],
-    ['created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP']
+    ['created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP']
   ]);
 
   await runDb(
@@ -2582,7 +2582,7 @@ async function ensureQuoteInvoiceSupport(db) {
   await runDb(
     db,
     `CREATE TABLE IF NOT EXISTS invoice_headers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       legacy_invoice_id INTEGER NULL,
       company_id INTEGER NOT NULL,
       invoice_number TEXT NULL,
@@ -2617,24 +2617,24 @@ async function ensureQuoteInvoiceSupport(db) {
       voided_by INTEGER NULL,
       voided_reason TEXT NULL,
       stock_applied INTEGER NOT NULL DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      emitted_at DATETIME NULL,
-      paid_at DATETIME NULL,
-      voided_at DATETIME NULL
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      emitted_at TIMESTAMP NULL,
+      paid_at TIMESTAMP NULL,
+      voided_at TIMESTAMP NULL
     )`
   );
   await runDb(
     db,
     `CREATE TABLE IF NOT EXISTS invoice_status_history (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       invoice_header_id INTEGER NOT NULL,
       company_id INTEGER NOT NULL,
       from_status TEXT NULL,
       to_status TEXT NULL,
       notes TEXT NULL,
       changed_by INTEGER NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
   await ensureColumns(db, 'invoice_payments', [
@@ -2760,11 +2760,11 @@ async function buildProjectsDashboardViewModel({ db, companyId, query, parseCurr
     taskParams.push(`%${taskSearch}%`, `%${taskSearch}%`, `%${taskSearch}%`, `%${taskSearch}%`);
   }
   if (dueFrom) {
-    taskWhereSql += ' AND DATE(COALESCE(t.due_date, t.start_date, t.created_at)) >= ?';
+    taskWhereSql += " AND COALESCE(NULLIF(t.due_date, '')::date, NULLIF(t.start_date, '')::date, t.created_at::date) >= ?::date";
     taskParams.push(dueFrom);
   }
   if (dueTo) {
-    taskWhereSql += ' AND DATE(COALESCE(t.due_date, t.start_date, t.created_at)) <= ?';
+    taskWhereSql += " AND COALESCE(NULLIF(t.due_date, '')::date, NULLIF(t.start_date, '')::date, t.created_at::date) <= ?::date";
     taskParams.push(dueTo);
   }
 
@@ -2792,7 +2792,7 @@ async function buildProjectsDashboardViewModel({ db, companyId, query, parseCurr
          ELSE 4
        END,
        CASE WHEN COALESCE(t.due_date, '') = '' THEN 1 ELSE 0 END,
-       COALESCE(t.due_date, t.start_date, DATE(t.created_at)) ASC,
+       COALESCE(NULLIF(t.due_date, '')::date, NULLIF(t.start_date, '')::date, t.created_at::date) ASC,
        t.updated_at DESC,
        t.id DESC`;
 
@@ -2816,11 +2816,11 @@ async function buildProjectsDashboardViewModel({ db, companyId, query, parseCurr
     quoteParams.push(`%${quoteSearch}%`, `%${quoteSearch}%`, `%${quoteSearch}%`, `%${quoteSearch}%`, `%${quoteSearch}%`);
   }
   if (validFrom) {
-    quoteWhereSql += ' AND DATE(COALESCE(q.valid_until, q.created_at)) >= ?';
+    quoteWhereSql += " AND COALESCE(NULLIF(q.valid_until, '')::date, q.created_at::date) >= ?::date";
     quoteParams.push(validFrom);
   }
   if (validTo) {
-    quoteWhereSql += ' AND DATE(COALESCE(q.valid_until, q.created_at)) <= ?';
+    quoteWhereSql += " AND COALESCE(NULLIF(q.valid_until, '')::date, q.created_at::date) <= ?::date";
     quoteParams.push(validTo);
   }
 
@@ -2840,7 +2840,7 @@ async function buildProjectsDashboardViewModel({ db, companyId, query, parseCurr
          ELSE 5
        END,
        CASE WHEN COALESCE(q.valid_until, '') = '' THEN 1 ELSE 0 END,
-       COALESCE(q.valid_until, DATE(q.created_at)) ASC,
+       COALESCE(NULLIF(q.valid_until, '')::date, q.created_at::date) ASC,
        q.created_at DESC,
        q.id DESC`;
 
@@ -5796,7 +5796,10 @@ async function ensureColumns(db, tableName, columns) {
 }
 
 async function ensureColumn(db, tableName, columnName, typeDef) {
-  const info = await allDb(db, `PRAGMA table_info(${tableName})`);
+  const info = await allDb(db, `SELECT column_name AS name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = ?
+    ORDER BY ordinal_position`, [tableName]);
   if ((info || []).some((column) => column.name === columnName)) return;
   await runDb(db, `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${typeDef}`);
 }
@@ -5804,11 +5807,15 @@ async function ensureColumn(db, tableName, columnName, typeDef) {
 async function appendModuleToJsonColumn(db, tableName, columnName, moduleCode) {
   const table = await getDb(
     db,
-    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+    `SELECT table_name AS name
+     FROM information_schema.tables
+     WHERE table_schema = current_schema()
+       AND table_type = 'BASE TABLE'
+       AND table_name = ?`,
     [tableName]
   );
   if (!table) return;
-  const rows = await allDb(db, `SELECT rowid AS row_id, ${columnName} AS modules_json FROM ${tableName}`);
+  const rows = await allDb(db, `SELECT id, ${columnName} AS modules_json FROM ${tableName}`);
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index];
     const current = parseJsonList(row.modules_json);
@@ -5817,8 +5824,8 @@ async function appendModuleToJsonColumn(db, tableName, columnName, moduleCode) {
     current.push(moduleCode);
     await runDb(
       db,
-      `UPDATE ${tableName} SET ${columnName} = ? WHERE rowid = ?`,
-      [JSON.stringify(current), row.row_id]
+      `UPDATE ${tableName} SET ${columnName} = ? WHERE id = ?`,
+      [JSON.stringify(current), row.id]
     );
   }
 }

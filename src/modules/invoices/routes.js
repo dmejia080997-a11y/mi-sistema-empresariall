@@ -1225,12 +1225,12 @@ async function fetchInvoiceHeaders(db, companyId, filters, options = {}) {
   }
 
   if (filters.fromDate) {
-    sql += ' AND date(COALESCE(h.issue_date, substr(h.created_at, 1, 10))) >= date(?)';
+    sql += " AND COALESCE(NULLIF(h.issue_date, '')::date, h.created_at::date) >= ?::date";
     params.push(filters.fromDate);
   }
 
   if (filters.toDate) {
-    sql += ' AND date(COALESCE(h.issue_date, substr(h.created_at, 1, 10))) <= date(?)';
+    sql += " AND COALESCE(NULLIF(h.issue_date, '')::date, h.created_at::date) <= ?::date";
     params.push(filters.toDate);
   }
 
@@ -1245,7 +1245,7 @@ async function fetchInvoiceHeaders(db, companyId, filters, options = {}) {
     params.push(like, like, like, like);
   }
 
-  sql += ' ORDER BY date(COALESCE(h.issue_date, substr(h.created_at, 1, 10))) DESC, h.id DESC';
+  sql += " ORDER BY COALESCE(NULLIF(h.issue_date, '')::date, h.created_at::date) DESC, h.id DESC";
   if (options.limit) {
     sql += ` LIMIT ${Number(options.limit)}`;
   }
@@ -1386,7 +1386,7 @@ async function fetchCustomerInvoiceHistory(db, companyId, filters) {
             COUNT(*) AS invoice_count,
             SUM(h.total) AS total_billed,
             SUM(h.balance_due) AS total_pending,
-            MAX(COALESCE(h.issue_date, substr(h.created_at, 1, 10))) AS last_purchase
+            MAX(COALESCE(NULLIF(h.issue_date, '')::date, h.created_at::date)) AS last_purchase
      FROM invoice_headers h
      LEFT JOIN customers c ON c.id = h.customer_id AND c.company_id = h.company_id
      ${whereSql}
@@ -2188,12 +2188,12 @@ function buildHeaderFilterWhereClause(companyId, filters, options = {}) {
   }
 
   if (filters.fromDate) {
-    sql += ' AND date(COALESCE(h.issue_date, substr(h.created_at, 1, 10))) >= date(?)';
+    sql += " AND COALESCE(NULLIF(h.issue_date, '')::date, h.created_at::date) >= ?::date";
     params.push(filters.fromDate);
   }
 
   if (filters.toDate) {
-    sql += ' AND date(COALESCE(h.issue_date, substr(h.created_at, 1, 10))) <= date(?)';
+    sql += " AND COALESCE(NULLIF(h.issue_date, '')::date, h.created_at::date) <= ?::date";
     params.push(filters.toDate);
   }
 
@@ -4060,7 +4060,7 @@ async function ensureInvoiceErpSchema(db) {
   await runDb(
     db,
     `CREATE TABLE IF NOT EXISTS invoice_headers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       legacy_invoice_id INTEGER NULL,
       company_id INTEGER NOT NULL,
       invoice_number TEXT NULL,
@@ -4095,32 +4095,32 @@ async function ensureInvoiceErpSchema(db) {
       voided_by INTEGER NULL,
       voided_reason TEXT NULL,
       stock_applied INTEGER NOT NULL DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      emitted_at DATETIME NULL,
-      paid_at DATETIME NULL,
-      voided_at DATETIME NULL
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      emitted_at TIMESTAMP NULL,
+      paid_at TIMESTAMP NULL,
+      voided_at TIMESTAMP NULL
     )`
   );
 
   await runDb(
     db,
     `CREATE TABLE IF NOT EXISTS invoice_status_history (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       invoice_header_id INTEGER NOT NULL,
       company_id INTEGER NOT NULL,
       from_status TEXT NULL,
       to_status TEXT NULL,
       notes TEXT NULL,
       changed_by INTEGER NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   await runDb(
     db,
     `CREATE TABLE IF NOT EXISTS invoice_inventory_movements (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       invoice_header_id INTEGER NOT NULL,
       invoice_item_id INTEGER NULL,
       item_id INTEGER NOT NULL,
@@ -4131,14 +4131,14 @@ async function ensureInvoiceErpSchema(db) {
       stock_after REAL NOT NULL DEFAULT 0,
       notes TEXT NULL,
       created_by INTEGER NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
   await runDb(
     db,
     `CREATE TABLE IF NOT EXISTS invoice_packing_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       company_id INTEGER NOT NULL,
       invoice_id INTEGER NOT NULL,
       invoice_item_id INTEGER NOT NULL,
@@ -4151,8 +4151,8 @@ async function ensureInvoiceErpSchema(db) {
       packages_count REAL NOT NULL DEFAULT 0,
       package_type TEXT NULL,
       notes TEXT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   );
 
@@ -4193,13 +4193,13 @@ async function ensureInvoiceErpSchema(db) {
 
   await runDb(
     db,
-     `INSERT OR IGNORE INTO invoice_headers
+     `INSERT INTO invoice_headers
      (legacy_invoice_id, company_id, invoice_number, invoice_type, source, customer_id, customer_name_snapshot, customer_code_snapshot, customer_email_snapshot, customer_phone_snapshot, customer_address_snapshot,
       issue_date, due_date, payment_method, invoice_language, status, subtotal, tax_total, discount_total, total, paid_total, balance_due, notes, currency, exchange_rate, subtotal_base, tax_amount_base, discount_amount_base, total_base,
       created_at, updated_at, emitted_at)
      SELECT i.id,
             i.company_id,
-            printf('FAC-%06d', i.id),
+            'FAC-' || LPAD(i.id::text, 6, '0'),
             'standard',
             'legacy',
             i.customer_id,
@@ -4236,7 +4236,7 @@ async function ensureInvoiceErpSchema(db) {
          SELECT 1
          FROM invoice_headers h
          WHERE h.company_id = i.company_id AND h.legacy_invoice_id = i.id
-       )`
+       ) ON CONFLICT DO NOTHING`
   );
 
   await runDb(
@@ -4339,7 +4339,10 @@ async function ensureInvoiceErpSchema(db) {
 }
 
 async function ensureColumn(db, table, column, typeDef) {
-  const columns = await allDb(db, `PRAGMA table_info(${table})`);
+  const columns = await allDb(db, `SELECT column_name AS name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = ?
+    ORDER BY ordinal_position`, [table]);
   if ((columns || []).some((entry) => entry.name === column)) return;
   await runDb(db, `ALTER TABLE ${table} ADD COLUMN ${column} ${typeDef}`);
 }

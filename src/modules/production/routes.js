@@ -754,7 +754,7 @@ async function buildDashboard(db, companyId) {
   const statuses = await allDb(db, 'SELECT status, COUNT(*) AS total FROM production_orders WHERE company_id = ? GROUP BY status', [companyId]);
   const map = Object.fromEntries(statuses.map((row) => [row.status, Number(row.total || 0)]));
   const reserved = await getDb(db, `SELECT SUM(MAX(quantity_reserved - quantity_consumed, 0) * unit_cost) AS total FROM production_order_materials WHERE company_id = ?`, [companyId]);
-  const finished = await getDb(db, "SELECT SUM(quantity_finished) AS qty, SUM(real_cost) AS cost FROM production_orders WHERE company_id = ? AND status = 'finished' AND strftime('%Y-%m', COALESCE(real_end_date, created_at)) = strftime('%Y-%m', 'now')", [companyId]);
+  const finished = await getDb(db, "SELECT SUM(quantity_finished) AS qty, SUM(real_cost) AS cost FROM production_orders WHERE company_id = ? AND status = 'finished' AND TO_CHAR(COALESCE(real_end_date::timestamp, created_at), 'YYYY-MM') = TO_CHAR(CURRENT_DATE, 'YYYY-MM')", [companyId]);
   const margin = await getDb(db, "SELECT SUM((i.price - po.unit_cost) * po.quantity_finished) AS profit FROM production_orders po JOIN items i ON i.id = po.product_id AND i.company_id = po.company_id WHERE po.company_id = ? AND po.status = 'finished'", [companyId]);
   const catalog = await getDb(db, `SELECT
       SUM(CASE WHEN production_type IN ('finished_good', 'work_in_process') AND is_production_active = 1 THEN 1 ELSE 0 END) AS active_products,
@@ -786,7 +786,7 @@ async function buildDashboard(db, companyId) {
     JOIN items i ON i.id = po.product_id AND i.company_id = po.company_id
     WHERE po.company_id = ?
       AND po.status = 'finished'
-      AND strftime('%Y-%m', COALESCE(po.real_end_date, po.created_at)) = strftime('%Y-%m', 'now')
+      AND TO_CHAR(COALESCE(po.real_end_date::timestamp, po.created_at), 'YYYY-MM') = TO_CHAR(CURRENT_DATE, 'YYYY-MM')
     GROUP BY po.product_id
     ORDER BY qty DESC, i.name
     LIMIT 6`, [companyId]);
@@ -873,7 +873,7 @@ async function getOrders(db, companyId, filters = {}, limit = 300) {
     FROM production_orders po
     LEFT JOIN items i ON i.id = po.product_id AND i.company_id = po.company_id
     LEFT JOIN (
-      SELECT pob.production_order_id, pob.company_id, GROUP_CONCAT(it.name, ', ') AS products, COUNT(*) AS line_count,
+      SELECT pob.production_order_id, pob.company_id, STRING_AGG(it.name, ', ') AS products, COUNT(*) AS line_count,
         SUM(pob.quantity_planned) AS quantity_planned, SUM(pob.quantity_finished) AS quantity_finished
       FROM production_order_boms pob
       JOIN items it ON it.id = pob.product_id AND it.company_id = pob.company_id
@@ -961,7 +961,7 @@ async function getProductionProducts(db, companyId) {
     FROM items i
     LEFT JOIN (
       SELECT pb.finished_product_id, pb.company_id, COUNT(DISTINCT pb.id) AS bom_count, MIN(pb.id) AS first_bom_id, MIN(pb.code) AS first_bom_code,
-        COUNT(DISTINCT pbi.material_product_id) AS material_count, GROUP_CONCAT(DISTINCT mi.name) AS material_names
+        COUNT(DISTINCT pbi.material_product_id) AS material_count, STRING_AGG(DISTINCT mi.name, ',') AS material_names
       FROM production_boms pb
       LEFT JOIN production_bom_items pbi ON pbi.bom_id = pb.id AND pbi.company_id = pb.company_id
       LEFT JOIN items mi ON mi.id = pbi.material_product_id AND mi.company_id = pbi.company_id
@@ -1139,7 +1139,7 @@ async function auditProduction(db, req, action, tableName, recordId, oldValue, n
 
 async function ensureProductionSchema(db) {
   await runDb(db, `INSERT INTO permission_modules (code, name, description) VALUES ('production', 'Produccion y Manufactura', 'Ordenes de produccion, BOM, costos y producto terminado') ON CONFLICT (code) DO NOTHING`);
-  await runDb(db, `INSERT OR IGNORE INTO permission_actions (code, name, description) VALUES
+  await runDb(db, `INSERT INTO permission_actions (code, name, description) VALUES
     ('view','Ver','Acceso de lectura'),
     ('create_order','Crear orden','Crear ordenes de produccion'),
     ('edit_order','Editar orden','Editar ordenes y formulas'),
@@ -1151,10 +1151,10 @@ async function ensureProductionSchema(db) {
     ('record_labor','Registrar mano de obra','Agregar mano de obra'),
     ('record_waste','Registrar desperdicio','Registrar merma'),
     ('approve_production','Aprobar produccion','Aprobar procesos productivos'),
-    ('view_reports','Ver reportes','Ver reportes de produccion')`);
-  await runDb(db, `INSERT OR IGNORE INTO module_actions (module_id, action_id)
+    ('view_reports','Ver reportes','Ver reportes de produccion') ON CONFLICT DO NOTHING`);
+  await runDb(db, `INSERT INTO module_actions (module_id, action_id)
     SELECT pm.id, pa.id FROM permission_modules pm, permission_actions pa
-    WHERE pm.code = 'production' AND pa.code IN ('view','create_order','edit_order','start_production','finish_production','cancel_production','view_costs','edit_costs','record_labor','record_waste','approve_production','view_reports')`);
+    WHERE pm.code = 'production' AND pa.code IN ('view','create_order','edit_order','start_production','finish_production','cancel_production','view_costs','edit_costs','record_labor','record_waste','approve_production','view_reports') ON CONFLICT DO NOTHING`);
   await addColumn(db, 'items', 'production_type', "TEXT NOT NULL DEFAULT 'supply'");
   await addColumn(db, 'items', 'currency', "TEXT NOT NULL DEFAULT 'GTQ'");
   await addColumn(db, 'items', 'average_cost', 'REAL NOT NULL DEFAULT 0');
@@ -1166,7 +1166,7 @@ async function ensureProductionSchema(db) {
   await addColumn(db, 'items', 'production_photo_path', 'TEXT');
   await addColumn(db, 'items', 'production_support_path', 'TEXT');
   await runDb(db, `CREATE TABLE IF NOT EXISTS production_boms (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     finished_product_id INTEGER NOT NULL,
     code TEXT NOT NULL,
@@ -1177,11 +1177,11 @@ async function ensureProductionSchema(db) {
     status TEXT NOT NULL DEFAULT 'active',
     notes TEXT,
     created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS production_bom_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     bom_id INTEGER NOT NULL,
     material_product_id INTEGER NOT NULL,
@@ -1192,7 +1192,7 @@ async function ensureProductionSchema(db) {
     total_cost REAL NOT NULL DEFAULT 0
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS production_orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     order_number TEXT NOT NULL,
     product_id INTEGER NOT NULL,
@@ -1210,11 +1210,11 @@ async function ensureProductionSchema(db) {
     notes TEXT,
     cancellation_reason TEXT,
     created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS production_order_boms (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     production_order_id INTEGER NOT NULL,
     bom_id INTEGER NOT NULL,
@@ -1223,10 +1223,10 @@ async function ensureProductionSchema(db) {
     quantity_finished REAL NOT NULL DEFAULT 0,
     estimated_cost REAL NOT NULL DEFAULT 0,
     unit_cost REAL NOT NULL DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS production_order_materials (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     production_order_id INTEGER NOT NULL,
     product_id INTEGER NOT NULL,
@@ -1236,10 +1236,10 @@ async function ensureProductionSchema(db) {
     unit_cost REAL NOT NULL DEFAULT 0,
     total_cost REAL NOT NULL DEFAULT 0,
     waste_percentage REAL NOT NULL DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS production_labor (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     production_order_id INTEGER NOT NULL,
     employee_id INTEGER,
@@ -1249,10 +1249,10 @@ async function ensureProductionSchema(db) {
     total_cost REAL NOT NULL DEFAULT 0,
     notes TEXT,
     created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS production_overhead (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     production_order_id INTEGER NOT NULL,
     cost_type TEXT,
@@ -1260,10 +1260,10 @@ async function ensureProductionSchema(db) {
     amount REAL NOT NULL DEFAULT 0,
     distribution_method TEXT NOT NULL DEFAULT 'order',
     created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS production_waste (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     production_order_id INTEGER,
     product_id INTEGER NOT NULL,
@@ -1272,10 +1272,10 @@ async function ensureProductionSchema(db) {
     cost REAL NOT NULL DEFAULT 0,
     notes TEXT,
     created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS inventory_movements (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     product_id INTEGER NOT NULL,
     movement_type TEXT NOT NULL,
@@ -1288,10 +1288,10 @@ async function ensureProductionSchema(db) {
     reference_id INTEGER,
     notes TEXT,
     created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, `CREATE TABLE IF NOT EXISTS production_audit_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     user_id INTEGER,
     action TEXT NOT NULL,
@@ -1300,7 +1300,7 @@ async function ensureProductionSchema(db) {
     old_value TEXT,
     new_value TEXT,
     ip TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
   await runDb(db, 'CREATE UNIQUE INDEX IF NOT EXISTS ux_production_boms_company_code ON production_boms (company_id, code)');
   await runDb(db, 'CREATE UNIQUE INDEX IF NOT EXISTS ux_production_orders_company_number ON production_orders (company_id, order_number)');

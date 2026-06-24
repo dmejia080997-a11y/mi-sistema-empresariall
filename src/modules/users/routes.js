@@ -133,7 +133,7 @@ app.post('/users/create', requireAuth, requirePermission('users', 'create'), (re
       });
       console.log(`[users/create] insert username=${safeUsername} company_id=${companyId}`);
       db.run(
-        'INSERT OR IGNORE INTO users (username, password_hash, role, company_id, is_active, chat_presence_status) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO users (username, password_hash, role, company_id, is_active, chat_presence_status) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
         [safeUsername, passwordHash, safeRole, companyId, isActive, 'offline'],
         function (err) {
           if (err) {
@@ -198,7 +198,7 @@ app.post('/users/create', requireAuth, requirePermission('users', 'create'), (re
               }
 
               const stmt = db.prepare(
-                'INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id) VALUES (?, ?, ?, ?)'
+                'INSERT INTO user_permissions (user_id, company_id, module_id, action_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING'
               );
               validPairs.forEach((p) => {
                 stmt.run(newUserId, companyId, p.module_id, p.action_id);
@@ -388,7 +388,7 @@ app.post('/users/:id/permissions', requireAuth, requirePermission('users', 'assi
             }
 
             const stmt = db.prepare(
-              'INSERT OR IGNORE INTO user_permissions (user_id, company_id, module_id, action_id) VALUES (?, ?, ?, ?)'
+              'INSERT INTO user_permissions (user_id, company_id, module_id, action_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING'
             );
 
             validPairs.forEach((p) => {

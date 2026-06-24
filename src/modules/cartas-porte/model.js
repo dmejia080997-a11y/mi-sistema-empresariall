@@ -117,7 +117,7 @@ function computeTotals(items) {
 
 async function ensureTables(db) {
   await run(db, `CREATE TABLE IF NOT EXISTS cartas_porte (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     numero TEXT NOT NULL,
     fecha_emision TEXT NOT NULL,
@@ -126,7 +126,7 @@ async function ensureTables(db) {
     tipo_servicio TEXT, tipo_transporte TEXT, lugar_emision TEXT,
     observaciones TEXT, condiciones_transporte TEXT, instrucciones_especiales TEXT,
     created_by INTEGER, updated_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     remitente_nombre TEXT, remitente_nit TEXT, remitente_direccion TEXT, remitente_telefono TEXT, remitente_email TEXT, remitente_contacto TEXT,
     destinatario_nombre TEXT, destinatario_nit TEXT, destinatario_direccion TEXT, destinatario_telefono TEXT, destinatario_email TEXT, destinatario_contacto TEXT,
     transportista_nombre TEXT, transportista_nit TEXT, transportista_direccion TEXT, transportista_telefono TEXT, transportista_email TEXT,
@@ -140,12 +140,15 @@ async function ensureTables(db) {
     fecha_hora_recepcion TEXT, recibe_nombre TEXT, recibe_dpi TEXT,
     UNIQUE(company_id, numero)
   )`);
-  const columns = await all(db, 'PRAGMA table_info(cartas_porte)');
+  const columns = await all(db, `SELECT column_name AS name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'cartas_porte'
+    ORDER BY ordinal_position`);
   if (!columns.some((column) => column.name === 'idioma')) {
     await run(db, "ALTER TABLE cartas_porte ADD COLUMN idioma TEXT NOT NULL DEFAULT 'es'");
   }
   await run(db, `CREATE TABLE IF NOT EXISTS cartas_porte_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     carta_porte_id INTEGER NOT NULL,
     cantidad_bultos REAL, tipo_embalaje TEXT, descripcion_mercancia TEXT,
     peso_bruto REAL, peso_neto REAL, volumen REAL, valor_declarado REAL,

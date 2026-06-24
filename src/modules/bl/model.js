@@ -163,7 +163,7 @@ function mapBl(row) {
 
 async function ensureTables(db) {
   await run(db, `CREATE TABLE IF NOT EXISTS bills_of_lading (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     parent_bl_id INTEGER NULL,
     nivel_bl TEXT NOT NULL CHECK (nivel_bl IN ('MASTER','HOUSE','SUB_HOUSE')),
@@ -224,13 +224,13 @@ async function ensureTables(db) {
     total_declared_value REAL DEFAULT 0,
     created_by INTEGER NULL,
     updated_by INTEGER NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (parent_bl_id) REFERENCES bills_of_lading(id),
     UNIQUE (company_id, numero_bl)
   )`);
   await run(db, `CREATE TABLE IF NOT EXISTS bl_containers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     bl_id INTEGER NOT NULL,
     container_number TEXT NULL,
     seal_number TEXT NULL,
@@ -242,11 +242,11 @@ async function ensureTables(db) {
     package_quantity REAL DEFAULT 0,
     package_type TEXT NULL,
     marks_numbers TEXT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (bl_id) REFERENCES bills_of_lading(id) ON DELETE CASCADE
   )`);
   await run(db, `CREATE TABLE IF NOT EXISTS bl_cargo_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     bl_id INTEGER NOT NULL,
     container_id INTEGER NULL,
     quantity REAL DEFAULT 0,
