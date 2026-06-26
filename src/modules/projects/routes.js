@@ -140,6 +140,7 @@ const PROJECT_FILE_EXTENSIONS = new Set([
 function registerProjectRoutes(app, deps) {
   const {
     db,
+    masterDb,
     requireAuth,
     requirePermission,
     getCompanyId,
@@ -183,6 +184,7 @@ function registerProjectRoutes(app, deps) {
 
   const schemaReady = ensureProjectsSchema({
     db,
+    masterDb,
     parseCurrencyList
   }).catch((error) => {
     console.error('[projects] schema initialization failed', error);
@@ -190,7 +192,15 @@ function registerProjectRoutes(app, deps) {
   });
 
   const asyncRoute = (handler) => (req, res, next) => {
-    Promise.resolve(handler(req, res, next)).catch(next);
+    Promise.resolve(handler(req, res, next)).catch((error) => {
+      if (error && error.code === 'PROJECTS_COMPANY_NOT_FOUND') {
+        console.error('[projects] company lookup failed', error.message);
+        if (res.headersSent) return next(error);
+        setFlash(req, 'error', error.message);
+        return res.redirect('/dashboard');
+      }
+      return next(error);
+    });
   };
 
   app.get(
@@ -236,7 +246,7 @@ function registerProjectRoutes(app, deps) {
     asyncRoute(async (req, res) => {
       await schemaReady;
       const companyId = getCompanyId(req);
-      const viewModel = await buildProjectsDashboardViewModel({ db, companyId, query: req.query, parseCurrencyList });
+      const viewModel = await buildProjectsDashboardViewModel({ db, masterDb, companyId, query: req.query, parseCurrencyList });
       return res.render('projects', {
         ...viewModel,
         lang: res.locals.lang,
@@ -408,7 +418,7 @@ function registerProjectRoutes(app, deps) {
       };
       const customerId = normalizeId(quote.customer_id) || normalizeId(quote.project_client_id);
       const [company, customer, lines, attachments] = await Promise.all([
-        fetchProjectCompanyProfile(db, companyId, parseCurrencyList, buildFileUrl),
+        fetchProjectCompanyProfile(masterDb || db, companyId, parseCurrencyList, buildFileUrl),
         customerId
           ? getDb(
             db,
@@ -596,6 +606,7 @@ function registerProjectRoutes(app, deps) {
       try {
         await createProjectQuote({
           db,
+          masterDb,
           companyId,
           projectId,
           project,
@@ -657,6 +668,7 @@ function registerProjectRoutes(app, deps) {
       try {
         await updateProjectQuote({
           db,
+          masterDb,
           companyId,
           project,
           quote,
@@ -859,6 +871,7 @@ function registerProjectRoutes(app, deps) {
           try {
             const created = await convertProjectQuoteToInvoice({
               db,
+              masterDb,
               companyId,
               quote,
               userId,
@@ -929,6 +942,7 @@ function registerProjectRoutes(app, deps) {
       if (!projectId) return res.redirect('/projects');
       const viewModel = await buildProjectDetailViewModel({
         db,
+        masterDb,
         companyId,
         projectId,
         query: req.query,
@@ -1647,7 +1661,7 @@ function registerProjectRoutes(app, deps) {
         return res.redirect(resolveProjectsReturnTo(req.body.return_to, buildProjectDetailUrl(projectId, 'quotes')));
       }
       const totals = computeQuoteTotals(lines, req.body);
-      const companyCurrency = await fetchCompanyCurrency(db, companyId, parseCurrencyList);
+      const companyCurrency = await fetchCompanyCurrency(masterDb || db, companyId, parseCurrencyList);
       const currency = resolveProjectQuoteCurrency(req.body.currency, companyCurrency.allowedCurrencies, companyCurrency.baseCurrency);
       const pdfFieldsJson = JSON.stringify(normalizeProjectQuotePdfFields(req.body.pdf_fields, Boolean(req.body.pdf_fields_submitted)));
       const title = normalizeText(req.body.title) || `Cotización ${project.code || project.name}`;
@@ -1840,7 +1854,7 @@ function registerProjectRoutes(app, deps) {
 
       const customerId = normalizeId(quote.customer_id) || normalizeId(project.client_id);
       const [company, customer, lines, attachments] = await Promise.all([
-        fetchProjectCompanyProfile(db, companyId, parseCurrencyList, buildFileUrl),
+        fetchProjectCompanyProfile(masterDb || db, companyId, parseCurrencyList, buildFileUrl),
         customerId
           ? getDb(
             db,
@@ -1915,7 +1929,7 @@ function registerProjectRoutes(app, deps) {
         commitTransaction,
         rollbackTransaction,
         async () => {
-          const company = await fetchCompanyCurrency(db, companyId, parseCurrencyList);
+          const company = await fetchCompanyCurrency(masterDb || db, companyId, parseCurrencyList);
           const serviceItemId = await ensureProjectServiceItem(db, companyId);
           const currency = normalizeText(quote.currency).toUpperCase() || company.baseCurrency;
           const exchangeRate = currency === company.baseCurrency ? 1 : (toNumber(quote.exchange_rate, 1) || 1);
@@ -2127,12 +2141,13 @@ function registerProjectRoutes(app, deps) {
   );
 }
 
-async function ensureProjectsSchema({ db, parseCurrencyList }) {
+async function ensureProjectsSchema({ db, masterDb, parseCurrencyList }) {
   await ensureProjectsPermissionData(db);
   await ensureProjectTables(db);
   await ensureProjectIndexes(db);
-  await appendModuleToJsonColumn(db, 'companies', 'allowed_modules', 'projects');
-  await appendModuleToJsonColumn(db, 'business_activities', 'modules_json', 'projects');
+  const metadataDb = masterDb || db;
+  await appendModuleToJsonColumn(metadataDb, 'companies', 'allowed_modules', 'projects');
+  await appendModuleToJsonColumn(metadataDb, 'business_activities', 'modules_json', 'projects');
   await ensureQuoteInvoiceSupport(db, parseCurrencyList);
 }
 
@@ -2666,7 +2681,7 @@ async function ensureQuoteInvoiceSupport(db) {
   await runDb(db, 'CREATE INDEX IF NOT EXISTS idx_invoice_status_history_header ON invoice_status_history (invoice_header_id, company_id)');
 }
 
-async function buildProjectsDashboardViewModel({ db, companyId, query, parseCurrencyList }) {
+async function buildProjectsDashboardViewModel({ db, masterDb, companyId, query, parseCurrencyList }) {
   const section = normalizeDashboardSection(query.section);
   const view = normalizeDashboardView(query.view);
   const quoteView = normalizeQuoteDashboardView(query.quote_view);
@@ -2691,7 +2706,7 @@ async function buildProjectsDashboardViewModel({ db, companyId, query, parseCurr
   const quoteTargetId = normalizeId(query.quote_target_id);
   const quoteMode = normalizeQuoteDashboardMode(query.quote_mode);
   const editingQuoteId = normalizeId(query.quote_id);
-  const companyCurrency = await fetchCompanyCurrency(db, companyId, parseCurrencyList);
+  const companyCurrency = await fetchCompanyCurrency(masterDb || db, companyId, parseCurrencyList);
   const params = [companyId];
   let whereSql = 'WHERE p.company_id = ?';
   if (statusFilter && statusFilter !== 'all') {
@@ -3096,8 +3111,8 @@ async function buildProjectsDashboardViewModel({ db, companyId, query, parseCurr
   };
 }
 
-async function buildProjectDetailViewModel({ db, companyId, projectId, query, buildFileUrl, currentUser, parseCurrencyList }) {
-  const companyCurrency = await fetchCompanyCurrency(db, companyId, parseCurrencyList);
+async function buildProjectDetailViewModel({ db, masterDb, companyId, projectId, query, buildFileUrl, currentUser, parseCurrencyList }) {
+  const companyCurrency = await fetchCompanyCurrency(masterDb || db, companyId, parseCurrencyList);
   const projectRow = await getDb(
     db,
     `SELECT p.*,
@@ -3593,6 +3608,7 @@ async function createProjectTasksFromQuoteLines({ db, companyId, projectId, quot
 
 async function convertProjectQuoteToInvoice({
   db,
+  masterDb,
   companyId,
   quote,
   userId,
@@ -3622,7 +3638,7 @@ async function convertProjectQuoteToInvoice({
     commitTransaction,
     rollbackTransaction,
     async () => {
-      const company = await fetchCompanyCurrency(db, companyId, parseCurrencyList);
+      const company = await fetchCompanyCurrency(masterDb || db, companyId, parseCurrencyList);
       const serviceItemId = await ensureProjectServiceItem(db, companyId);
       const currency = normalizeText(quote.currency).toUpperCase() || company.baseCurrency;
       const exchangeRate = currency === company.baseCurrency ? 1 : (toNumber(quote.exchange_rate, 1) || 1);
@@ -3770,6 +3786,11 @@ async function ensureProjectServiceItem(db, companyId) {
 
 async function fetchCompanyCurrency(db, companyId, parseCurrencyList) {
   const company = await getDb(db, 'SELECT base_currency, currency, allowed_currencies FROM companies WHERE id = ?', [companyId]);
+  if (!company) {
+    const error = new Error(`Empresa ${companyId} no encontrada en la base master.`);
+    error.code = 'PROJECTS_COMPANY_NOT_FOUND';
+    throw error;
+  }
   const baseCurrency = normalizeText((company && (company.base_currency || company.currency)) || 'GTQ').toUpperCase() || 'GTQ';
   const allowedCurrencies = typeof parseCurrencyList === 'function'
     ? parseCurrencyList(company && company.allowed_currencies, baseCurrency)
@@ -3789,6 +3810,11 @@ async function fetchProjectCompanyProfile(db, companyId, parseCurrencyList, buil
      WHERE id = ?`,
     [companyId]
   );
+  if (!company) {
+    const error = new Error(`Empresa ${companyId} no encontrada en la base master.`);
+    error.code = 'PROJECTS_COMPANY_NOT_FOUND';
+    throw error;
+  }
 
   const baseCurrency = String((company && (company.base_currency || company.currency)) || 'GTQ').toUpperCase();
   const allowedCurrencies = typeof parseCurrencyList === 'function'
@@ -5068,6 +5094,7 @@ function hslToHex(hue, saturation, lightness) {
 
 async function createProjectQuote({
   db,
+  masterDb,
   companyId,
   projectId,
   project,
@@ -5085,7 +5112,7 @@ async function createProjectQuote({
   }
   const totals = computeQuoteTotals(lines, body);
   const resolvedProjectId = normalizeId(projectId);
-  const companyCurrency = await fetchCompanyCurrency(db, companyId, parseCurrencyList);
+  const companyCurrency = await fetchCompanyCurrency(masterDb || db, companyId, parseCurrencyList);
   const currency = resolveProjectQuoteCurrency(body.currency, companyCurrency.allowedCurrencies, companyCurrency.baseCurrency);
   const pdfFieldsJson = JSON.stringify(normalizeProjectQuotePdfFields(body.pdf_fields, Boolean(body.pdf_fields_submitted)));
   const title = normalizeText(body.title) || (project ? `Cotizacion ${project.code || project.name}` : 'Cotizacion general');
@@ -5198,6 +5225,7 @@ async function createProjectQuote({
 
 async function updateProjectQuote({
   db,
+  masterDb,
   companyId,
   project,
   quote,
@@ -5215,7 +5243,7 @@ async function updateProjectQuote({
   }
   const totals = computeQuoteTotals(lines, body);
   const quoteProjectId = normalizeId(quote.project_id);
-  const companyCurrency = await fetchCompanyCurrency(db, companyId, parseCurrencyList);
+  const companyCurrency = await fetchCompanyCurrency(masterDb || db, companyId, parseCurrencyList);
   const currency = resolveProjectQuoteCurrency(
     body.currency || quote.currency,
     companyCurrency.allowedCurrencies,

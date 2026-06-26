@@ -11723,6 +11723,7 @@ registerAccountingRoutes(app, {
 
 registerProjectRoutes(app, {
   db,
+  masterDb,
   requireAuth,
   requirePermission,
   getCompanyId,
